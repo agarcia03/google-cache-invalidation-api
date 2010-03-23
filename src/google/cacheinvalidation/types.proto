@@ -1,0 +1,262 @@
+// Copyright 2010 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Protocol buffer definitions for main types in the cache invalidation system.
+
+package invalidation;
+
+// The type of client / application.
+message ClientType {
+  enum Type {
+    INTERNAL = 1;
+
+    // Numbers below 1000 are reserved for internal use.
+    CHROME_SYNC = 1004;
+  }
+  optional Type type = 1;
+}
+
+// A message containing either a string or a sequence of bytes.  Only one of the
+// fields should be set.  Setting both may lead to undefined behavior.
+message StringOrBytes {
+  optional string string_value = 1;
+  optional bytes bytes_value = 2;
+}
+
+// A message containing the part of the client's id that the application
+// controls.
+message ClientExternalId {
+  // The type of client.
+  optional ClientType client_type = 1;
+  // A client id assigned by the application.
+  optional StringOrBytes app_client_id = 2;
+}
+
+// Identifies an object that a client can register for.
+message ObjectId {
+
+  // The property that hosts the object.
+  enum Source {
+    INTERNAL = 1;
+
+    // Numbers below 1000 are reserved for internal use.
+    CHROME_SYNC = 1004;
+  }
+
+  // The id of the object relative to the source.
+  optional StringOrBytes name = 1;
+
+  // The source of the data.
+  optional Source source = 2;
+}
+
+// Possible statuses of operations.
+message Status {
+  enum Code {
+    SUCCESS = 1;
+    // Request missing required fields or bad field values
+    MALFORMED_REQUEST = 2;
+    // The provided user id did not match the one in the client id or session.
+    AUTHENTICATION_FAILURE = 3;
+    INVALID_CLIENT_TYPE = 4; // The client type is unknown or missing.
+    UNKNOWN_CLIENT = 5; // The id provided by the client is unknown.
+    INVALID_SESSION = 6; // The session provided by the client is invalid.
+    OBJECT_UNKNOWN = 7; // The object does not exist at the server.
+    OBJECT_DELETED = 8; // The object was deleted.
+    // An operation with a higher sequence number has already succeeded.
+    STALE_OPERATION = 9;
+    SERVICE_UNAVAILABLE = 10; // Temporary failure.
+    UNKNOWN_ERROR = 255;
+  }
+  optional Code code = 1;
+
+  // Textual description of the status or additional context about any error.
+  optional string description = 2;
+}
+
+// Invalidation for a given object/version.
+message Invalidation {
+  optional ObjectId object_id = 1;
+
+  // For deleted objects, the version number is 2^63 - 1.
+  optional uint64 version = 2;
+
+  // Records a history of how long it took the invalidation to pass through
+  // various components. FOR INTERNAL USE ONLY.
+  optional ComponentStampLog component_stamp_log = 3;
+}
+
+// Record of a transit time at a particular component.
+// FOR INTERNAL USE ONLY.
+message ComponentStamp {
+  optional string component = 1;
+  optional uint64 time = 2; // miliseconds since UNIX epoch
+}
+
+// List of transit times.
+// FOR INTERNAL USE ONLY.
+message ComponentStampLog {
+  repeated ComponentStamp stamps = 1;
+}
+
+// Specifies the intention to change a registration on a specific object.  To
+// update registrations, a client sends a message containing repeated
+// RegistrationUpdate messages.
+message RegistrationUpdate {
+  enum Type {
+    REGISTER = 1;
+    UNREGISTER = 2;
+  }
+  required Type type = 1;  // Whether to register or unregister.
+  required ObjectId object_id = 2;  // The object for which to (un)register.
+
+  // The (optional) highest version number the client knows for this object.
+  optional uint64 version = 3;
+
+  // A client-supplied operation sequence number.  Each operation issued by the
+  // client should have a sequence number strictly greater than any other
+  // sequence number ever used by that client.
+  //
+  // These sequence numbers serve two purposes. On the one hand, they ensure
+  // that we process client requests in issue-order, despite possible network
+  // message reordering.  E.g., they prevent operations issued in the order
+  // "register(x), unregister(x), register(x)" from being processed as
+  // "register(x), register(x), unregister(x)," which would lead to the client
+  // not being registered for object "x."
+  //
+  // On the other hand, they are used to facilitate session switching.  When a
+  // client gets a new session, the server will inform it of its highest known
+  // sequence number; the client should resend any operations that it issued
+  // with higher sequence numbers.
+  //
+  // Note that this sequence number response is *NOT* a cumulative
+  // acknowledgement for all client-issued operations with lower sequence
+  // numbers. Some operations with lower sequence numbers may not have been
+  // processed, but in this case, the client will not have received a response
+  // for those operations. The client must detect that it has not received a
+  // response and retry those operations.
+  //
+  // One strategy for generating monotonically-increasing sequence numbers is
+  // for clients to persist a k-bit "crash count", which they increment each
+  // time they start up, and also in the event that they exhaust (n-k) bits of
+  // sequence numbers.  The overall sequence number uses the crash count for its
+  // high-order bits, plus the partial sequence number for the low-order bits.
+  //
+  // If clients find the requirement of issuing strictly-increasing sequence
+  // numbers onerous, one possibility would be to use the value of the client's
+  // clock instead.  However, if the client's clock ever flows backwards, it can
+  // leave the client vulnerable to the silent loss of registrations (either due
+  // to message reordering or data center failures).  Clients must judge for
+  // themselves whether the risk is acceptable: technically, the system's
+  // guarantees only apply to operations that were assigned proper, increasing
+  // sequence numbers (the chronologically later operations with lower sequence
+  // numbers may or may not take effect).
+  optional int64 sequence_number = 4;
+}
+
+// Indicates the result of trying to change a client's registration for an
+// object.  When a client makes a request to update registrations, the response
+// contains one of these message for each object requested by the client.
+message RegistrationUpdateResult {
+
+  // The attempted registration operation.
+  optional RegistrationUpdate operation = 1;
+
+  // The status of the operation attempt.
+  optional Status status = 2;
+}
+
+// An aggregate message combining several operations for the server.
+message ClientToServerMessage {
+  // These first two fields must be set if action is ASSIGN_CLIENT_ID.
+  // Otherwise, they are ignored.
+  optional ClientType client_type = 1;
+  optional StringOrBytes app_client_id = 2;
+  // This field must be set if action is UPDATE_SESSION.  Otherwise, it is
+  // ignored.
+  optional bytes client_id = 3;
+  // If action is omitted or POLL_INVALIDATIONS, then a session token must be
+  // provided.
+  optional bytes session_token = 4;
+
+  // Possible client actions that have no additional data associated with them.
+  // These are mutually exclusive, so it's reasonable to have a single optional
+  // enum.
+  enum Action {
+    ASSIGN_CLIENT_ID = 1; // assign a client id (and get a session)
+    UPDATE_SESSION = 2; // get a session (client id already assigned)
+    POLL_INVALIDATIONS = 3; // poll invalidations (session already exists)
+  }
+  // Client may request at most one special action.
+  optional Action action = 5;
+
+  // Requested registrtations / unregistrations.
+  repeated RegistrationUpdate register_operation = 6;
+
+  // Acknowledged invalidations.
+  repeated Invalidation acked_invalidation = 7;
+
+  // Whether this client has persistence (should be set for ASSIGN_CLIENT_ID).
+  optional bool is_persistent = 8;
+
+  // A nonce for request-reply matching for ASSIGN_CLIENT_ID.  Since some
+  // delivery service implementations may reorder or misdeliver responses, it's
+  // important that clients have a way of knowing that messages are actually
+  // relevant to them.  The normal mechanism for checking messages involves the
+  // client's comparing its session token with the one in the message.  However,
+  // when a client id is assigned, the client (by definition) has no session
+  // token, so we use a nonce instead.
+  optional uint64 nonce = 9;
+}
+
+// An aggregate message containing responses to (possibly) several client
+// requests.
+message ServerToClientMessage {
+  // If the client requested an ASSIGN_CLIENT_ID action, and this was
+  // successful, then client_id contains the assigned id.  If the status code is
+  // UNKNOWN_CLIENT, then this contains the unknown client id that that client
+  // tried to use.  In all other cases, the server may omit this field.
+  optional bytes client_id = 1;
+  // Token identifying the current session.
+  optional bytes session_token = 2;
+  // Results of registration updates.
+  repeated RegistrationUpdateResult registration_result = 3;
+  // Invalidations.
+  repeated Invalidation invalidation = 4;
+  // The soonest the client send its next heartbeat.
+  optional uint32 next_heartbeat_interval_ms = 5;
+  // The soonest the client should poll for invalidations again.
+  optional uint32 next_poll_interval_ms = 6;
+  // For a new session, the last sequence number the new server knows about.
+  // Any operations the client performed with higher sequence numbers should be
+  // considered lost, so the client should resend them.
+  optional uint64 last_operation_sequence_number = 7;
+
+  // An overall status for the collection of requests.  If SUCCESS, then there
+  // were no problems with the client id or session token, but the client must
+  // check the individual statuses of the registration updates, as they may
+  // succeed or fail independently.  If status is not SUCCESS, then there was a
+  // problem with the client's id or session token, so all operations failed.
+  optional Status status = 8;
+
+  // If a client id is being assigned, then these fields must contain the client
+  // type, app client id, and nonce the client provided with the
+  // ASSIGN_CLIENT_ID request.  Providing these values allows the client to
+  // verify that the response is really intended for it.  Such verification is
+  // necessary because a delivery service may send a given response to several
+  // clients belonging to the same user.
+  optional ClientType client_type = 9;
+  optional StringOrBytes app_client_id = 10;
+  optional uint64 nonce = 11;
+}
