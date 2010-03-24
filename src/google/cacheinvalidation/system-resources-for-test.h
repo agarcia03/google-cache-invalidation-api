@@ -14,8 +14,8 @@
 
 // An implementation of SystemResources for unit testing.
 
-#ifndef GOOGLE_CACHEINVALIDATION_TEST_SYSTEM_RESOURCES_FOR_TEST_H_
-#define GOOGLE_CACHEINVALIDATION_TEST_SYSTEM_RESOURCES_FOR_TEST_H_
+#ifndef GOOGLE_CACHEINVALIDATION_SYSTEM_RESOURCES_FOR_TEST_H_
+#define GOOGLE_CACHEINVALIDATION_SYSTEM_RESOURCES_FOR_TEST_H_
 
 #include <cstdarg>
 #include <queue>
@@ -163,4 +163,4 @@ class SystemResourcesForTest : public SystemResources {
 
 }  // namespace invalidation
 
-#endif  // GOOGLE_CACHEINVALIDATION_TEST_SYSTEM_RESOURCES_FOR_TEST_H_
+#endif  // GOOGLE_CACHEINVALIDATION_SYSTEM_RESOURCES_FOR_TEST_H_
