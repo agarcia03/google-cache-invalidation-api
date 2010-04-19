@@ -95,7 +95,7 @@ void NetworkManager::RegisterOutboundListener(
 void NetworkManager::InformOutboundListener() {
   // Explicitness hack here to work around broken callback
   // implementations.
-  void (NetworkCallback::*run_function)(NetworkEndpoint*) =
+  void (NetworkCallback::*run_function)(NetworkEndpoint* const&) =
       &NetworkCallback::Run;
 
   TLOG(INFO_LEVEL, "scheduling outbound listener");

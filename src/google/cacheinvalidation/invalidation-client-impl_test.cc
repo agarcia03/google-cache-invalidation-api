@@ -101,7 +101,7 @@ class InvalidationClientImplTest : public testing::Test {
   bool outbound_message_ready_;
 
   /* Listens for outbound messages from the Ticl. */
-  void HandleOutboundMessageReady(NetworkEndpoint* endpoint) {
+  void HandleOutboundMessageReady(NetworkEndpoint* const& endpoint) {
     outbound_message_ready_ = true;
   }
 

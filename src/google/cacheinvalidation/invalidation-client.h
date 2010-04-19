@@ -32,7 +32,7 @@ using INVALIDATION_STL_NAMESPACE::string;
 class NetworkEndpoint;
 class StorageOperation;
 
-typedef INVALIDATION_CALLBACK1_TYPE(NetworkEndpoint*) NetworkCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(NetworkEndpoint* const&) NetworkCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(const RegistrationUpdateResult&)
     RegistrationCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(const StorageOperation&) StorageCallback;
