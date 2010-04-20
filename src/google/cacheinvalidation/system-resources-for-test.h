@@ -22,10 +22,10 @@
 #include <string>
 #include <utility>
 
-#include "base/logging.h"
-#include "base/stringprintf.h"
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/invalidation-client.h"
+#include "google/cacheinvalidation/logging.h"
+#include "google/cacheinvalidation/string_util.h"
 #include "google/cacheinvalidation/time.h"
 
 namespace invalidation {

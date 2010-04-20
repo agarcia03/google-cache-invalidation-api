@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GOOGLE_CACHEINVALIDATION_TIME_H_
-#define GOOGLE_CACHEINVALIDATION_TIME_H_
+#ifndef GOOGLE_CACHEINVALIDATION_LOGGING_H_
+#define GOOGLE_CACHEINVALIDATION_LOGGING_H_
 
-#error This file should be replaced with a stub pointing to something \
-  like base/time.h from the Chromium source tree, with definitions for types \
-  Time, TimeDelta, etc.
+#error This file should be replaced with a stub pointing to the google-glog \
+  header. 
 
-#endif  // GOOGLE_CACHEINVALIDATION_TIME_H_
+#endif  // GOOGLE_CACHEINVALIDATION_LOGGING_H_

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GOOGLE_CACHEINVALIDATION_TIME_H_
-#define GOOGLE_CACHEINVALIDATION_TIME_H_
+#ifndef GOOGLE_CACHEINVALIDATION_STRING_UTIL_H_
+#define GOOGLE_CACHEINVALIDATION_STRING_UTIL_H_
 
-#error This file should be replaced with a stub pointing to something \
-  like base/time.h from the Chromium source tree, with definitions for types \
-  Time, TimeDelta, etc.
+#error This file should be replaced with a stub pointing to a file \
+  containing string utility functions in the invalidation namespace. \
+  At least StringAppendV() is needed.
 
-#endif  // GOOGLE_CACHEINVALIDATION_TIME_H_
+#endif  // GOOGLE_CACHEINVALIDATION_STRING_UTIL_H_

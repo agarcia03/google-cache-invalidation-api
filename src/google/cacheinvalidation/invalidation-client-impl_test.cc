@@ -14,12 +14,12 @@
 
 #include <queue>
 
-#include "base/logging.h"
 #include "base/scoped_ptr.h"
+#include "google/cacheinvalidation/googletest.h"
+#include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/system-resources-for-test.h"
-#include "gtest/gtest.h"
 
 namespace invalidation {
 

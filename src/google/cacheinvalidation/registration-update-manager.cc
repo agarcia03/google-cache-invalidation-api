@@ -14,10 +14,10 @@
 
 #include "google/cacheinvalidation/registration-update-manager.h"
 
-#include "base/logging.h"
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
+#include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/log-macro.h"
 
 namespace invalidation {

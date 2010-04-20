@@ -16,10 +16,10 @@
 
 #include <algorithm>
 
-#include "base/logging.h"
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 #include "google/cacheinvalidation/log-macro.h"
+#include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/time.h"
 
