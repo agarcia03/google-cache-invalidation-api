@@ -16,6 +16,7 @@
 #define GOOGLE_CACHEINVALIDATION_LOGGING_H_
 
 #error This file should be replaced with a stub pointing to the google-glog \
-  header. 
+  header.  Also there should be a LogMessage() function in the invalidation \
+  namespace.
 
 #endif  // GOOGLE_CACHEINVALIDATION_LOGGING_H_
