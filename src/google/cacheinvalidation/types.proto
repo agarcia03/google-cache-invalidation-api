@@ -14,6 +14,10 @@
 
 // Protocol buffer definitions for main types in the cache invalidation system.
 
+syntax = "proto2";
+
+option optimize_for = LITE_RUNTIME;
+
 package invalidation;
 
 // The type of client / application.
