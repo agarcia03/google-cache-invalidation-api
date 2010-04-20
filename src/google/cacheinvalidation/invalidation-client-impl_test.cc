@@ -16,7 +16,6 @@
 
 #include "base/logging.h"
 #include "base/scoped_ptr.h"
-#include "google/cacheinvalidation/internal.pb.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/system-resources-for-test.h"
@@ -107,10 +106,10 @@ class InvalidationClientImplTest : public testing::Test {
 
   scoped_ptr<NetworkCallback> network_listener_;
 
-  /* The client id that we've assigned for the Ticl. */
-  ClientUniquifier client_id_;
+  /* The uniquifier that we've assigned for the client. */
+  string client_uniquifier_;
 
-  /* The session token we've assigned for the Ticl. */
+  /* The session token we've assigned for the client. */
   string session_token_;
 
   /* A register operation. */
@@ -144,7 +143,7 @@ class InvalidationClientImplTest : public testing::Test {
 
     // Check that it contains the fields of an external id.
     ASSERT_TRUE(message.has_client_type());
-    ASSERT_EQ(message.client_type().type(), ClientType_Type_CALENDAR);
+    ASSERT_EQ(message.client_type().type(), ClientType_Type_CHROME_SYNC);
     ASSERT_TRUE(message.has_app_client_id());
     ASSERT_EQ(message.app_client_id().string_value(), APP_NAME);
 
@@ -175,22 +174,19 @@ class InvalidationClientImplTest : public testing::Test {
     ClientExternalId external_id;
     CheckAssignClientIdRequest(message, &external_id);
 
-    // Construct a full client id.
-    client_id_.set_high_bits(4);
-    client_id_.set_low_bits(7);
+    // Construct a uniquifier.
+    client_uniquifier_ = "uniquifier";
 
     // Also construct an initial session token.
     session_token_ = OPAQUE_DATA;
 
-    // Construct a response with the client id and session token.
+    // Construct a response with the uniquifier and session token.
     ServerToClientMessage response;
-    string client_id_str;
-    client_id_.SerializeToString(&client_id_str);
     response.mutable_client_type()->set_type(external_id.client_type().type());
     response.mutable_app_client_id()->set_string_value(
         external_id.app_client_id().string_value());
     response.set_nonce(message.nonce());
-    response.set_client_id(client_id_str);
+    response.set_client_id(client_uniquifier_);
     response.set_session_token(session_token_);
     response.mutable_status()->set_code(Status_Code_SUCCESS);
 
@@ -341,17 +337,13 @@ class InvalidationClientImplTest : public testing::Test {
     ASSERT_TRUE(request.has_action());
     ASSERT_EQ(request.action(), ClientToServerMessage_Action_UPDATE_SESSION);
     ASSERT_TRUE(request.has_client_id());
-    ClientUniquifier uniq;
-    uniq.ParseFromString(request.client_id());
-    ASSERT_EQ(uniq.low_bits(), client_id_.low_bits());
-    ASSERT_EQ(uniq.high_bits(), client_id_.high_bits());
+    ASSERT_EQ(client_uniquifier_, request.client_id());
 
     // Give it a new session token and tell it one of its registrations was
     // lost.
     session_token_ = "NEW_OPAQUE_DATA";
     message.Clear();
-    client_id_.SerializeToString(&serialized);
-    message.set_client_id(serialized);
+    message.set_client_id(client_uniquifier_);
     message.set_session_token(session_token_);
     message.mutable_status()->set_code(Status_Code_SUCCESS);
     message.set_last_operation_sequence_number(1);
@@ -373,11 +365,11 @@ class InvalidationClientImplTest : public testing::Test {
 
   virtual void SetUp() {
     object_id1_.Clear();
-    object_id1_.set_source(ObjectId_Source_CALENDAR);
-    object_id1_.mutable_name()->set_string_value("someone@example.com");
+    object_id1_.set_source(ObjectId_Source_CHROME_SYNC);
+    object_id1_.mutable_name()->set_string_value("BOOKMARKS");
     object_id2_.Clear();
-    object_id2_.set_source(ObjectId_Source_CONTACTS);
-    object_id2_.mutable_name()->set_string_value("someone@example.com");
+    object_id2_.set_source(ObjectId_Source_CHROME_SYNC);
+    object_id2_.mutable_name()->set_string_value("HISTORY");
     resources_.reset(new SystemResourcesForTest());
     resources_->ModifyTime(TimeDelta::FromSeconds(1000000));
     resources_->StartScheduler();
@@ -390,7 +382,7 @@ class InvalidationClientImplTest : public testing::Test {
             this, &InvalidationClientImplTest::HandleRegistrationResult));
     ClientConfig ticl_config;
     ClientType client_type;
-    client_type.set_type(ClientType_Type_CALENDAR);
+    client_type.set_type(ClientType_Type_CHROME_SYNC);
     ticl_.reset(new InvalidationClientImpl(
         resources_.get(), client_type, APP_NAME, listener_.get(), ticl_config));
     reg_results_.clear();
@@ -436,21 +428,16 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
   ClientExternalId external_id;
   CheckAssignClientIdRequest(message, &external_id);
 
-  // Construct a full client id.
-  client_id_.set_high_bits(4);
-  client_id_.set_low_bits(7);
-  string client_id_str;
-  client_id_.SerializeToString(&client_id_str);
-
-  // Also construct an initial session token.
+  // Fabricate a uniquifier and initial session token.
+  client_uniquifier_ = "uniquifier";
   session_token_ = OPAQUE_DATA;
 
-  // Construct a response with a client id and session token but the wrong app
-  // client id.
+  // Construct a response with the uniquifier and session token but the wrong
+  // app client id.
   ServerToClientMessage response;
   response.mutable_client_type()->CopyFrom(external_id.client_type());
   response.mutable_app_client_id()->set_string_value("wrong-app-client-id");
-  response.set_client_id(client_id_str);
+  response.set_client_id(client_uniquifier_);
   response.set_session_token(session_token_);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
@@ -463,7 +450,7 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   message.ParseFromString(serialized);
 
-  // Check that the is still looking for a client id.
+  // Check that the Ticl is still looking for a client id.
   CheckAssignClientIdRequest(message, &external_id);
 }
 
@@ -617,17 +604,14 @@ TEST_F(InvalidationClientImplTest, InitializationInTwoSteps) {
   ClientExternalId external_id;
   CheckAssignClientIdRequest(message, &external_id);
 
-  // Construct a client id, but not a session token, and respond with it.
-  client_id_.set_high_bits(4);
-  client_id_.set_low_bits(7);
+  // Fabricate a uniquifier, but not a session token, and respond with it.
   ServerToClientMessage response;
-  string client_id_str;
-  client_id_.SerializeToString(&client_id_str);
+  client_uniquifier_ = "uniquifier";
   response.mutable_client_type()->set_type(external_id.client_type().type());
   response.mutable_app_client_id()->set_string_value(
       external_id.app_client_id().string_value());
   response.set_nonce(message.nonce());
-  response.set_client_id(client_id_str);
+  response.set_client_id(client_uniquifier_);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -641,17 +625,14 @@ TEST_F(InvalidationClientImplTest, InitializationInTwoSteps) {
   ASSERT_TRUE(message.has_action());
   ASSERT_EQ(message.action(), ClientToServerMessage_Action_UPDATE_SESSION);
   ASSERT_TRUE(message.has_client_id());
-  ClientUniquifier actual_client_id;
-  actual_client_id.ParseFromString(message.client_id());
-  ASSERT_EQ(actual_client_id.low_bits(), client_id_.low_bits());
-  ASSERT_EQ(actual_client_id.high_bits(), client_id_.high_bits());
+  ASSERT_EQ(client_uniquifier_, message.client_id());
   ASSERT_FALSE(message.has_session_token());
 
   // Construct a session token and respond with it.
   session_token_ = OPAQUE_DATA;
   response.Clear();
   response.set_session_token(session_token_);
-  response.set_client_id(client_id_str);
+  response.set_client_id(client_uniquifier_);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -691,17 +672,14 @@ TEST_F(InvalidationClientImplTest, MismatchingSessionUpdateIgnored) {
   ClientExternalId external_id;
   CheckAssignClientIdRequest(message, &external_id);
 
-  // Construct a client id, but not a session token, and respond with it.
-  client_id_.set_high_bits(4);
-  client_id_.set_low_bits(7);
-  string client_id_str;
-  client_id_.SerializeToString(&client_id_str);
+  // Fabricate a uniquifier, but not a session token, and respond with it.
+  client_uniquifier_ = "uniquifier";
 
   ServerToClientMessage response;
   response.mutable_client_type()->CopyFrom(external_id.client_type());
   response.mutable_app_client_id()->CopyFrom(external_id.app_client_id());
   response.set_nonce(message.nonce());
-  response.set_client_id(client_id_str);
+  response.set_client_id(client_uniquifier_);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
 
@@ -717,20 +695,16 @@ TEST_F(InvalidationClientImplTest, MismatchingSessionUpdateIgnored) {
   ASSERT_EQ(message.action(), ClientToServerMessage_Action_UPDATE_SESSION);
   ASSERT_TRUE(message.has_client_id());
 
-  ASSERT_EQ(client_id_str, message.client_id());
+  ASSERT_EQ(client_uniquifier_, message.client_id());
   ASSERT_FALSE(message.has_session_token());
 
   // Construct a session token and respond with it.
   session_token_ = OPAQUE_DATA;
-  ClientUniquifier bad_client_id;
-  bad_client_id.set_high_bits(3);
-  bad_client_id.set_low_bits(8);
-  string bad_client_id_str;
-  bad_client_id.SerializeToString(&bad_client_id_str);
+  string bad_uniquifier_str = "baduniquifier";
 
   response.Clear();
   response.set_session_token(session_token_);
-  response.set_client_id(bad_client_id_str);
+  response.set_client_id(bad_uniquifier_str);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
 
@@ -1057,8 +1031,7 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
   message.mutable_status()->set_code(Status_Code_UNKNOWN_CLIENT);
   message.set_session_token(session_token_);
   string serialized;
-  client_id_.SerializeToString(&serialized);
-  message.set_client_id(serialized);
+  message.set_client_id(client_uniquifier_);
   message.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
@@ -1072,10 +1045,8 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
   ClientExternalId external_id;
   CheckAssignClientIdRequest(request, &external_id);
 
-  // Give it a new client id and session.
-  client_id_.set_low_bits(4);
-  client_id_.set_high_bits(7);
-  client_id_.SerializeToString(&serialized);
+  // Give it a new uniquifier and session.
+  string new_uniquifier_str = "newuniquifierstr";
 
   session_token_ = "new opaque data";
   ServerToClientMessage response;
@@ -1085,7 +1056,7 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
   response.mutable_app_client_id()->set_string_value(
       external_id.app_client_id().string_value());
   response.set_nonce(request.nonce());
-  response.set_client_id(serialized);
+  response.set_client_id(new_uniquifier_str);
   response.SerializeToString(&serialized);
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
