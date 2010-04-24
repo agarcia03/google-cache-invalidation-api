@@ -42,35 +42,6 @@ struct PendingOperation {
   RegistrationCallback* callback;
 };
 
-// Configuration parameters for the Ticl.
-struct ClientConfig {
-  ClientConfig()
-      : registration_timeout(TimeDelta::FromMinutes(1)),
-        initial_heartbeat_interval(TimeDelta::FromMinutes(1)),
-        initial_polling_interval(TimeDelta::FromMinutes(10)) {}
-
-  ClientConfig(TimeDelta reg_timeout, TimeDelta heartbeat_interval,
-               TimeDelta polling_interval)
-      : registration_timeout(reg_timeout),
-        initial_heartbeat_interval(heartbeat_interval),
-        initial_polling_interval(polling_interval) {}
-
-  // Registration timeout.  If the Ticl has not received a reply for a
-  // registration in this long, it will resend the message.
-  TimeDelta registration_timeout;
-
-  // Interval at which heartbeat messages will be sent to the server (ms), until
-  // the server specifies a different interval.
-  TimeDelta initial_heartbeat_interval;
-
-  // Interval at which the server (ms) will be polled for invalidations, until
-  // it specifies a different interval.
-  TimeDelta initial_polling_interval;
-
-  // Default registration timeout, in milliseconds.
-  static const int32 DEFAULT_REGISTRATION_TIMEOUT_MS;
-};
-
 /**
  * Implementation of the Invalidation Client Library (Ticl).
  */

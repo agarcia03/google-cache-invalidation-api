@@ -15,7 +15,9 @@
 #ifndef GOOGLE_CACHEINVALIDATION_NETWORK_MANAGER_H_
 #define GOOGLE_CACHEINVALIDATION_NETWORK_MANAGER_H_
 
+#include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/invalidation-client.h"
+#include "google/cacheinvalidation/throttle.h"
 #include "google/cacheinvalidation/time.h"
 #include "google/cacheinvalidation/types.pb.h"
 
@@ -74,14 +76,13 @@ class NetworkManager {
   void RegisterOutboundListener(
       NetworkCallback* outbound_message_ready);
 
-  /* The maximum delay for the timer that checks whether to send a heartbeat.
-   */
-  static const int MAX_TIMER_DELAY_MS;
+  /* Calls DoInformOutboundListener() through a throttler. */
+  void InformOutboundListener();
 
   /* Schedules a task to inform the network listener immediately that the Ticl
    * has outbound data waiting to be sent.
    */
-  void InformOutboundListener();
+  void DoInformOutboundListener();
 
   /* The network endpoint through which the application and Ticl communicate.
    */
@@ -89,6 +90,11 @@ class NetworkManager {
 
   /* System resources (for scheduling and logging). */
   SystemResources* resources_;
+
+  /* A rate-limiter for calls to inform the network listenr that we have data to
+   * send.
+   */
+  Throttle throttle_;
 
   /* Whether or not we have useful data for the server. */
   bool has_outbound_data_;
@@ -113,6 +119,10 @@ class NetworkManager {
    * message content to send).
    */
   TimeDelta heartbeat_delay_;
+
+  /* The maximum delay for the timer that checks whether to send a heartbeat.
+   */
+  static const int MAX_TIMER_DELAY_MS;
 
   friend class InvalidationClientImpl;
 };

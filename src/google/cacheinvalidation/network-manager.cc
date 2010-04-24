@@ -34,11 +34,14 @@ const int NetworkManager::MAX_TIMER_DELAY_MS = 5 * 1000;
 NetworkManager::NetworkManager(
     NetworkEndpoint* endpoint, SystemResources* resources,
     const ClientConfig& config)
-    : endpoint_(endpoint), resources_(resources), has_outbound_data_(false),
-      outbound_listener_(NULL), last_poll_(Time()), last_send_(Time()),
-      poll_delay_(config.initial_polling_interval),
+    : endpoint_(endpoint), resources_(resources),
+      // Set the throttler up with rate limits defined by the config.
+      throttle_(config.rate_limits, resources,
+                NewPermanentCallback(
+                    this, &NetworkManager::DoInformOutboundListener)),
+      has_outbound_data_(false), outbound_listener_(NULL), last_poll_(Time()),
+      last_send_(Time()), poll_delay_(config.initial_polling_interval),
       heartbeat_delay_(config.initial_heartbeat_interval) {
-
   // Schedule a task that sends a heartbeat if there's ever a period of
   // heartbeatDelay without any outbound network traffic.
   resources_->ScheduleImmediately(
@@ -93,14 +96,23 @@ void NetworkManager::RegisterOutboundListener(
 }
 
 void NetworkManager::InformOutboundListener() {
+  throttle_.Fire();
+}
+
+void NetworkManager::DoInformOutboundListener() {
   // Explicitness hack here to work around broken callback
   // implementations.
   void (NetworkCallback::*run_function)(NetworkEndpoint* const&) =
       &NetworkCallback::Run;
 
-  TLOG(INFO_LEVEL, "scheduling outbound listener");
-  resources_->ScheduleImmediately(
-      NewPermanentCallback(outbound_listener_, run_function, endpoint_));
+  // This call may have gotten deferred by the throttler, so check again that we
+  // have outbound data before scheduling the ping (the app could have pulled a
+  // bundle of its own accord in the mean time).
+  if (has_outbound_data_) {
+    TLOG(INFO_LEVEL, "scheduling outbound listener");
+    resources_->ScheduleImmediately(
+        NewPermanentCallback(outbound_listener_, run_function, endpoint_));
+  }
 }
 
 void NetworkManager::HandleOutboundMessage(ClientToServerMessage* message,

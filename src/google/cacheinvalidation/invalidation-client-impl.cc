@@ -23,7 +23,6 @@ namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
 
-const int ClientConfig::DEFAULT_REGISTRATION_TIMEOUT_MS = 60000;  // one minute
 const char* InvalidationClientImpl::INVALIDATE_ALL_OBJECT_NAME = "ALL";
 
 void InvalidationClientImpl::Register(

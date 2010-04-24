@@ -19,6 +19,7 @@
 #define GOOGLE_CACHEINVALIDATION_INVALIDATION_CLIENT_H_
 
 #include <string>
+#include <vector>
 
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/stl-namespace.h"
@@ -206,6 +207,59 @@ class NetworkEndpoint {
   virtual void AdviseNetworkStatus(bool online) = 0;
 };
 
+// A rate limit of 'count' events over a window of duration 'window_size'.  The
+// client configuration contains a collection of rate limits to be enforced on
+// the outbound network listener.
+struct RateLimit {
+  RateLimit(TimeDelta window_size, int count)
+      : window_size(window_size), count(count) {}
+
+  TimeDelta window_size;
+  int count;
+};
+
+// Configuration parameters for the Ticl.
+struct ClientConfig {
+  ClientConfig()
+      : registration_timeout(TimeDelta::FromMinutes(1)),
+        initial_heartbeat_interval(TimeDelta::FromMinutes(1)),
+        initial_polling_interval(TimeDelta::FromMinutes(10)) {
+    AddDefaultRateLimits();
+  }
+
+  ClientConfig(TimeDelta reg_timeout, TimeDelta heartbeat_interval,
+               TimeDelta polling_interval)
+      : registration_timeout(reg_timeout),
+        initial_heartbeat_interval(heartbeat_interval),
+        initial_polling_interval(polling_interval) {
+    AddDefaultRateLimits();
+  }
+
+  // Adds default rate limits of one message per second, and six messages per
+  // minute, to the config.
+  void AddDefaultRateLimits() {
+    // One message per second.
+    rate_limits.push_back(RateLimit(TimeDelta::FromSeconds(1), 1));
+    // Six messages per minute.
+    rate_limits.push_back(RateLimit(TimeDelta::FromMinutes(1), 6));
+  }
+
+  // Registration timeout.  If the Ticl has not received a reply for a
+  // registration in this long, it will resend the message.
+  TimeDelta registration_timeout;
+
+  // Interval at which heartbeat messages will be sent to the server, until the
+  // server specifies a different interval.
+  TimeDelta initial_heartbeat_interval;
+
+  // Interval at which the server will be polled for invalidations, until it
+  // specifies a different interval.
+  TimeDelta initial_polling_interval;
+
+  // The rate limits for the network manager.
+  vector<RateLimit> rate_limits;
+};
+
 // Allows an application to register and unregister for invalidations for
 // specific objects; reliably delivers invalidations when these objects change.
 class InvalidationClient {
@@ -231,6 +285,8 @@ class InvalidationClient {
   static InvalidationClient* Create(
       SystemResources* resources, const ClientType& client_type,
       const string& client_id, InvalidationListener *listener);
+
+  // TODO(ghc): allow Create() to take a ClientConfig.
 
   // Requests that the InvalidationClient register to receive
   // invalidations for the object with id oid.  The invalidation

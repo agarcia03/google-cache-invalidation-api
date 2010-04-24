@@ -68,6 +68,13 @@ class TestListener : public InvalidationListener {
 
 class InvalidationClientImplTest : public testing::Test {
  public:
+  InvalidationClientImplTest() :
+      // Calls to the outbound network listener are throttled to no more than
+      // one per second, so sometimes we need to advance time by this much in
+      // order for the next call to be made.
+      fine_throttle_interval_(TimeDelta::FromSeconds(1)),
+      default_registration_timeout_(TimeDelta::FromMinutes(1)) {}
+
   /* A name for the application. */
   static const char* APP_NAME;
 
@@ -120,6 +127,12 @@ class InvalidationClientImplTest : public testing::Test {
 
   /* Registration responses we've received. */
   vector<RegistrationUpdateResult> reg_results_;
+
+  /* The throttler's smaller window size. */
+  TimeDelta fine_throttle_interval_;
+
+  /* The default registration timeout. */
+  TimeDelta default_registration_timeout_;
 
   /* A registration callback that writes its result to reg_results_. */
   void HandleRegistrationResult(const RegistrationUpdateResult& result) {
@@ -302,8 +315,7 @@ class InvalidationClientImplTest : public testing::Test {
 
     // Advance the clock a lot, run everything, and make sure it's not trying to
     // resend.
-    resources_->ModifyTime(TimeDelta::FromMilliseconds(
-        ClientConfig::DEFAULT_REGISTRATION_TIMEOUT_MS));
+    resources_->ModifyTime(default_registration_timeout_);
     resources_->RunReadyTasks();
     ClientToServerMessage message;
     ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
@@ -325,6 +337,7 @@ class InvalidationClientImplTest : public testing::Test {
     string serialized;
     message.SerializeToString(&serialized);
     ticl_->network_endpoint()->HandleInboundMessage(serialized);
+    resources_->ModifyTime(fine_throttle_interval_);
     resources_->RunReadyTasks();
 
     // Check that the Ticl has pinged the client to indicate it has a request.
@@ -530,9 +543,10 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespectedTest) {
   TestInitialization();
 
   // Respond with a new heartbeat interval (larger than the default).
+  int new_heartbeat_interval_ms = 300000;
   ServerToClientMessage response;
   response.set_session_token(session_token_);
-  response.set_next_heartbeat_interval_ms(80000);
+  response.set_next_heartbeat_interval_ms(new_heartbeat_interval_ms);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   string serialized;
   response.SerializeToString(&serialized);
@@ -543,12 +557,13 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespectedTest) {
 
   // Advance to just shy of the heartbeat interval, and check that the Ticl did
   // not nudge the application to send.
-  resources_->ModifyTime(TimeDelta::FromMilliseconds(79999));
+  resources_->ModifyTime(
+      TimeDelta::FromMilliseconds(new_heartbeat_interval_ms - 1));
   resources_->RunReadyTasks();
   ASSERT_FALSE(outbound_message_ready_);
 
   // Advance further, and check that it did nudge the application to send.
-  resources_->ModifyTime(TimeDelta::FromMilliseconds(1));
+  resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
   ASSERT_TRUE(outbound_message_ready_);
 
@@ -615,6 +630,7 @@ TEST_F(InvalidationClientImplTest, InitializationInTwoSteps) {
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
+  resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
 
   // Check that the Ticl has a new message to send, and that it's asking for a
@@ -684,6 +700,7 @@ TEST_F(InvalidationClientImplTest, MismatchingSessionUpdateIgnored) {
   response.SerializeToString(&serialized);
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
+  resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
 
   // Check that the Ticl has a new message to send, and that it's asking for a
@@ -761,8 +778,7 @@ TEST_F(InvalidationClientImplTest, RegistrationRetried) {
 
   // Advance the clock without responding and make sure the Ticl resends the
   // request.
-  resources_->ModifyTime(TimeDelta::FromMilliseconds(
-      ClientConfig::DEFAULT_REGISTRATION_TIMEOUT_MS));
+  resources_->ModifyTime(default_registration_timeout_);
   resources_->RunReadyTasks();
   ClientToServerMessage message;
   string serialized;
@@ -798,8 +814,7 @@ TEST_F(InvalidationClientImplTest, RegistrationRetried) {
 
   // Advance the clock again, and check that (only) the unacked operation is
   // retried again.
-  resources_->ModifyTime(TimeDelta::FromMilliseconds(
-      ClientConfig::DEFAULT_REGISTRATION_TIMEOUT_MS));
+  resources_->ModifyTime(default_registration_timeout_);
   resources_->RunReadyTasks();
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   message.ParseFromString(serialized);
@@ -870,8 +885,7 @@ TEST_F(InvalidationClientImplTest, RegistrationFailure) {
 
   // Advance the clock a lot, run everything, and make sure it's not trying to
   // resend.
-  resources_->ModifyTime(TimeDelta::FromMilliseconds(
-      ClientConfig::DEFAULT_REGISTRATION_TIMEOUT_MS));
+  resources_->ModifyTime(default_registration_timeout_);
   resources_->RunReadyTasks();
   ClientToServerMessage message;
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
@@ -918,6 +932,7 @@ TEST_F(InvalidationClientImplTest, Invalidation) {
   // Now run the callback, and check that the Ticl does ack the invalidation.
   tmp.second->Run();
   delete tmp.second;
+  resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
   ASSERT_TRUE(outbound_message_ready_);
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
@@ -1120,6 +1135,39 @@ TEST_F(InvalidationClientImplTest, MismatchedUnknownClientIgnored) {
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   request.ParseFromString(serialized);
   ASSERT_FALSE(request.has_action());
+}
+
+TEST_F(InvalidationClientImplTest, Throttling) {
+  /* Test plan: initialize the Ticl.  Send it a message telling it to set its
+   * heartbeat and polling intervals to 1 ms.  Make sure its pings to the app
+   * don't violate the (default) rate limits.
+   */
+  TestInitialization();
+
+  ServerToClientMessage message;
+  message.mutable_status()->set_code(Status_Code_SUCCESS);
+  message.set_session_token(session_token_);
+  message.set_next_heartbeat_interval_ms(1);
+  message.set_next_poll_interval_ms(1);
+  string serialized;
+  message.SerializeToString(&serialized);
+
+  ticl_->network_endpoint()->HandleInboundMessage(serialized);
+
+  // Run for five minutes in 10ms increments, counting the number of times the
+  // Ticl tells us it has a bundle.
+  int ping_count = 0;
+  for (int i = 0; i < 30000; ++i) {
+    resources_->ModifyTime(TimeDelta::FromMilliseconds(10));
+    resources_->RunReadyTasks();
+    if (outbound_message_ready_) {
+      ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
+      outbound_message_ready_ = false;
+      ++ping_count;
+    }
+  }
+  ASSERT_GE(ping_count, 28);
+  ASSERT_LE(ping_count, 30);
 }
 
 }  // namespace invalidation
