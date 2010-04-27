@@ -17,8 +17,11 @@
 #include <algorithm>
 
 #include "google/cacheinvalidation/callback.h"
+#include "google/cacheinvalidation/stl-namespace.h"
 
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::max;
 
 Throttle::Throttle(
     const vector<RateLimit>& rate_limits, SystemResources* resources,
