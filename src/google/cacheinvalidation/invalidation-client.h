@@ -29,6 +29,7 @@
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
+using INVALIDATION_STL_NAMESPACE::vector;
 
 class NetworkEndpoint;
 class StorageOperation;
