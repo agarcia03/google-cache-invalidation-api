@@ -28,14 +28,17 @@ using INVALIDATION_STL_NAMESPACE::string;
 class SystemResources;
 
 /* Possible categories for inbound messages. */
-enum MessageSessionStatus {
+enum MessageAction {
   // We acquired a new session token from this message.  The Ticl should repeat
   // any registration operations that may have been lost.
-  NEW_SESSION,
+  ACQUIRE_SESSION,
+
+  // We lost our session.
+  LOSE_SESSION,
 
   // This message's session token matches the one we had.  The Ticl should
   // continue processing content from this message.
-  EXISTING_SESSION,
+  PROCESS_OBJECT_CONTROL,
 
   // The session manager believes the message contains no useful information for
   // the Ticl.  For example, the message may be malformed, or the session token
@@ -51,16 +54,28 @@ enum MessageSessionStatus {
  */
 class SessionManager {
  private:
-  SessionManager(ClientType client_type, const string& app_client_id,
-                 SystemResources* resources)
-      : client_type_(client_type), app_client_id_(app_client_id), nonce_(-1),
-        resources_(resources), uniquifier_(""), session_token_("") {}
+  SessionManager(const ClientConfig& config, ClientType client_type,
+                 const string& app_client_id, SystemResources* resources)
+      : config_(config),
+        client_type_(client_type),
+        app_client_id_(app_client_id),
+        nonce_(-1),
+        last_send_time_(Time() - TimeDelta::FromHours(1)),
+        resources_(resources),
+        uniquifier_(""),
+        session_token_("") {}
 
   /* Constructs a session manager with a specified client id. */
-  SessionManager(ClientType client_type, const string& app_client_id,
-                 SystemResources* resources, const string& client_internal_id)
-      : client_type_(client_type), app_client_id_(app_client_id),
-        nonce_(-1), resources_(resources), uniquifier_(client_internal_id),
+  SessionManager(const ClientConfig& config, ClientType client_type,
+                 const string& app_client_id, SystemResources* resources,
+                 const string& client_internal_id)
+      : config_(config),
+        client_type_(client_type),
+        app_client_id_(app_client_id),
+        nonce_(-1),
+        last_send_time_(Time() - TimeDelta::FromHours(1)),
+        resources_(resources),
+        uniquifier_(client_internal_id),
         session_token_("") {}
 
   /* If the client currently has no client id, sets the ASSIGN_CLIENT_ID action
@@ -73,13 +88,44 @@ class SessionManager {
    */
   bool AddSessionAction(ClientToServerMessage* message);
 
-  /* Extracts client id and session information from a message.  Returns a
-   * status code indicating whether the message matches our current session, and
-   * if so, whether that session is new or old.
+  /* Consumes a message received from the server. If the message is a
+   * session-related message (i.e., has type TYPE_ASSIGN_CLIENT_ID,
+   * TYPE_UPDATE_SESSION, TYPE_INVALIDATE_CLIENT_ID, or
+   * TYPE_INVALIDATE_SESSION), processes it.  Additionally, the return value
+   * indicates what actions the main Ticl class should take as a result of
+   * receiving this message.
    */
-  MessageSessionStatus ClassifyMessage(const ServerToClientMessage& bundle);
+  MessageAction ProcessMessage(const ServerToClientMessage& message);
 
-  const string& client_uniquifier() {
+  /* Processes an ASSIGN_CLIENT_ID message.
+   * REQUIRES: the message be of type ASSIGN_CLIENT_ID.
+   */
+  MessageAction ProcessAssignClientId(const ServerToClientMessage& message);
+
+  /* Processes an UPDATE_SESSION message.
+   * REQUIRES: the message be of type UPDATE_SESSION.
+   */
+  MessageAction ProcessUpdateSession(const ServerToClientMessage& message);
+
+  /* Processes an INVALIDATE_CLIENT_ID message.
+   * REQUIRES: the message be of type INVALIDATE_CLIENT_ID.
+   */
+  MessageAction ProcessInvalidateClientId(const ServerToClientMessage& message);
+
+  /* Processes an INVALIDATE_SESSION message.
+   * REQUIRES: the message be of type INVALIDATE_SESSION.
+   */
+  MessageAction ProcessInvalidateSession(const ServerToClientMessage& message);
+
+  /* Determines whether the Ticl should process an OBJECT_CONTROL message.  This
+   * is done by verifying that the session token in the message matches the
+   * session token currently held by the session manager.
+   *
+   * REQUIRES: the message be of type OBJECT_CONTROL.
+   */
+  MessageAction CheckObjectControlMessage(const ServerToClientMessage& message);
+
+  const string& client_uniquifier() const {
     return uniquifier_;
   }
 
@@ -87,25 +133,25 @@ class SessionManager {
     return session_token_;
   }
 
+  /* Returns whether the session manager has a session. */
+  bool HasSession() {
+    return !session_token_.empty();
+  }
+
+  /* Returns whether the Ticl has data to send. */
+  bool HasDataToSend() {
+    return !HasSession() &&
+        (resources_->current_time() >
+         last_send_time_ + config_.registration_timeout);
+  }
+
   /* Clears the is_new_client flag if ready_client_id is equal to the current
    * client id.
    */
   void CompleteInitializationForClient(const string& ready_client_id);
 
-  /* If we have a client id, returns {@code true}.  Otherwise, checks whether
-   * the message has assigned us one: if so, acquires it and returns {@code
-   * true}; else returns {@code false}.
-   */
-  bool CheckClientId(const ServerToClientMessage& bundle);
-
-  /* If the bundle's status code is SUCCESS, returns true.  If it's
-   * UNKNOWN_CLIENT or INVALID_SESSION (and properly addressed to this client),
-   * deletes the session token (and client id, if appropriate), and returns
-   * false.  Otherwise, the message's status code is missing or unexpected, so
-   * the method returns false without taking action.  The return value indicates
-   * whether the Ticl should attempt to continue processing the message.
-   */
-  bool HandleStatusCode(const ServerToClientMessage& bundle);
+  /* Configuration parameters. */
+  ClientConfig config_;
 
   /* The type of client application. */
   const ClientType client_type_;
@@ -115,6 +161,9 @@ class SessionManager {
 
   /* A nonce to match client id-assignment responses. */
   int64 nonce_;
+
+  /* The last time we sent a message requesting a client id or session. */
+  Time last_send_time_;
 
   /* System resources (just used for logging here). */
   SystemResources * const resources_;

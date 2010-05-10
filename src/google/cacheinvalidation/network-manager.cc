@@ -27,54 +27,21 @@ namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::min;
 
-/* The maximum delay for the timer that checks whether to send a heartbeat.
- */
-const int NetworkManager::MAX_TIMER_DELAY_MS = 5 * 1000;
-
 NetworkManager::NetworkManager(
     NetworkEndpoint* endpoint, SystemResources* resources,
     const ClientConfig& config)
-    : endpoint_(endpoint), resources_(resources),
+    : endpoint_(endpoint),
+      resources_(resources),
       // Set the throttler up with rate limits defined by the config.
       throttle_(config.rate_limits, resources,
                 NewPermanentCallback(
                     this, &NetworkManager::DoInformOutboundListener)),
-      has_outbound_data_(false), outbound_listener_(NULL), last_poll_(Time()),
-      last_send_(Time()), poll_delay_(config.initial_polling_interval),
+      has_outbound_data_(false),
+      outbound_listener_(NULL),
+      last_poll_(Time() - TimeDelta::FromHours(1)),
+      last_send_(Time() - TimeDelta::FromHours(1)),
+      poll_delay_(config.initial_polling_interval),
       heartbeat_delay_(config.initial_heartbeat_interval) {
-  // Schedule a task that sends a heartbeat if there's ever a period of
-  // heartbeatDelay without any outbound network traffic.
-  resources_->ScheduleImmediately(
-      NewPermanentCallback(this, &NetworkManager::CheckHeartbeat));
-}
-
-void NetworkManager::CheckHeartbeat() {
-  // High-level logic of this method: read the current time and check whether
-  // the heartbeat delay has passed since the last time we asked the app to send
-  // a message.  If so, indicate to the application that we have data for it to
-  // send.  Otherwise, schedule another task for when we expect the heartbeat
-  // delay to pass.
-  Time now = resources_->current_time();
-  TimeDelta delay;
-  if (now >= last_send_ + heartbeat_delay_) {
-    // If it's been long enough to schedule a heartbeat, do so.
-    TLOG(INFO_LEVEL, "calling OutboundDataReady()");
-    OutboundDataReady();
-    // Assume that the application will pull a bundle and send right away, so
-    // the next time to request a heartbeat will be the heartbeat delay.
-    delay = heartbeat_delay_;
-  } else {
-    // Heartbeat delay hasn't quite passed, so reschedule for when we expect it
-    // to pass.
-    delay = last_send_ + heartbeat_delay_ - now;
-  }
-  // Always check at least every MAX_TIMER_DELAY_MS, in case the heartbeat
-  // interval changes.
-  if (delay > TimeDelta::FromMilliseconds(MAX_TIMER_DELAY_MS)) {
-    delay = TimeDelta::FromMilliseconds(MAX_TIMER_DELAY_MS);
-  }
-  resources_->ScheduleWithDelay(
-      delay, NewPermanentCallback(this, &NetworkManager::CheckHeartbeat));
 }
 
 void NetworkManager::OutboundDataReady() {
@@ -116,10 +83,11 @@ void NetworkManager::DoInformOutboundListener() {
 }
 
 void NetworkManager::HandleOutboundMessage(ClientToServerMessage* message,
-                                           bool have_session) {
+                                           bool is_object_control) {
   Time now = resources_->current_time();
-  if (have_session && (now >= last_poll_ + poll_delay_)) {
+  if (is_object_control && (now >= last_poll_ + poll_delay_)) {
     // If we should poll for invalidations, do so.
+    TLOG(INFO_LEVEL, "Adding POLL_INVALIDATIONS action to outbound message");
     message->set_action(ClientToServerMessage_Action_POLL_INVALIDATIONS);
     last_poll_ = now;
   }

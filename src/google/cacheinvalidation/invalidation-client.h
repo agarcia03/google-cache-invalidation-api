@@ -156,6 +156,11 @@ class InvalidationListener {
   // done processing the lost registrations.  The callback is owned by the
   // listener and must be repeatable (although it is called at most once).
   virtual void AllRegistrationsLost(Closure* done) = 0;
+
+  // Indicates that the invalidation client has either acquired or lost its
+  // session, depending on the value of has_session.  This is purely for
+  // informational purposes and may safely be ignored.
+  virtual void SessionStatusChanged(bool has_session) {}
 };
 
 // -----------------------------------------------------------------------------
@@ -224,15 +229,11 @@ struct ClientConfig {
   ClientConfig()
       : registration_timeout(TimeDelta::FromMinutes(1)),
         initial_heartbeat_interval(TimeDelta::FromMinutes(1)),
-        initial_polling_interval(TimeDelta::FromMinutes(10)) {
-    AddDefaultRateLimits();
-  }
-
-  ClientConfig(TimeDelta reg_timeout, TimeDelta heartbeat_interval,
-               TimeDelta polling_interval)
-      : registration_timeout(reg_timeout),
-        initial_heartbeat_interval(heartbeat_interval),
-        initial_polling_interval(polling_interval) {
+        initial_polling_interval(TimeDelta::FromMinutes(10)),
+        max_registrations_per_message(5),
+        max_ops_per_message(10),
+        max_registration_attempts(3),
+        periodic_task_interval(TimeDelta::FromMilliseconds(500)) {
     AddDefaultRateLimits();
   }
 
@@ -259,6 +260,18 @@ struct ClientConfig {
 
   // The rate limits for the network manager.
   vector<RateLimit> rate_limits;
+
+  // The maximum number of messages that will be sent in a particular message.
+  int max_registrations_per_message;
+
+  // The maximum number of registrations and invalidation acks per message;
+  int max_ops_per_message;
+
+  // Maximum number of times to attempt a registration.
+  int max_registration_attempts;
+
+  // The interval at which to execute the periodic task.
+  TimeDelta periodic_task_interval;
 };
 
 // Allows an application to register and unregister for invalidations for
@@ -310,6 +323,9 @@ class InvalidationClient {
   // have been received from the server. The invalidation client owns the
   // endpoint.
   virtual NetworkEndpoint* network_endpoint() = 0;
+
+  // Returns the client's uniquifier via the 'uniquifier' output parameter.
+  virtual void GetClientUniquifier(string *uniquifier) const = 0;
 };
 
 }  // namespace invalidation

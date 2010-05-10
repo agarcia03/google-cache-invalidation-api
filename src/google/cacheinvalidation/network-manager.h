@@ -49,19 +49,24 @@ class NetworkManager {
    *
    * message - a message being prepared for sending to the server
    *
-   * have_session - whether or not the client currently has a valid session
+   * is_object_control - whether the outbound message is of type OBJECT_CONTROL
    */
-  void HandleOutboundMessage(ClientToServerMessage* message, bool have_session);
+  void HandleOutboundMessage(
+      ClientToServerMessage* message, bool is_object_control);
 
   /* Updates the heartbeat and polling intervals if these are present in the
    * bundle.
    */
   void HandleInboundMessage(const ServerToClientMessage& bundle);
 
-  /* Checks whether it's time to send a heartbeat or poll for invalidation,
-   * and if so, informs the listener that there's data ready to send.
+  /* Returns whether a heartbeat task should be performed, i.e., whether enough
+   * time has elapsed since the last communication with the server.
    */
-  void CheckHeartbeat();
+  bool HeartbeatNeeded() {
+    // If there's been no network traffic for the last heartbeatDelay_ ms, then
+    // send a heartbeat.
+    return resources_->current_time() >= last_send_ + heartbeat_delay_;
+  }
 
   /* Indicates that the Ticl has data it's ready to send to the server.  If a
    * network listener has been registered and it hasn't been informed about

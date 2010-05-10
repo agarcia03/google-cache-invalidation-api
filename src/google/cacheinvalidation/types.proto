@@ -68,18 +68,30 @@ message ObjectId {
 // Possible statuses of operations.
 message Status {
   enum Code {
+    // Next enum value: 14
+
     SUCCESS = 1;
-    // Request missing required fields or bad field values
-    MALFORMED_REQUEST = 2;
     // The provided user id did not match the one in the client id or session.
     AUTHENTICATION_FAILURE = 3;
-    INVALID_CLIENT_TYPE = 4; // The client type is unknown or missing.
     UNKNOWN_CLIENT = 5; // The id provided by the client is unknown.
     INVALID_SESSION = 6; // The session provided by the client is invalid.
+    TRANSIENT_FAILURE = 12;
+    PERMANENT_FAILURE = 13;
+
+    // No status codes below this line should ever be sent to the Ticl.
+
+    // An operation with a higher sequence number has already been issued
+    // on the same object. The Ticl may use this code internally, but it
+    // never receives it over the network.
+    STALE_OPERATION = 9;
+
+    // The Ticl should never reference ever of these status codes.
+
+    // Request missing required fields or bad field values
+    INVALID_CLIENT_TYPE = 4; // The client type is unknown or missing.
+    MALFORMED_REQUEST = 2;
     OBJECT_UNKNOWN = 7; // The object does not exist at the server.
     OBJECT_DELETED = 8; // The object was deleted.
-    // An operation with a higher sequence number has already succeeded.
-    STALE_OPERATION = 9;
     SERVICE_UNAVAILABLE = 10; // Temporary failure.
     UNKNOWN_ERROR = 255;
   }
@@ -181,18 +193,23 @@ message RegistrationUpdateResult {
   optional Status status = 2;
 }
 
-// An aggregate message combining several operations for the server.
+
 message ClientToServerMessage {
-  // These first two fields must be set if action is ASSIGN_CLIENT_ID.
-  // Otherwise, they are ignored.
-  optional ClientType client_type = 1;
-  optional StringOrBytes app_client_id = 2;
-  // This field must be set if action is UPDATE_SESSION.  Otherwise, it is
-  // ignored.
-  optional bytes client_id = 3;
-  // If action is omitted or POLL_INVALIDATIONS, then a session token must be
-  // provided.
-  optional bytes session_token = 4;
+
+  // Next field index: 11.
+
+  // Configuration for the message /////////////////////////////////////////////
+
+  // Type of message being sent.
+
+  enum MessageType {
+    TYPE_ASSIGN_CLIENT_ID = 1;
+    TYPE_UPDATE_SESSION = 2;
+    TYPE_OBJECT_CONTROL = 3;
+  }
+
+  // Message type MUST be set.
+  optional MessageType message_type = 10;
 
   // Possible client actions that have no additional data associated with them.
   // These are mutually exclusive, so it's reasonable to have a single optional
@@ -202,17 +219,16 @@ message ClientToServerMessage {
     UPDATE_SESSION = 2; // get a session (client id already assigned)
     POLL_INVALIDATIONS = 3; // poll invalidations (session already exists)
   }
+
   // Client may request at most one special action.
   optional Action action = 5;
 
-  // Requested registrtations / unregistrations.
-  repeated RegistrationUpdate register_operation = 6;
+  // Assign client id. /////////////////////////////////////////////////////////
 
-  // Acknowledged invalidations.
-  repeated Invalidation acked_invalidation = 7;
-
-  // Whether this client has persistence (should be set for ASSIGN_CLIENT_ID).
-  optional bool is_persistent = 8;
+  // These fields must be set if action is ASSIGN_CLIENT_ID.
+  // Otherwise, they are ignored.
+  optional ClientType client_type = 1;
+  optional StringOrBytes app_client_id = 2;
 
   // A nonce for request-reply matching for ASSIGN_CLIENT_ID.  Since some
   // delivery service implementations may reorder or misdeliver responses, it's
@@ -222,37 +238,58 @@ message ClientToServerMessage {
   // when a client id is assigned, the client (by definition) has no session
   // token, so we use a nonce instead.
   optional uint64 nonce = 9;
+
+  // Whether this client has persistence (should be set for ASSIGN_CLIENT_ID).
+  optional bool is_persistent = 8;
+
+  // Update session ////////////////////////////////////////////////////////////
+
+  // This field must be set if action is UPDATE_SESSION.  Otherwise, it is
+  // ignored.
+  optional bytes client_id = 3;
+
+  // Normal operation. /////////////////////////////////////////////////////////
+
+  // If action is omitted or POLL_INVALIDATIONS, then a session token must be
+  // provided.
+  optional bytes session_token = 4;
+
+  // Requested registrtations / unregistrations.
+  repeated RegistrationUpdate register_operation = 6;
+
+  // Acknowledged invalidations.
+  repeated Invalidation acked_invalidation = 7;
 }
 
-// An aggregate message containing responses to (possibly) several client
-// requests.
 message ServerToClientMessage {
+
+  // Next field index: 13.
+
+  // Type of message being sent.
+  enum MessageType {
+    TYPE_ASSIGN_CLIENT_ID = 1;
+    TYPE_UPDATE_SESSION = 2;
+    TYPE_INVALIDATE_CLIENT_ID = 3;
+    TYPE_INVALIDATE_SESSION = 4;
+    TYPE_OBJECT_CONTROL = 5;
+  }
+
+  // Mesasge type MUST Be set.
+  optional MessageType message_type = 12;
+
+  // A token identifying a session.
+  optional bytes session_token = 2;
+
+  // An overall status for the collection of requests.
+  optional Status status = 8;
+
+  // Assign client id. /////////////////////////////////////////////////////////
+
   // If the client requested an ASSIGN_CLIENT_ID action, and this was
   // successful, then client_id contains the assigned id.  If the status code is
   // UNKNOWN_CLIENT, then this contains the unknown client id that that client
   // tried to use.  In all other cases, the server may omit this field.
   optional bytes client_id = 1;
-  // Token identifying the current session.
-  optional bytes session_token = 2;
-  // Results of registration updates.
-  repeated RegistrationUpdateResult registration_result = 3;
-  // Invalidations.
-  repeated Invalidation invalidation = 4;
-  // The soonest the client send its next heartbeat.
-  optional uint32 next_heartbeat_interval_ms = 5;
-  // The soonest the client should poll for invalidations again.
-  optional uint32 next_poll_interval_ms = 6;
-  // For a new session, the last sequence number the new server knows about.
-  // Any operations the client performed with higher sequence numbers should be
-  // considered lost, so the client should resend them.
-  optional uint64 last_operation_sequence_number = 7;
-
-  // An overall status for the collection of requests.  If SUCCESS, then there
-  // were no problems with the client id or session token, but the client must
-  // check the individual statuses of the registration updates, as they may
-  // succeed or fail independently.  If status is not SUCCESS, then there was a
-  // problem with the client's id or session token, so all operations failed.
-  optional Status status = 8;
 
   // If a client id is being assigned, then these fields must contain the client
   // type, app client id, and nonce the client provided with the
@@ -263,4 +300,25 @@ message ServerToClientMessage {
   optional ClientType client_type = 9;
   optional StringOrBytes app_client_id = 10;
   optional uint64 nonce = 11;
+
+  // For a new session, the last sequence number the new server knows about.
+  // Any operations the client performed with higher sequence numbers should be
+  // considered lost, so the client should resend them.
+  optional uint64 last_operation_sequence_number = 7;
+
+  // Normal operation. /////////////////////////////////////////////////////////
+
+  // Results of registration updates.
+  repeated RegistrationUpdateResult registration_result = 3;
+  // Invalidations.
+  repeated Invalidation invalidation = 4;
+
+  // Client control. ///////////////////////////////////////////////////////////
+
+  // The earliest the client may send its next heartbeat.
+  optional uint32 next_heartbeat_interval_ms = 5;
+
+  // The earliest the client may poll for invalidations again.
+  optional uint32 next_poll_interval_ms = 6;
 }
+

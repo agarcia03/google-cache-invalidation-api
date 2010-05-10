@@ -26,8 +26,8 @@ namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::map;
 
-class SystemResources;
 class ClientConfig;
+class SystemResources;
 
 /* Contains the last time an operation message was sent, and the operation's
  * callback.
@@ -36,8 +36,15 @@ struct PendingOperationInfo {
   // The pending operation.
   RegistrationUpdate operation;
 
-  // The last time that we sent a request with this operation.
-  Time last_sent;
+  // Whether we have an outstanding (not timed-out) message to the server
+  // requesting this operation.
+  bool is_sent;
+
+  // The time that we sent a request with this operation.
+  Time sent_time;
+
+  // The number of times we have attempted this registration.
+  int attempt_count;
 
   // The callback to invoke when this operation completes.
   RegistrationCallback* callback;
@@ -45,8 +52,18 @@ struct PendingOperationInfo {
   PendingOperationInfo() {}
   PendingOperationInfo(const RegistrationUpdate& op,
                        RegistrationCallback* cb)
-      : operation(op), callback(cb) {}
+      : operation(op), attempt_count(1), callback(cb) {}
 };
+
+// Possible states in which an object may be.
+enum RegistrationState {
+  RegistrationState_NO_INFO = 0,
+  RegistrationState_REG_PENDING = 1,
+  RegistrationState_REG_CONFIRMED = 2,
+  RegistrationState_UNREG_PENDING = 3,
+  RegistrationState_UNREG_CONFIRMED = 4
+};
+
 
 /* Keeps track of pending and confirmed registration update operations for a
  * given Invalidation Client Library.  This class is not thread-safe, so the
@@ -55,7 +72,8 @@ struct PendingOperationInfo {
  * This is an internal helper class for InvalidationClientImpl.
  */
 class RegistrationUpdateManager {
- private:
+ public:
+  // Visible for testing only.
   RegistrationUpdateManager(SystemResources* resources,
                             const ClientConfig& config);
 
@@ -81,20 +99,14 @@ class RegistrationUpdateManager {
     UpdateRegistration(object_id, RegistrationUpdate_Type_UNREGISTER, callback);
   }
 
-  /* For each pending registration update that was not already sent out
-   * recently, adds an update request to the given message.
-   */
-  void AddOutboundRegistrationUpdates(ClientToServerMessage* message);
+  /* Returns the registration state of an object. */
+  RegistrationState GetObjectState(const ObjectId& object_id);
 
-  /* Forces all operations with a sequence number greater than
-   * last_confirmed_seq_num to be retried, using the given callback for each
-   * operation.  The callback must therefore be "permanent" (capable of being
-   * invoked any number of times), and the caller retains ownership of it.
-   * Note: we don't currently have a way of making this do anything meaningful
-   * for any value of last_confirmed_seq_num other than 0.
+  /* For each pending registration update that was not already sent out
+   * recently, adds an update request to the given message.  Returns the number
+   * of operations added.
    */
-  void RepeatLostOperations(
-      uint64 last_confirmed_seq_num, RegistrationCallback* callback);
+  int AddOutboundRegistrationUpdates(ClientToServerMessage* message);
 
   /* Given the result of a registration update, finds and invokes the associated
    * callback.  Also removes the operation from the pending operations map, and
@@ -111,16 +123,47 @@ class RegistrationUpdateManager {
                           RegistrationUpdate_Type op_type,
                           RegistrationCallback* callback);
 
+  /* Implements the periodic check of registrations (called by the top-level,
+   * half-second periodic task in the Ticl) by doing two things:
+   *
+   * 1) Checks for timed-out (un)registrations. If any are found, schedules
+   *    their callbacks to be run and removes the records from the pending_ops_
+   *    map.
+   *
+   * 2) Checks for unsent registrations. If any are found, returns true,
+   *    indicating that it has data to send to the server.
+   */
+  bool DoPeriodicRegistrationCheck();
+
+  /* Handles a timed-out registration operation. If attempts remain, tries
+   * again; else, aborts the operation.  Returns whether there is any data to be
+   * sent to the server.
+   */
+  bool HandleTimedOutRegistration(PendingOperationInfo* op_info);
+
+  /* Aborts all pending (un)registrations and invokes their callbacks with
+   * TRANSIENT_FAILURE. Removes all confirmed registrations. Called by the Ticl
+   * on UNKNOWN_SESSION or INVALID_CLIENT.
+   */
+  void RemoveAllOperations();
+
+  /* Aborts a pending (un)registration. Removes it from the pending_ops_ map and
+   * invokes the callback with TRANSIENT_FAILURE.
+   */
+  void AbortPending(const PendingOperationInfo& op_info);
+
   // Logging, scheduling, persistence, etc.
   SystemResources* resources_;
+  // Ticl configuration parameters.
+  ClientConfig config_;
   // Sequence number to use for the next registration operation.
   uint64 current_op_seq_num_;
-  // Time after which to resend unacknowledged registrations.
-  TimeDelta registration_timeout_;
-  // Operations confirmed by the server, keyed by sequence number.
-  map<uint64, RegistrationUpdate> confirmed_ops_by_seq_num_;
-  // Operations awaiting a response from the server, keyed by sequence number.
-  map<uint64, PendingOperationInfo> pending_ops_;
+  // Set of confirmed registration update operations. The map keys are
+  // serialized object ids, and the value values are RegistrationUpdates.
+  map<string, RegistrationUpdate> confirmed_ops_;
+  // Pending registrations and unregistrations. The map keys are serialized
+  // object ids, and the values are PendingOperationInfo structs.
+  map<string, PendingOperationInfo> pending_ops_;
 
   friend class InvalidationClientImpl;
 };

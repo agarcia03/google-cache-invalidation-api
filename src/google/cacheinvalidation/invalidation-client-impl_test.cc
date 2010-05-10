@@ -30,7 +30,7 @@ using INVALIDATION_STL_NAMESPACE::vector;
 /* A listener for testing. */
 class TestListener : public InvalidationListener {
  public:
-  TestListener() : invalidate_all_count_(0) {}
+  TestListener() : invalidate_all_count_(0), all_registrations_lost_count_(0) {}
 
   virtual void Invalidate(const Invalidation& invalidation, Closure* callback) {
     CHECK(IsCallbackRepeatable(callback));
@@ -46,7 +46,8 @@ class TestListener : public InvalidationListener {
 
   virtual void AllRegistrationsLost(Closure* callback) {
     CHECK(IsCallbackRepeatable(callback));
-    ASSERT_TRUE(false);  // fail
+    ++all_registrations_lost_count_;
+    delete callback;
   }
 
   virtual void RegistrationLost(const ObjectId& objectId, Closure* callback) {
@@ -58,6 +59,9 @@ class TestListener : public InvalidationListener {
 
   /* The number of InvalidateAll() calls it's received. */
   int invalidate_all_count_;
+
+  /* Number of times AllRegistrationsLost has been called. */
+  int all_registrations_lost_count_;
 
   /* The individual invalidations received, with their callbacks. */
   vector<pair<Invalidation, Closure*> > invalidations_;
@@ -202,6 +206,8 @@ class InvalidationClientImplTest : public testing::Test {
     response.set_client_id(client_uniquifier_);
     response.set_session_token(session_token_);
     response.mutable_status()->set_code(Status_Code_SUCCESS);
+    response.set_message_type(
+        ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
 
     response.SerializeToString(&serialized);
 
@@ -241,13 +247,16 @@ class InvalidationClientImplTest : public testing::Test {
         const RegistrationUpdateResult&) = &RegistrationCallback::Run;
 
     // Ask the Ticl to register for two objects.
+    outbound_message_ready_ = false;
     (ticl_.get()->*operation)(
         object_id1_,
         NewPermanentCallback(callback_.get(), run_function));
     (ticl_.get()->*operation)(
         object_id2_,
         NewPermanentCallback(callback_.get(), run_function));
+    resources_->ModifyTime(fine_throttle_interval_);
     resources_->RunReadyTasks();
+    ASSERT_TRUE(outbound_message_ready_);
 
     RegistrationUpdate_Type operation_type = is_register ?
         RegistrationUpdate_Type_REGISTER : RegistrationUpdate_Type_UNREGISTER;
@@ -269,13 +278,15 @@ class InvalidationClientImplTest : public testing::Test {
     reg_op2_.set_sequence_number(2);
     reg_op2_.set_type(operation_type);
 
-    string serialized2;
-    reg_op1_.SerializeToString(&serialized);
-    message.register_operation(0).SerializeToString(&serialized2);
-    ASSERT_EQ(serialized, serialized2);
-    reg_op2_.SerializeToString(&serialized);
+    string serialized2, serialized_reg_op1, serialized_reg_op2;
+    reg_op1_.SerializeToString(&serialized_reg_op1);
+    message.register_operation(0).SerializeToString(&serialized);
+    reg_op2_.SerializeToString(&serialized_reg_op2);
     message.register_operation(1).SerializeToString(&serialized2);
-    ASSERT_EQ(serialized, serialized2);
+    ASSERT_TRUE(((serialized == serialized_reg_op1) &&
+                 (serialized2 == serialized_reg_op2)) ||
+                ((serialized == serialized_reg_op2) &&
+                 (serialized2 == serialized_reg_op1)));
 
     // Check that the Ticl has not responded to the app about either of the
     // operations yet.
@@ -298,6 +309,8 @@ class InvalidationClientImplTest : public testing::Test {
     result2->mutable_status()->set_code(Status_Code_SUCCESS);
     response.mutable_status()->set_code(Status_Code_SUCCESS);
     response.set_session_token(session_token_);
+    response.set_message_type(
+        ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
     string serialized;
     response.SerializeToString(&serialized);
     ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -334,6 +347,8 @@ class InvalidationClientImplTest : public testing::Test {
     ServerToClientMessage message;
     message.set_session_token(session_token_);
     message.mutable_status()->set_code(Status_Code_INVALID_SESSION);
+    message.set_message_type(
+        ServerToClientMessage_MessageType_TYPE_INVALIDATE_SESSION);
     string serialized;
     message.SerializeToString(&serialized);
     ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -352,28 +367,22 @@ class InvalidationClientImplTest : public testing::Test {
     ASSERT_TRUE(request.has_client_id());
     ASSERT_EQ(client_uniquifier_, request.client_id());
 
-    // Give it a new session token and tell it one of its registrations was
-    // lost.
+    // Give it a new session token.
+    int all_registrations_lost_count = listener_->all_registrations_lost_count_;
     session_token_ = "NEW_OPAQUE_DATA";
     message.Clear();
     message.set_client_id(client_uniquifier_);
     message.set_session_token(session_token_);
     message.mutable_status()->set_code(Status_Code_SUCCESS);
-    message.set_last_operation_sequence_number(1);
+    message.set_message_type(
+        ServerToClientMessage_MessageType_TYPE_UPDATE_SESSION);
     message.SerializeToString(&serialized);
     ticl_->network_endpoint()->HandleInboundMessage(serialized);
     resources_->RunReadyTasks();
 
-    // Pull a message and check that the Ticl is repeating the registration.
-    ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-    request.ParseFromString(serialized);
-    ASSERT_TRUE(request.has_session_token());
-    ASSERT_EQ(request.session_token(), session_token_);
-    ASSERT_EQ(request.register_operation_size(), 1);
-    string serialized2;
-    request.register_operation(0).SerializeToString(&serialized);
-    reg_op2_.SerializeToString(&serialized2);
-    ASSERT_EQ(serialized, serialized2);
+    // Check that it issued AllRegistrationsLost.
+    ASSERT_EQ(all_registrations_lost_count + 1,
+              listener_->all_registrations_lost_count_);
   }
 
   virtual void SetUp() {
@@ -454,6 +463,8 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
   response.set_session_token(session_token_);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
 
   // Give the message to the Ticl, and let it handle it.
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -467,7 +478,7 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
   CheckAssignClientIdRequest(message, &external_id);
 }
 
-TEST_F(InvalidationClientImplTest, PollingIntervalRespectedTest) {
+TEST_F(InvalidationClientImplTest, PollingIntervalRespected) {
   /* Test plan: get a client id and session, and consume the initial
    * poll-invalidations request.  Send a message reducing the polling interval
    * to 10s.  Check that we won't send a poll-invalidations until 10s in the
@@ -484,6 +495,8 @@ TEST_F(InvalidationClientImplTest, PollingIntervalRespectedTest) {
   response.set_session_token(session_token_);
   response.set_next_poll_interval_ms(10000);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
@@ -509,6 +522,8 @@ TEST_F(InvalidationClientImplTest, PollingIntervalRespectedTest) {
   response.set_session_token(session_token_);
   response.set_next_poll_interval_ms(100000);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
@@ -529,7 +544,7 @@ TEST_F(InvalidationClientImplTest, PollingIntervalRespectedTest) {
   ASSERT_EQ(message.action(), ClientToServerMessage_Action_POLL_INVALIDATIONS);
 }
 
-TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespectedTest) {
+TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespected) {
   /* Test plan: get a client id and session, and consume the initial
    * poll-invalidations message.  Respond and increase heartbeat interval to
    * 80s.  Check that the outbound message listener doesn't get pinged until 80s
@@ -548,6 +563,8 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespectedTest) {
   response.set_session_token(session_token_);
   response.set_next_heartbeat_interval_ms(new_heartbeat_interval_ms);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   string serialized;
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -572,6 +589,8 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespectedTest) {
   response.set_session_token(session_token_);
   response.set_next_heartbeat_interval_ms(10000);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
@@ -580,6 +599,7 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespectedTest) {
 
   // Because the Ticl uses a single timer-task, the next heartbeat will still
   // happen after the longer interval.
+  // Periodic task executes after this since heartbeat interval is large.
   resources_->ModifyTime(TimeDelta::FromMilliseconds(80000));
   resources_->RunReadyTasks();
   ASSERT_TRUE(outbound_message_ready_);
@@ -590,150 +610,11 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespectedTest) {
   resources_->ModifyTime(TimeDelta::FromMilliseconds(9999));
   resources_->RunReadyTasks();
   ASSERT_FALSE(outbound_message_ready_);
-  resources_->ModifyTime(TimeDelta::FromMilliseconds(1));
-  resources_->RunReadyTasks();
-  ASSERT_TRUE(outbound_message_ready_);
-}
 
-TEST_F(InvalidationClientImplTest, InitializationInTwoSteps) {
-  /* Test plan: start up a new Ticl.  Check that it sends a request for client
-   * id assignment.  Respond with a client id but not a session token.  Check
-   * that the Ticl sends another request asking for a session token.  Respond
-   * with one.  Check that it then polls invalidations.
-   */
-
-  // Start up the Ticl, connect a network listener, and let it do its
-  // initialization.
-  ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
-  resources_->RunReadyTasks();
-
-  // Check that it has a message to send, and pull the message.
-  ASSERT_TRUE(outbound_message_ready_);
-  outbound_message_ready_ = false;
-  ClientToServerMessage message;
-  string serialized;
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-  message.ParseFromString(serialized);
-
-  // Check that the message is a proper request for client id assignment.
-  ClientExternalId external_id;
-  CheckAssignClientIdRequest(message, &external_id);
-
-  // Fabricate a uniquifier, but not a session token, and respond with it.
-  ServerToClientMessage response;
-  client_uniquifier_ = "uniquifier";
-  response.mutable_client_type()->set_type(external_id.client_type().type());
-  response.mutable_app_client_id()->set_string_value(
-      external_id.app_client_id().string_value());
-  response.set_nonce(message.nonce());
-  response.set_client_id(client_uniquifier_);
-  response.mutable_status()->set_code(Status_Code_SUCCESS);
-  response.SerializeToString(&serialized);
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
 
-  // Check that the Ticl has a new message to send, and that it's asking for a
-  // session.
   ASSERT_TRUE(outbound_message_ready_);
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-  message.ParseFromString(serialized);
-  ASSERT_TRUE(message.has_action());
-  ASSERT_EQ(message.action(), ClientToServerMessage_Action_UPDATE_SESSION);
-  ASSERT_TRUE(message.has_client_id());
-  ASSERT_EQ(client_uniquifier_, message.client_id());
-  ASSERT_FALSE(message.has_session_token());
-
-  // Construct a session token and respond with it.
-  session_token_ = OPAQUE_DATA;
-  response.Clear();
-  response.set_session_token(session_token_);
-  response.set_client_id(client_uniquifier_);
-  response.mutable_status()->set_code(Status_Code_SUCCESS);
-  response.SerializeToString(&serialized);
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
-  resources_->RunReadyTasks();
-
-  // Check that the Ticl now polls for invalidations, using the correct session
-  // token.
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-  message.ParseFromString(serialized);
-  ASSERT_TRUE(message.has_session_token());
-  ASSERT_EQ(message.session_token(), session_token_);
-  ASSERT_EQ(message.action(), ClientToServerMessage_Action_POLL_INVALIDATIONS);
-}
-
-TEST_F(InvalidationClientImplTest, MismatchingSessionUpdateIgnored) {
-  /* Test plan: start up a new Ticl.  Check that it sends a request for client
-   * id assignment.  Respond with a client id but not a session token.  Check
-   * that the Ticl sends another request asking for a session token.  Respond
-   * with one, but with the wrong client id.  Check that it requests a session
-   * again.
-   */
-
-  // Start up the Ticl, connect a network listener, and let it do its
-  // initialization.
-  ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
-  resources_->RunReadyTasks();
-
-  // Check that it has a message to send, and pull the message.
-  ASSERT_TRUE(outbound_message_ready_);
-  outbound_message_ready_ = false;
-  ClientToServerMessage message;
-  string serialized;
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-  message.ParseFromString(serialized);
-
-  // Check that the message is a proper request for client id assignment.
-  ClientExternalId external_id;
-  CheckAssignClientIdRequest(message, &external_id);
-
-  // Fabricate a uniquifier, but not a session token, and respond with it.
-  client_uniquifier_ = "uniquifier";
-
-  ServerToClientMessage response;
-  response.mutable_client_type()->CopyFrom(external_id.client_type());
-  response.mutable_app_client_id()->CopyFrom(external_id.app_client_id());
-  response.set_nonce(message.nonce());
-  response.set_client_id(client_uniquifier_);
-  response.mutable_status()->set_code(Status_Code_SUCCESS);
-  response.SerializeToString(&serialized);
-
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
-  resources_->ModifyTime(fine_throttle_interval_);
-  resources_->RunReadyTasks();
-
-  // Check that the Ticl has a new message to send, and that it's asking for a
-  // session.
-  ASSERT_TRUE(outbound_message_ready_);
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-  message.ParseFromString(serialized);
-  ASSERT_TRUE(message.has_action());
-  ASSERT_EQ(message.action(), ClientToServerMessage_Action_UPDATE_SESSION);
-  ASSERT_TRUE(message.has_client_id());
-
-  ASSERT_EQ(client_uniquifier_, message.client_id());
-  ASSERT_FALSE(message.has_session_token());
-
-  // Construct a session token and respond with it.
-  session_token_ = OPAQUE_DATA;
-  string bad_uniquifier_str = "baduniquifier";
-
-  response.Clear();
-  response.set_session_token(session_token_);
-  response.set_client_id(bad_uniquifier_str);
-  response.mutable_status()->set_code(Status_Code_SUCCESS);
-  response.SerializeToString(&serialized);
-
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
-  resources_->RunReadyTasks();
-
-  // Check that the Ticl now polls for invalidations, using the correct session
-  // token.
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-  message.ParseFromString(serialized);
-  ASSERT_FALSE(message.has_session_token());
-  ASSERT_EQ(message.action(), ClientToServerMessage_Action_UPDATE_SESSION);
 }
 
 TEST_F(InvalidationClientImplTest, Registration) {
@@ -786,18 +667,22 @@ TEST_F(InvalidationClientImplTest, RegistrationRetried) {
   message.ParseFromString(serialized);
   ASSERT_EQ(message.register_operation_size(), 2);
 
-  string serialized2;
-  reg_op1_.SerializeToString(&serialized);
-  message.register_operation(0).SerializeToString(&serialized2);
-  ASSERT_EQ(serialized, serialized2);
-  reg_op2_.SerializeToString(&serialized);
+  string serialized2, serialized_reg_op1, serialized_reg_op2;
+  reg_op1_.SerializeToString(&serialized_reg_op1);
+  reg_op2_.SerializeToString(&serialized_reg_op2);
+  message.register_operation(0).SerializeToString(&serialized);
   message.register_operation(1).SerializeToString(&serialized2);
-  ASSERT_EQ(serialized, serialized2);
+  ASSERT_TRUE(((serialized == serialized_reg_op1) &&
+               (serialized2 == serialized_reg_op2)) ||
+              ((serialized == serialized_reg_op2) &&
+               (serialized2 == serialized_reg_op1)));
 
   // Ack one of the registrations.
   ServerToClientMessage response;
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.set_session_token(session_token_);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   RegistrationUpdateResult* result = response.add_registration_result();
   result->mutable_operation()->CopyFrom(reg_op2_);
   result->mutable_status()->set_code(Status_Code_SUCCESS);
@@ -829,6 +714,8 @@ TEST_F(InvalidationClientImplTest, RegistrationRetried) {
   result = response.add_registration_result();
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.set_session_token(session_token_);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   result->mutable_operation()->CopyFrom(reg_op1_);
   result->mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
@@ -866,6 +753,8 @@ TEST_F(InvalidationClientImplTest, RegistrationFailure) {
   result2->mutable_status()->set_code(Status_Code_SUCCESS);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.set_session_token(session_token_);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   string serialized;
   response.SerializeToString(&serialized);
 
@@ -908,6 +797,8 @@ TEST_F(InvalidationClientImplTest, Invalidation) {
   invalidation->set_version(InvalidationClientImplTest::VERSION);
   message.set_session_token(session_token_);
   message.mutable_status()->set_code(Status_Code_SUCCESS);
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   string serialized;
   message.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -964,6 +855,8 @@ TEST_F(InvalidationClientImplTest, MismatchingInvalidSessionIgnored) {
   ServerToClientMessage message;
   message.mutable_status()->set_code(Status_Code_INVALID_SESSION);
   message.set_session_token(bogus_session_token);
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_INVALIDATE_SESSION);
   string serialized;
   message.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -975,60 +868,6 @@ TEST_F(InvalidationClientImplTest, MismatchingInvalidSessionIgnored) {
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   request.ParseFromString(serialized);
   ASSERT_FALSE(request.has_action());
-}
-
-TEST_F(InvalidationClientImplTest, SessionSwitchRegSucceeds) {
-  /* Test plan: start with the session-switch test.  Respond with success to the
-   * repeated registration request.  Check that the listener is not informed of
-   * any removed registration.
-   */
-  TestSessionSwitch();
-
-  // Tell the Ticl that its re-registration succeeded.
-  ServerToClientMessage message;
-  RegistrationUpdateResult* result = message.add_registration_result();
-  result->mutable_operation()->CopyFrom(reg_op2_);
-  result->mutable_status()->set_code(Status_Code_SUCCESS);
-  message.set_session_token(session_token_);
-  message.mutable_status()->set_code(Status_Code_SUCCESS);
-  string serialized;
-  message.SerializeToString(&serialized);
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
-  resources_->RunReadyTasks();
-
-  // Check that it did not issue an InvalidateAll or tell the listener that the
-  // registration was lost.
-  ASSERT_TRUE(listener_->removed_registrations_.empty());
-  ASSERT_EQ(listener_->invalidate_all_count_, 0);
-}
-
-TEST_F(InvalidationClientImplTest, SessionSwitchRegFails) {
-  /* Test plan: start with the session-switch test.  Respond with a failure to
-   * the repeated registration request.  Check that the listener is informed of
-   * the removed registration.
-   */
-  TestSessionSwitch();
-
-  // Tell the Ticl that the re-registration failed.
-  ServerToClientMessage message;
-  RegistrationUpdateResult* result = message.add_registration_result();
-  result->mutable_operation()->CopyFrom(reg_op2_);
-  result->mutable_status()->set_code(Status_Code_OBJECT_DELETED);
-  result->mutable_status()->set_description("Registration update");
-  message.set_session_token(session_token_);
-  message.mutable_status()->set_code(Status_Code_SUCCESS);
-  string serialized;
-  message.SerializeToString(&serialized);
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
-  resources_->RunReadyTasks();
-
-  // Check that it informed the listener about the lost registration.
-  ASSERT_EQ(listener_->removed_registrations_.size(), 1);
-  string serialized2;
-  listener_->removed_registrations_[0].SerializeToString(&serialized);
-  object_id2_.SerializeToString(&serialized2);
-  ASSERT_EQ(serialized, serialized2);
-  ASSERT_EQ(listener_->invalidate_all_count_, 0);
 }
 
 TEST_F(InvalidationClientImplTest, GarbageCollection) {
@@ -1047,6 +886,8 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
   message.set_session_token(session_token_);
   string serialized;
   message.set_client_id(client_uniquifier_);
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID);
   message.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
@@ -1072,44 +913,17 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
       external_id.app_client_id().string_value());
   response.set_nonce(request.nonce());
   response.set_client_id(new_uniquifier_str);
+  response.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
   response.SerializeToString(&serialized);
 
+  int all_registrations_lost_count = listener_->all_registrations_lost_count_;
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
 
-  // Check that it is repeating all registrations and has not yet issued an
-  // invalidateAll.
-  ASSERT_EQ(listener_->invalidate_all_count_, 0);
-
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-  request.ParseFromString(serialized);
-  ASSERT_EQ(request.register_operation_size(), 2);
-
-  string serialized2;
-  request.register_operation(0).SerializeToString(&serialized);
-  reg_op1_.SerializeToString(&serialized2);
-  ASSERT_EQ(serialized, serialized2);
-  request.register_operation(1).SerializeToString(&serialized);
-  reg_op2_.SerializeToString(&serialized2);
-  ASSERT_EQ(serialized, serialized2);
-
-  // Give successful acks to the registrations.
-  message.Clear();
-  RegistrationUpdateResult* result1 = message.add_registration_result();
-  result1->mutable_operation()->CopyFrom(reg_op1_);
-  result1->mutable_status()->set_code(Status_Code_SUCCESS);
-  RegistrationUpdateResult* result2 = message.add_registration_result();
-  result2->mutable_operation()->CopyFrom(reg_op2_);
-  result2->mutable_status()->set_code(Status_Code_SUCCESS);
-
-  message.set_session_token(session_token_);
-  message.mutable_status()->set_code(Status_Code_SUCCESS);
-  message.SerializeToString(&serialized);
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
-  resources_->RunReadyTasks();
-
-  // Check that no InvalidateAll is issued once the registrations are completed.
-  ASSERT_EQ(listener_->invalidate_all_count_, 0);
+  // Check that it invoked AllRegistrationsLost().
+  ASSERT_EQ(all_registrations_lost_count + 1,
+            listener_->all_registrations_lost_count_);
 }
 
 TEST_F(InvalidationClientImplTest, MismatchedUnknownClientIgnored) {
@@ -1124,6 +938,8 @@ TEST_F(InvalidationClientImplTest, MismatchedUnknownClientIgnored) {
   message.mutable_status()->set_code(Status_Code_UNKNOWN_CLIENT);
   message.set_session_token(session_token_);
   message.set_client_id("bogus-client-id");
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID);
   string serialized;
   message.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
@@ -1149,6 +965,8 @@ TEST_F(InvalidationClientImplTest, Throttling) {
   message.set_session_token(session_token_);
   message.set_next_heartbeat_interval_ms(1);
   message.set_next_poll_interval_ms(1);
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   string serialized;
   message.SerializeToString(&serialized);
 

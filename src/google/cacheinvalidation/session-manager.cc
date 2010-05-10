@@ -32,6 +32,7 @@ bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
     message->mutable_app_client_id()->set_string_value(app_client_id_);
     message->set_nonce(nonce_);
     message->set_action(ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
+    last_send_time_ = resources_->current_time();
     return false;
   }
   if (session_token_.empty()) {
@@ -39,106 +40,254 @@ bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
     // token.
     message->set_client_id(uniquifier_);
     message->set_action(ClientToServerMessage_Action_UPDATE_SESSION);
+    last_send_time_ = resources_->current_time();
     return false;
   }
   message->set_session_token(session_token_);
   return true;
 }
 
-MessageSessionStatus SessionManager::ClassifyMessage(
-    const ServerToClientMessage& bundle) {
+MessageAction SessionManager::ProcessMessage(
+    const ServerToClientMessage& message) {
 
-  // Check that the message has a status and, if necessary, a client id.
-  if (!(HandleStatusCode(bundle) && CheckClientId(bundle))) {
-    return IGNORE_MESSAGE;
-  }
-  // Check whether the message contains a session token.
-  if (!bundle.has_session_token()) {
-    // If the message contained no session token, then ignore it.
-    TLOG(WARNING_LEVEL, "ignoring message with missing session token");
-
-    return IGNORE_MESSAGE;
-  }
-  if ((session_token_.empty()) && bundle.has_client_id() &&
-      (uniquifier_ == bundle.client_id())) {
-    // If we don't have a session token, and the message is properly addressed
-    // to this client, take the token from the message, and indicate to the
-    // caller that we have a new session.
-    session_token_ = bundle.session_token();
-    return NEW_SESSION;
-  }
-  if (bundle.session_token() != session_token_) {
-    // If the message's token doesn't match ours, then ignore the message.
-    TLOG(WARNING_LEVEL, "message ignored because my session token (%s) "
-         "did not match the one in the message: (%s)", session_token_.c_str(),
-         bundle.session_token().c_str());
+  if (!message.has_message_type()) {
+    TLOG(WARNING_LEVEL, "Ignoring message with no type");
     return IGNORE_MESSAGE;
   }
 
-  // Otherwise the message contains a token matching the one we have.
-  return EXISTING_SESSION;
-}
+  ServerToClientMessage_MessageType msg_type = message.message_type();
+  TLOG(INFO_LEVEL, "Process message with type %d", msg_type);
+  switch (msg_type) {
+    case ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID:
+      return ProcessAssignClientId(message);
 
-bool SessionManager::CheckClientId(const ServerToClientMessage& bundle) {
-  // We don't have a client id yet, so look for a valid one in the bundle.
-  if (uniquifier_.empty()) {
-    bool client_type_matches = bundle.has_client_type() &&
-        (client_type_.type() == bundle.client_type().type());
-    bool app_client_id_matches = bundle.has_app_client_id() &&
-        (app_client_id_ == bundle.app_client_id().string_value());
-    bool nonce_matches = bundle.has_nonce() && (nonce_ == bundle.nonce());
-    if (bundle.has_client_id() && client_type_matches &&
-        app_client_id_matches && nonce_matches) {
-      // We have a fresh client id now.
-      uniquifier_ = bundle.client_id();
-      nonce_ = -1;
-    } else {
-      TLOG(WARNING_LEVEL,
-           "ignoring message with missing client id or mismatched nonce");
-      return false;
-    }
-  }
-  return true;
-}
+    case ServerToClientMessage_MessageType_TYPE_UPDATE_SESSION:
+      return ProcessUpdateSession(message);
 
-bool SessionManager::HandleStatusCode(const ServerToClientMessage& bundle) {
-  // Check status, handle session expiration and GC.
-  if (!(bundle.has_status() && bundle.status().has_code())) {
-    // No status code in the message.  Give up.
-    TLOG(WARNING_LEVEL, "message contained no status code");
-    return false;
-  }
-  switch (bundle.status().code()) {
-    case Status_Code_UNKNOWN_CLIENT:
-      // Make sure the message is actually addressed to this client before
-      // blowing away the client id and session.
-      if (bundle.has_client_id() && (bundle.client_id() == uniquifier_)) {
-        // No record of client at the server (e.g., GC'd).
-        // Session is also invalid.
-        TLOG(INFO_LEVEL,
-             "received UNKNOWN_CLIENT status: clearing id, session");
-        uniquifier_.clear();
-        session_token_.clear();
-      }
-      return false;
+    case ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID:
+      return ProcessInvalidateClientId(message);
 
-    case Status_Code_INVALID_SESSION:
-      // Make sure the message actually refers to our current session before
-      // blowing it away.
-      if (bundle.has_session_token() &&
-          (bundle.session_token() == session_token_)) {
-        // Session is invalid.  Need to get a new session.
-        TLOG(INFO_LEVEL, "received INVALID_SESSION status: clearing session");
-        session_token_.clear();
-      }
-      return false;
+    case ServerToClientMessage_MessageType_TYPE_INVALIDATE_SESSION:
+      return ProcessInvalidateSession(message);
 
-    case Status_Code_SUCCESS:
-      return true;
+    case ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL:
+      // Delegate should-process check.
+      return CheckObjectControlMessage(message);
 
     default:
-      TLOG(WARNING_LEVEL, "unexpected status code: %d", bundle.status().code());
-      return false;
+      // Unrecognizable message.
+      TLOG(WARNING_LEVEL, "Unknown message type: %d", msg_type);
+      return IGNORE_MESSAGE;
+  }
+}
+
+MessageAction SessionManager::ProcessAssignClientId(
+    const ServerToClientMessage& message) {
+  // SUCCESS status required by spec.
+  // TODO: handle PERMANENT_FAILURE.
+  if (message.status().code() != Status_Code_SUCCESS) {
+    TLOG(WARNING_LEVEL,
+         "Ignoring assign-client-id message with non-success response: %d",
+         message.status().code());
+    return IGNORE_MESSAGE;
+  }
+
+  // Ignore the message if we have an id.
+  if (!uniquifier_.empty()) {
+    TLOG(INFO_LEVEL, "Ignoring assign-client-id message: Ticl has an id");
+    return IGNORE_MESSAGE;
+  }
+
+  // Ignore the message if we don't have a nonce -- presence of a nonce
+  // indicates that we're expecting an id.
+  if (nonce_ == -1) {
+    TLOG(INFO_LEVEL, "Ignoring assign-client-id message: Ticl has no nonce");
+    return IGNORE_MESSAGE;
+  }
+
+  // Ignore the message if the message does not have a nonce in it.
+  if (!message.has_nonce()) {
+    TLOG(WARNING_LEVEL,
+         "Ignoring purported assign-client-id message with no nonce");
+    return IGNORE_MESSAGE;
+  }
+
+  // Ignore the message if its nonce does not match our nonce.
+  if (nonce_ != message.nonce()) {
+    TLOG(INFO_LEVEL,
+         "Ignoring assign-client-id message with non-matching nonce: %s vs %s",
+         nonce_, message.nonce());
+    return IGNORE_MESSAGE;
+  }
+
+  // Ignore the message if it does not have a client id and session token.
+  if (!(message.has_session_token() && message.has_client_id())) {
+    TLOG(WARNING_LEVEL, "Ignoring purported assign-client-id with a missing "
+         "client id or session");
+    return IGNORE_MESSAGE;
+  }
+
+  // Ignore the message if it has an empty client id or session token.
+  // This check prevents us from accepting obviously-wrong data.
+  if (message.session_token().empty() || message.client_id().empty()) {
+    TLOG(WARNING_LEVEL, "Ignoring purported assign-client-id with a empty "
+         "client id or session");
+    return IGNORE_MESSAGE;
+  }
+
+  // Ignore the message if its client type and app client id do not match ours.
+  bool client_type_matches =
+      message.client_type().type() == client_type_.type();
+  bool app_client_id_matches =
+      message.app_client_id().string_value() == app_client_id_;
+  if (!(client_type_matches && app_client_id_matches)) {
+    TLOG(INFO_LEVEL,
+         "Ignoring assign-client-id message with non-matching client type or "
+         "app-client id");
+    return IGNORE_MESSAGE;
+  }
+
+  // Message passes verification. Acquire the client id and session token
+  // from the message. Clear our nonce.
+  TLOG(INFO_LEVEL, "Accepting assign-client-id request");
+  session_token_ = message.session_token();
+  uniquifier_ = message.client_id();
+  nonce_ = -1;
+
+  return ACQUIRE_SESSION;
+}
+
+MessageAction SessionManager::ProcessUpdateSession(
+    const ServerToClientMessage& message) {
+  // SUCCESS status required by spec.
+  if (message.status().code() != Status_Code_SUCCESS) {
+    TLOG(WARNING_LEVEL,
+         "Ignoring update-session message with non-success response");
+    return IGNORE_MESSAGE;
+  }
+
+  // If we don't have a client id, we can't accept a new session.
+  if (uniquifier_.empty()) {
+    TLOG(INFO_LEVEL, "Ignoring update-session since Ticl has no client id");
+    return IGNORE_MESSAGE;
+  }
+
+  // If the message does not have a client id, we can't process it.
+  if (!message.has_client_id()) {
+    TLOG(WARNING_LEVEL, "Ignoring purported update-session with no client id");
+    return IGNORE_MESSAGE;
+  }
+
+  // If the message does not have a session, we can't process it.
+  // We check sessionToken == '' to avoid taking an obviously-wrong token.
+  if (!message.has_session_token() || message.session_token().empty()) {
+    TLOG(WARNING_LEVEL, "Ignoring purported update-session with no session");
+    return IGNORE_MESSAGE;
+  }
+
+  // We accept the new session if the client id in the message matches our own.
+  if (message.client_id() == uniquifier_) {
+    TLOG(INFO_LEVEL, "Accepting new session %s replacing old session %s",
+         message.session_token().c_str(), session_token_.c_str());
+    session_token_ = message.session_token();
+    return ACQUIRE_SESSION;
+  }
+  return IGNORE_MESSAGE;
+}
+
+MessageAction SessionManager::ProcessInvalidateClientId(
+    const ServerToClientMessage& message) {
+  // UNKNOWN_CLIENT status required by spec.
+  if (message.status().code() != Status_Code_UNKNOWN_CLIENT) {
+    TLOG(WARNING_LEVEL,
+         "Ignoring invalidate-client-id msg with non-UNKNOWN_CLIENT response");
+    return IGNORE_MESSAGE;
+  }
+
+  // We cannot invalidate our client id if we do not have one.
+  if (uniquifier_.empty()) {
+    TLOG(INFO_LEVEL,
+         "Ignoring invalidate-client-id message since the Ticl has no id");
+    return IGNORE_MESSAGE;
+  }
+
+  // Invalidate our client id if the client id in the message matches ours.
+  if (uniquifier_ == message.client_id()) {
+    TLOG(INFO_LEVEL, "Client id invalidated");
+    uniquifier_.clear();
+    session_token_.clear();
+    return LOSE_SESSION;
+  } else {
+    TLOG(INFO_LEVEL, "Ignoring invalidate-client with mis-matching client id");
+    return IGNORE_MESSAGE;
+  }
+}
+
+MessageAction SessionManager::ProcessInvalidateSession(
+    const ServerToClientMessage& message) {
+  // INVALID_SESSION status required by spec.
+  if (message.status().code() != Status_Code_INVALID_SESSION) {
+    TLOG(WARNING_LEVEL,
+         "Ignoring invalidate-session msg with non-INVALID_SESSION response");
+    return IGNORE_MESSAGE;
+  }
+
+  // If we do not have a session, we cannot invalidate it.
+  if (session_token_.empty()) {
+    TLOG(INFO_LEVEL,
+         "Ignoring invalide-session message since Ticl has no session");
+    return IGNORE_MESSAGE;
+  }
+
+  // If the message does not have a session, we cannot invalidate ours.
+  if (!message.has_session_token()) {
+    TLOG(WARNING_LEVEL,
+         "Ignoring purported invalidate-session message with no session token");
+    return IGNORE_MESSAGE;
+  }
+
+  // Invalidate our session token if it matches the one in the message.
+  if (session_token_ == message.session_token()) {
+    TLOG(INFO_LEVEL, "Invalidating session: %s", session_token_.c_str());
+    session_token_.clear();
+    return LOSE_SESSION;
+  }
+  return IGNORE_MESSAGE;
+}
+
+MessageAction SessionManager::CheckObjectControlMessage(
+    const ServerToClientMessage& message) {
+  // SUCCESS status required by spec.
+  if (message.status().code() != Status_Code_SUCCESS) {
+    TLOG(WARNING_LEVEL,
+         "Ignoring object-control message with non-success response");
+    return IGNORE_MESSAGE;
+  }
+
+  // If we don't have a valid session and client, we cannot process the
+  // message. Technically, sessionToken != null implies clientId != null, but
+  // we'll be defensive and check both.
+  if (session_token_.empty() || uniquifier_.empty()) {
+    TLOG(INFO_LEVEL,
+         "Ignoring OBJECT_CONTROL message since Ticl does not have a session");
+    return IGNORE_MESSAGE;
+  }
+
+  // If the message doesn't have a session, we cannot process it.
+  if (!message.has_session_token()) {
+    TLOG(WARNING_LEVEL, "Received purported OBJECT_CONTROL message with no "
+         "session token; ignoring");
+    return IGNORE_MESSAGE;
+  }
+
+  // We have a session and the message has a session. We process the message if
+  // the sessions match.
+  if (session_token_ == message.session_token()) {
+    return PROCESS_OBJECT_CONTROL;
+  } else {
+    TLOG(INFO_LEVEL, "session token mismatch: %s vs %s", session_token_.c_str(),
+         message.session_token().c_str());
+    return IGNORE_MESSAGE;
   }
 }
 

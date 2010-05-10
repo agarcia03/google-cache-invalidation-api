@@ -25,13 +25,41 @@ using INVALIDATION_STL_NAMESPACE::string;
 
 const char* InvalidationClientImpl::INVALIDATE_ALL_OBJECT_NAME = "ALL";
 
+void InvalidationClientImpl::PeriodicTask() {
+  MutexLock m(&lock_);
+
+  // Check for session data to send.
+  bool have_session_data = session_manager_.HasDataToSend();
+
+  // Check for registrations to send.
+  bool have_registration_data =
+      registration_manager_.DoPeriodicRegistrationCheck();
+
+  // Check to see if we need to send a heartbeat.
+  bool should_heartbeat = network_manager_.HeartbeatNeeded();
+
+  // If there's no session data to send, and we don't have a session, then we
+  // can't send anything.
+  if (!have_session_data && !session_manager_.HasSession()) {
+    TLOG(INFO_LEVEL,
+         "Not sending data since no session and session request in-flight");
+  } else if (have_session_data || have_registration_data || should_heartbeat) {
+    network_manager_.OutboundDataReady();
+  }
+
+  // Reschedule the periodic task. The following line MUST run, or the Ticl will
+  // stop working so don't use 'return' statements in this function.
+  resources_->ScheduleWithDelay(
+      config_.periodic_task_interval,
+      NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
+}
+
 void InvalidationClientImpl::Register(
     const ObjectId& oid, RegistrationCallback* callback) {
   MutexLock m(&lock_);
   TLOG(INFO_LEVEL, "Received register for %d/%s", oid.source(),
        oid.name().string_value().c_str());
   registration_manager_.Register(oid, callback);
-  network_manager_.OutboundDataReady();
 }
 
 void InvalidationClientImpl::Unregister(
@@ -40,38 +68,47 @@ void InvalidationClientImpl::Unregister(
   TLOG(INFO_LEVEL, "Received unregister for %d/%s", oid.source(),
        oid.name().string_value().c_str());
   registration_manager_.Unregister(oid, callback);
-  network_manager_.OutboundDataReady();
 }
 
-void InvalidationClientImpl::HandleRepeatedOperationResult(
-    const RegistrationUpdateResult& result) {
-
-  // If the re-registration attempt failed, inform the listener that the
-  // registration was removed.
-  if ((result.operation().type() == RegistrationUpdate_Type_REGISTER) &&
-      (result.status().code() != Status_Code_SUCCESS)) {
-    listener_->RegistrationLost(
-        result.operation().object_id(),
-        // No need to do anything when the application acks, since we're not
-        // currently persisting registration state.
-        NewPermanentCallback(&DoNothing));
-  }
-}
-
-void InvalidationClientImpl::HandleNewSession(
-    const ServerToClientMessage& bundle) {
+void InvalidationClientImpl::HandleNewSession() {
   string client_uniquifier = session_manager_.client_uniquifier();
 
-  uint64 last_confirmed_sequence_number =
-      bundle.last_operation_sequence_number();
+  TLOG(INFO_LEVEL, "Received new session: %s", client_uniquifier.c_str());
 
-  TLOG(INFO_LEVEL, "HandleNewSession %s", client_uniquifier.c_str());
+  registration_manager_.RemoveAllOperations();
 
-  registration_manager_.RepeatLostOperations(
-      last_confirmed_sequence_number, repeated_op_callback_.get());
+  // Tell the listener we acquired a session and that its registrations were
+  // removed.
+  resources_->ScheduleImmediately(
+      NewPermanentCallback(
+          this, &InvalidationClientImpl::InformListenerOfNewSession));
 
   // In case we have any pending registrations...
   network_manager_.OutboundDataReady();
+}
+
+void InvalidationClientImpl::HandleLostSession() {
+  resources_->ScheduleImmediately(
+      NewPermanentCallback(
+          // Tell the listener we lost our session.
+          listener_, &InvalidationListener::SessionStatusChanged, false));
+}
+
+void InvalidationClientImpl::HandleObjectControl(
+    const ServerToClientMessage& bundle) {
+  // Handle registration response.
+  for (int i = 0; i < bundle.registration_result_size(); ++i) {
+    ProcessRegistrationUpdateResult(bundle.registration_result(i));
+  }
+  // Process invalidations.
+  for (int i = 0; i < bundle.invalidation_size(); ++i) {
+    ProcessInvalidation(bundle.invalidation(i));
+  }
+}
+
+void InvalidationClientImpl::InformListenerOfNewSession() {
+  listener_->SessionStatusChanged(true);
+  listener_->AllRegistrationsLost(NewPermanentCallback(&DoNothing));
 }
 
 void InvalidationClientImpl::HandleInboundMessage(const string& message) {
@@ -80,41 +117,34 @@ void InvalidationClientImpl::HandleInboundMessage(const string& message) {
   ServerToClientMessage bundle;
   bundle.ParseFromString(message);
 
-  MessageSessionStatus session_status =
-      session_manager_.ClassifyMessage(bundle);
+  MessageAction action = session_manager_.ProcessMessage(bundle);
 
   TLOG(INFO_LEVEL, "Classified inbound message as %d (session token = %s)",
-       session_status, bundle.session_token().c_str());
-  switch (session_status) {
-    case NEW_SESSION:
-      HandleNewSession(bundle);
-
-      // Fall through intentionally.
-    case EXISTING_SESSION:
-      // Handle registration response.
-      for (int i = 0; i < bundle.registration_result_size(); ++i) {
-        ProcessRegistrationUpdateResult(bundle.registration_result(i));
-      }
-      // Process invalidations.
-      for (int i = 0; i < bundle.invalidation_size(); ++i) {
-        ProcessInvalidation(bundle.invalidation(i));
-      }
-      network_manager_.HandleInboundMessage(bundle);
-      break;
+       action, bundle.session_token().c_str());
+  switch (action) {
     case IGNORE_MESSAGE:
       TLOG(INFO_LEVEL, "Ignored last received message");
+      return;
+    case ACQUIRE_SESSION:
+      HandleNewSession();
+      break;
+    case LOSE_SESSION:
+      HandleLostSession();
+      break;
+    case PROCESS_OBJECT_CONTROL:
+      HandleObjectControl(bundle);
       break;
     default:
+      // Can't happen.
       TLOG(INFO_LEVEL,
-           "Ignored last received message (default classification)");
-      break;
+           "Unknown message action: %d", action);
+      return;  // Don't process the new polling/heartbeat intervals.
   }
 
-  // If, for whatever reason, we don't have a session token, ping the app so
-  // we can send an outbound message requesting a session.
-  if (session_manager_.session_token() == "") {
-    network_manager_.OutboundDataReady();
-  }
+  // Let the network manager acquire new polling and heartbeat intervals.  All
+  // cases that reach here verified that the message was addressed to this
+  // client.
+  network_manager_.HandleInboundMessage(bundle);
 }
 
 void InvalidationClientImpl::ProcessRegistrationUpdateResult(
@@ -171,17 +201,27 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
   MutexLock m(&lock_);
 
   ClientToServerMessage message;
-  bool have_session = session_manager_.AddSessionAction(&message);
-  network_manager_.HandleOutboundMessage(&message, have_session);
-  if (have_session) {
-    // Add all registration updates that weren't sent recently, plus all
-    // invalidation acks.
-    registration_manager_.AddOutboundRegistrationUpdates(&message);
-    for (int i = 0; i < pending_invalidation_acks_.size(); ++i) {
+  bool is_object_control = session_manager_.AddSessionAction(&message);
+  network_manager_.HandleOutboundMessage(&message, is_object_control);
+  if (is_object_control) {
+    TLOG(INFO_LEVEL, "Adding data to outbound OBJECT_CONTROL message");
+
+    // Add up to maxRegistrationsPerMessage registrations.
+    int sent_count =
+        registration_manager_.AddOutboundRegistrationUpdates(&message);
+    int invalidation_acks_sent = 0;
+
+    // Add any outbound invalidations, up to max_ops_per_message. We ack the
+    // newest invalidations first (since we pop from the array), which is good,
+    // because an invalidation for a newer version of an object subsumes an
+    // older invalidation.
+    while (!pending_invalidation_acks_.empty() &&
+           sent_count + invalidation_acks_sent < config_.max_ops_per_message) {
+      ++invalidation_acks_sent;
       Invalidation* inv = message.add_acked_invalidation();
-      inv->CopyFrom(pending_invalidation_acks_[i]);
+      inv->CopyFrom(pending_invalidation_acks_.back());
+      pending_invalidation_acks_.pop_back();
     }
-    pending_invalidation_acks_.clear();
   }
   message.SerializeToString(serialized);
 }

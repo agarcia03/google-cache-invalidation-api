@@ -56,14 +56,14 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
                          const string& app_name,
                          InvalidationListener* listener,
                          const ClientConfig& config)
-      : resources_(resources), listener_(listener),
+      : config_(config),
+        resources_(resources),
+        listener_(listener),
         registration_manager_(resources, config),
         network_manager_(this, resources, config),
-        session_manager_(client_type, app_name, resources) {
-    repeated_op_callback_.reset(
-        NewPermanentCallback(
-            this,
-            &InvalidationClientImpl::HandleRepeatedOperationResult));
+        session_manager_(config, client_type, app_name, resources) {
+    resources->ScheduleImmediately(
+        NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
   }
 
   static const char* INVALIDATE_ALL_OBJECT_NAME;
@@ -82,6 +82,10 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
     return this;
   }
 
+  virtual void GetClientUniquifier(string* uniquifier) const {
+    *uniquifier = session_manager_.client_uniquifier();
+  }
+
   // Inherited from NetworkEndpoint:
 
   virtual void TakeOutboundMessage(string* message);
@@ -97,20 +101,22 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
  private:
   // Internal methods:
 
-  /* Internal method to handle results of registrations that are performed
-   * implicitly on the client's behalf in the event of a session switch or
-   * garbage collection.  Currently, just informs the client of a lost
-   * registration in the event that registration fails.
-   */
-  void HandleRepeatedOperationResult(const RegistrationUpdateResult& result);
+  /* Checks for messages that need to be sent, operations to time out, etc. */
+  void PeriodicTask();
 
-  /* Handles a response from the server that involves getting a new session.  If
-   * necessary, moves formerly confirmed operations back into the pending
-   * operation queue.
-   *
-   * Requires: bundle.hasSessionToken();
+  /* Handles a response from the server that involves getting a new session. */
+  void HandleNewSession();
+
+  /* Handles a lost-session event. */
+  void HandleLostSession();
+
+  /* Handles an OBJECT_CONTROL message. */
+  void HandleObjectControl(const ServerToClientMessage& bundle);
+
+  /* Informs the application that it has a new session and that its
+   * registrations have been removed.
    */
-  void HandleNewSession(const ServerToClientMessage& bundle);
+  void InformListenerOfNewSession();
 
   // Handlers for server-to-client messages. ///////////////////////////////////
 
@@ -132,6 +138,9 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
    */
   void ScheduleAcknowledgeInvalidation(const Invalidation& invalidation);
 
+  /* Configuration parameters. */
+  ClientConfig config_;
+
   /* Various system resources needed by the Ticl (storage, CPU, logging). */
   SystemResources* resources_;
 
@@ -152,8 +161,6 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
 
   /* A lock to protect this object's state. */
   Mutex lock_;
-
-  scoped_ptr<RegistrationCallback> repeated_op_callback_;
 };
 
 }  // namespace invalidation
