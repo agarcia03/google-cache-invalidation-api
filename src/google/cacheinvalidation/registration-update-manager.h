@@ -52,7 +52,7 @@ struct PendingOperationInfo {
   PendingOperationInfo() {}
   PendingOperationInfo(const RegistrationUpdate& op,
                        RegistrationCallback* cb)
-      : operation(op), attempt_count(1), callback(cb) {}
+      : operation(op), is_sent(false), attempt_count(1), callback(cb) {}
 };
 
 // Possible states in which an object may be.

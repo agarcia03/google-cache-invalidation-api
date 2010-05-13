@@ -114,6 +114,9 @@ int RegistrationUpdateManager::AddOutboundRegistrationUpdates(
        (iter != pending_ops_.end()) &&
            (sent_count < config_.max_registrations_per_message); ++iter) {
     PendingOperationInfo& op_info = iter->second;
+    TLOG(INFO_LEVEL, "Found pending record for %s/%d, is_sent = %d",
+         op_info.operation.object_id().name().string_value().c_str(),
+         op_info.operation.object_id().source(), op_info.is_sent);
     if (!op_info.is_sent) {
       op_info.sent_time = now;
       op_info.is_sent = true;
