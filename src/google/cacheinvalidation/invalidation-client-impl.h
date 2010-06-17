@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "base/scoped_ptr.h"
+#include "google/cacheinvalidation/compiler-specific.h"
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/mutex.h"
 #include "google/cacheinvalidation/network-manager.h"
@@ -60,7 +61,8 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
         resources_(resources),
         listener_(listener),
         registration_manager_(resources, config),
-        network_manager_(this, resources, config),
+        network_manager_(ALLOW_THIS_IN_INITIALIZER_LIST(this),
+                         resources, config),
         session_manager_(config, client_type, app_name, resources) {
     resources->ScheduleImmediately(
         NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));

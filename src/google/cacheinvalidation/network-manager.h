@@ -23,7 +23,7 @@
 
 namespace invalidation {
 
-class ClientConfig;
+struct ClientConfig;
 class InvalidationClientImpl;
 class NetworkEndpoint;
 class SystemResources;

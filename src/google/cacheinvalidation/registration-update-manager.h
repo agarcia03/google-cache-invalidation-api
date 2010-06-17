@@ -26,7 +26,7 @@ namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::map;
 
-class ClientConfig;
+struct ClientConfig;
 class SystemResources;
 
 /* Contains the last time an operation message was sent, and the operation's
