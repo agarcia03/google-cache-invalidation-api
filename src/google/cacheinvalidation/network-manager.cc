@@ -17,6 +17,7 @@
 #include <algorithm>
 
 #include "google/cacheinvalidation/callback.h"
+#include "google/cacheinvalidation/compiler-specific.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 #include "google/cacheinvalidation/log-macro.h"
 #include "google/cacheinvalidation/logging.h"
@@ -35,7 +36,8 @@ NetworkManager::NetworkManager(
       // Set the throttler up with rate limits defined by the config.
       throttle_(config.rate_limits, resources,
                 NewPermanentCallback(
-                    this, &NetworkManager::DoInformOutboundListener)),
+                    ALLOW_THIS_IN_INITIALIZER_LIST(this),
+                    &NetworkManager::DoInformOutboundListener)),
       has_outbound_data_(false),
       outbound_listener_(NULL),
       last_poll_(Time() - TimeDelta::FromHours(1)),
