@@ -152,6 +152,11 @@ class InvalidationClientImplTest : public testing::Test {
     ASSERT_TRUE(message.has_action());
     ASSERT_EQ(message.action(), ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
 
+    // Check that the message contains an "assign client id" type.
+    ASSERT_TRUE(message.has_message_type());
+    ASSERT_EQ(message.message_type(),
+              ClientToServerMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
+
     // Check that it does not contain a session token or any registration
     // operations or invalidation acknowledgments.
     ASSERT_FALSE(message.has_session_token());
@@ -269,6 +274,9 @@ class InvalidationClientImplTest : public testing::Test {
     message.ParseFromString(serialized);
     ASSERT_TRUE(message.has_session_token());
     ASSERT_EQ(message.session_token(), session_token_);
+    ASSERT_TRUE(message.has_message_type());
+    ASSERT_EQ(message.message_type(),
+              ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
     ASSERT_EQ(message.register_operation_size(), 2);
     reg_op1_.Clear();
     reg_op1_.mutable_object_id()->CopyFrom(object_id1_);
@@ -364,6 +372,9 @@ class InvalidationClientImplTest : public testing::Test {
     request.ParseFromString(serialized);
     ASSERT_TRUE(request.has_action());
     ASSERT_EQ(request.action(), ClientToServerMessage_Action_UPDATE_SESSION);
+    ASSERT_TRUE(request.has_message_type());
+    ASSERT_EQ(request.message_type(),
+              ClientToServerMessage_MessageType_TYPE_UPDATE_SESSION);
     ASSERT_TRUE(request.has_client_id());
     ASSERT_EQ(client_uniquifier_, request.client_id());
 

@@ -23,6 +23,7 @@ namespace invalidation {
 bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
   if (uniquifier_.empty()) {
     // If we need a client id, make a request that will get a client id.
+    // Sending message TYPE_ASSIGN_CLIENT_ID.
 
     // Generate a nonce if we haven't already done so.
     if (nonce_ == -1) {
@@ -32,17 +33,25 @@ bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
     message->mutable_app_client_id()->set_string_value(app_client_id_);
     message->set_nonce(nonce_);
     message->set_action(ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
+    message->set_message_type(
+        ClientToServerMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
     last_send_time_ = resources_->current_time();
     return false;
   }
   if (session_token_.empty()) {
     // Else, if we need a session, make a request that will get a session
     // token.
+    // Sending message TYPE_UPDATE_SESSION.
     message->set_client_id(uniquifier_);
     message->set_action(ClientToServerMessage_Action_UPDATE_SESSION);
+    message->set_message_type(
+        ClientToServerMessage_MessageType_TYPE_UPDATE_SESSION);
     last_send_time_ = resources_->current_time();
     return false;
   }
+  // Sending TYPE_OBJECT_CONTROL.
+  message->set_message_type(
+      ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
   message->set_session_token(session_token_);
   return true;
 }
