@@ -15,6 +15,7 @@
 #ifndef GOOGLE_CACHEINVALIDATION_THROTTLE_H_
 #define GOOGLE_CACHEINVALIDATION_THROTTLE_H_
 
+#include <cstddef>
 #include <deque>
 #include <vector>
 
@@ -73,7 +74,7 @@ class Throttle {
   deque<Time> recent_event_times_;
 
   // The maximum size of the recent_event_times_ buffer.
-  int max_recent_events_;
+  size_t max_recent_events_;
 };
 
 }  // namespace invalidation

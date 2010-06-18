@@ -15,7 +15,6 @@
 #include "google/cacheinvalidation/throttle.h"
 
 #include <algorithm>
-#include <cstddef>
 
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/stl-namespace.h"
