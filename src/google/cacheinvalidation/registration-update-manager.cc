@@ -308,7 +308,6 @@ void RegistrationUpdateManager::UpdateRegistration(
 
 bool RegistrationUpdateManager::DoPeriodicRegistrationCheck() {
   Time now = resources_->current_time();
-  TLOG(INFO_LEVEL, "Checking for timed-out (un)registrations");
 
   // Whether we have registrations to send to the server. This is true if we
   // have unsent registrations or timed-out registrations to resend.
@@ -352,8 +351,6 @@ bool RegistrationUpdateManager::DoPeriodicRegistrationCheck() {
     }
     iter = next_iter;
   }
-  TLOG(INFO_LEVEL, "Registration manager indicating data-to-send = %d",
-       data_to_send);
   return data_to_send;
 }
 
