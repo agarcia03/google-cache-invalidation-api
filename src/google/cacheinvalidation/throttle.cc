@@ -15,6 +15,7 @@
 #include "google/cacheinvalidation/throttle.h"
 
 #include <algorithm>
+#include <cstddef>
 
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/stl-namespace.h"
@@ -32,7 +33,7 @@ Throttle::Throttle(
   // Find the largest 'count' in all of the rate limits, as this is the size of
   // the buffer of recent messages we need to retain.
   max_recent_events_ = 1;
-  for (int i = 0; i < rate_limits_.size(); ++i) {
+  for (size_t i = 0; i < rate_limits_.size(); ++i) {
     max_recent_events_ = max(max_recent_events_, rate_limits_[i].count);
   }
 }
@@ -47,7 +48,7 @@ void Throttle::Fire() {
   // task to try again once that limit won't be violated.  If no limits would be
   // violated, send.
   Time now = resources_->current_time();
-  for (int i = 0; i < rate_limits_.size(); ++i) {
+  for (size_t i = 0; i < rate_limits_.size(); ++i) {
     RateLimit rate_limit = rate_limits_[i];
 
     // We're now checking whether sending would violate a rate limit of 'count'

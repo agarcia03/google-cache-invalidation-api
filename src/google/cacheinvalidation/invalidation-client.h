@@ -18,6 +18,7 @@
 #ifndef GOOGLE_CACHEINVALIDATION_INVALIDATION_CLIENT_H_
 #define GOOGLE_CACHEINVALIDATION_INVALIDATION_CLIENT_H_
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -217,11 +218,11 @@ class NetworkEndpoint {
 // client configuration contains a collection of rate limits to be enforced on
 // the outbound network listener.
 struct RateLimit {
-  RateLimit(TimeDelta window_size, int count)
+  RateLimit(TimeDelta window_size, size_t count)
       : window_size(window_size), count(count) {}
 
   TimeDelta window_size;
-  int count;
+  size_t count;
 };
 
 // Configuration parameters for the Ticl.
