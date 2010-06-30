@@ -196,7 +196,7 @@ message RegistrationUpdateResult {
 
 message ClientToServerMessage {
 
-  // Next field index: 11.
+  // Next field index: 12.
 
   // Configuration for the message /////////////////////////////////////////////
 
@@ -210,6 +210,9 @@ message ClientToServerMessage {
 
   // Message type MUST be set.
   optional MessageType message_type = 10;
+
+  // Message id to identify the message.
+  optional string message_id = 11;
 
   // Possible client actions that have no additional data associated with them.
   // These are mutually exclusive, so it's reasonable to have a single optional
@@ -263,7 +266,7 @@ message ClientToServerMessage {
 
 message ServerToClientMessage {
 
-  // Next field index: 13.
+  // Next field index: 14.
 
   // Type of message being sent.
   enum MessageType {
@@ -276,6 +279,9 @@ message ServerToClientMessage {
 
   // Mesasge type MUST Be set.
   optional MessageType message_type = 12;
+
+  // Message id to identify the message.
+  optional string message_id = 13;
 
   // A token identifying a session.
   optional bytes session_token = 2;
@@ -321,4 +327,3 @@ message ServerToClientMessage {
   // The earliest the client may poll for invalidations again.
   optional uint32 next_poll_interval_ms = 6;
 }
-
