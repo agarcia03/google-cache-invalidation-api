@@ -36,6 +36,7 @@ bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
     message->set_message_type(
         ClientToServerMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
     last_send_time_ = resources_->current_time();
+    ++session_attempt_count_;
     return false;
   }
   if (session_token_.empty()) {
@@ -47,6 +48,7 @@ bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
     message->set_message_type(
         ClientToServerMessage_MessageType_TYPE_UPDATE_SESSION);
     last_send_time_ = resources_->current_time();
+    ++session_attempt_count_;
     return false;
   }
   // Sending TYPE_OBJECT_CONTROL.
@@ -163,6 +165,9 @@ MessageAction SessionManager::ProcessAssignClientId(
   uniquifier_ = message.client_id();
   nonce_ = -1;
 
+  // Reset the count of unsuccessful session acquisition attempts.
+  session_attempt_count_ = 0;
+
   return ACQUIRE_SESSION;
 }
 
@@ -199,6 +204,8 @@ MessageAction SessionManager::ProcessUpdateSession(
     TLOG(INFO_LEVEL, "Accepting new session %s replacing old session %s",
          message.session_token().c_str(), session_token_.c_str());
     session_token_ = message.session_token();
+    // Reset the count of unsuccessful session acquisition attempts.
+    session_attempt_count_ = 0;
     return ACQUIRE_SESSION;
   }
   return IGNORE_MESSAGE;
@@ -225,6 +232,9 @@ MessageAction SessionManager::ProcessInvalidateClientId(
     TLOG(INFO_LEVEL, "Client id invalidated");
     uniquifier_.clear();
     session_token_.clear();
+    // Set the "last send time" into the far past so we'll be allowed to send an
+    // assign-client-id request at least once.
+    last_send_time_ = Time() - TimeDelta::FromHours(1);
     return LOSE_SESSION;
   } else {
     TLOG(INFO_LEVEL, "Ignoring invalidate-client with mis-matching client id");
@@ -259,6 +269,9 @@ MessageAction SessionManager::ProcessInvalidateSession(
   if (session_token_ == message.session_token()) {
     TLOG(INFO_LEVEL, "Invalidating session: %s", session_token_.c_str());
     session_token_.clear();
+    // Set the "last send time" into the far past so we'll be allowed to send an
+    // update-session request at least once.
+    last_send_time_ = Time() - TimeDelta::FromHours(1);
     return LOSE_SESSION;
   }
   return IGNORE_MESSAGE;
@@ -299,5 +312,25 @@ MessageAction SessionManager::CheckObjectControlMessage(
     return IGNORE_MESSAGE;
   }
 }
+
+bool SessionManager::HasDataToSend() {
+  // If we haven't sent anything in a very long time, reset the session attempt
+  // counter.
+  Time now = resources_->current_time();
+  if (now - last_send_time_ >
+      TimeDelta::FromMinutes(kWakeUpAfterGiveUpIntervalMinutes)) {
+    session_attempt_count_ = 0;
+  }
+  // The session manager only needs to send data if we don't have a session.
+  // It's only allowed to do so if it (a) hasn't just sent a request, and (b)
+  // hasn't tried more than kMaxSessionAttempts times without getting a
+  // successful response.
+  return !HasSession() &&
+      (now > last_send_time_ + config_.registration_timeout) &&
+      (session_attempt_count_ < kMaxSessionAttempts);
+}
+
+const int SessionManager::kMaxSessionAttempts = 5;
+const int SessionManager::kWakeUpAfterGiveUpIntervalMinutes = 60;
 
 }  // namespace invalidation

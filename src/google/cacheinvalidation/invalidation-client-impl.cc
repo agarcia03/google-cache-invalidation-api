@@ -35,22 +35,25 @@ void InvalidationClientImpl::PeriodicTask() {
   bool have_registration_data =
       registration_manager_.DoPeriodicRegistrationCheck();
 
-  // Check to see if we need to send a heartbeat.
-  bool should_heartbeat = network_manager_.HeartbeatNeeded();
+  // Check to see if we need to send a heartbeat or poll.
+  bool should_heartbeat_or_poll = network_manager_.HasDataToSend();
 
   // If there's no session data to send, and we don't have a session, then we
   // can't send anything.
   if (!have_session_data && !session_manager_.HasSession()) {
     TLOG(INFO_LEVEL,
          "Not sending data since no session and session request in-flight");
-  } else if (have_session_data || have_registration_data || should_heartbeat) {
+  } else if (have_session_data || have_registration_data ||
+             should_heartbeat_or_poll) {
     network_manager_.OutboundDataReady();
   }
 
-  // Reschedule the periodic task. The following line MUST run, or the Ticl will
-  // stop working so don't use 'return' statements in this function.
+  // Reschedule the periodic task. The following lines MUST run, or the Ticl
+  // will stop working so don't use 'return' statements in this function.
+  TimeDelta smeared_delay = SmearDelay(
+      config_.periodic_task_interval, config_.smear_factor, &random_seed_);
   resources_->ScheduleWithDelay(
-      config_.periodic_task_interval,
+      smeared_delay,
       NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
 }
 
@@ -224,6 +227,18 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
     }
   }
   message.SerializeToString(serialized);
+}
+
+TimeDelta InvalidationClientImpl::SmearDelay(
+    TimeDelta base_delay, double smear_factor, unsigned int* random_seed) {
+  CHECK(smear_factor >= 0.0);
+  CHECK(smear_factor <= 1.0);
+  // 2*r - 1 gives us a number in [-1, 1]
+  // TODO(ghc): [misc] Use standard google / chrome random functions.
+  double normalized_rand = static_cast<double>(rand_r(random_seed)) / RAND_MAX;
+  double applied_smear = smear_factor * (2.0 * normalized_rand - 1.0);
+  return TimeDelta::FromMicroseconds(
+      base_delay.InMicroseconds() * (applied_smear + 1.0));
 }
 
 }  // namespace invalidation

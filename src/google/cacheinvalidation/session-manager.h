@@ -61,6 +61,7 @@ class SessionManager {
         app_client_id_(app_client_id),
         nonce_(-1),
         last_send_time_(Time() - TimeDelta::FromHours(1)),
+        session_attempt_count_(0),
         resources_(resources),
         uniquifier_(""),
         session_token_("") {}
@@ -74,6 +75,7 @@ class SessionManager {
         app_client_id_(app_client_id),
         nonce_(-1),
         last_send_time_(Time() - TimeDelta::FromHours(1)),
+        session_attempt_count_(0),
         resources_(resources),
         uniquifier_(client_internal_id),
         session_token_("") {}
@@ -139,11 +141,7 @@ class SessionManager {
   }
 
   /* Returns whether the Ticl has data to send. */
-  bool HasDataToSend() {
-    return !HasSession() &&
-        (resources_->current_time() >
-         last_send_time_ + config_.registration_timeout);
-  }
+  bool HasDataToSend();
 
   /* Clears the is_new_client flag if ready_client_id is equal to the current
    * client id.
@@ -165,6 +163,12 @@ class SessionManager {
   /* The last time we sent a message requesting a client id or session. */
   Time last_send_time_;
 
+  /* The number of times we've sent a request for a client id or session without
+   * getting a successful response.  We only try a fixed number of times before
+   * giving up.
+   */
+  int session_attempt_count_;
+
   /* System resources (just used for logging here). */
   SystemResources * const resources_;
 
@@ -173,6 +177,25 @@ class SessionManager {
 
   /* The client's session id, or {@code null} if unassigned. */
   string session_token_;
+
+  /* The maximum number of times we'll request a session (without a successful
+   * response) before giving up.
+   */
+  static const int kMaxSessionAttempts;
+
+  /* The amount of time to wait (in minutes) before waking up after giving up on
+   * requesting a new session (currently 1 hour).
+   */
+  static const int kWakeUpAfterGiveUpIntervalMinutes;
+
+ public:
+  static int getMaxSessionAttemptsForTest() {
+    return kMaxSessionAttempts;
+  }
+
+  static TimeDelta getWakeUpAfterGiveUpIntervalForTest() {
+    return TimeDelta::FromMinutes(kWakeUpAfterGiveUpIntervalMinutes);
+  }
 
   friend class InvalidationClientImpl;
 };

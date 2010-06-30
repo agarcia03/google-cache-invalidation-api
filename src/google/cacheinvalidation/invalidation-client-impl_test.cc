@@ -30,7 +30,8 @@ using INVALIDATION_STL_NAMESPACE::vector;
 /* A listener for testing. */
 class TestListener : public InvalidationListener {
  public:
-  TestListener() : invalidate_all_count_(0), all_registrations_lost_count_(0) {}
+  TestListener() : invalidate_all_count_(0), all_registrations_lost_count_(0),
+                   has_session_(false) {}
 
   virtual void Invalidate(const Invalidation& invalidation, Closure* callback) {
     CHECK(IsCallbackRepeatable(callback));
@@ -57,6 +58,10 @@ class TestListener : public InvalidationListener {
     delete callback;
   }
 
+  virtual void SessionStatusChanged(bool has_session) {
+    has_session_ = has_session;
+  }
+
   /* The number of InvalidateAll() calls it's received. */
   int invalidate_all_count_;
 
@@ -68,6 +73,9 @@ class TestListener : public InvalidationListener {
 
   /* Individual registration removals the Ticl has informed us about. */
   vector<ObjectId> removed_registrations_;
+
+  /* Whether we think we have a session. */
+  bool has_session_;
 };
 
 class InvalidationClientImplTest : public testing::Test {
@@ -414,6 +422,7 @@ class InvalidationClientImplTest : public testing::Test {
         NewPermanentCallback(
             this, &InvalidationClientImplTest::HandleRegistrationResult));
     ClientConfig ticl_config;
+    ticl_config.smear_factor = 0.0;  // Disable smearing for determinism.
     ClientType client_type;
     client_type.set_type(ClientType_Type_CHROME_SYNC);
     ticl_.reset(new InvalidationClientImpl(
@@ -519,7 +528,10 @@ TEST_F(InvalidationClientImplTest, PollingIntervalRespected) {
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   message.ParseFromString(serialized);
 
-  ASSERT_FALSE(message.has_action());
+  // Allow a heartbeat but not a poll.
+  if (message.has_action()) {
+    ASSERT_EQ(message.action(), ClientToServerMessage_Action_HEARTBEAT);
+  }
 
   // Advance the last ms and check that the Ticl does try to poll.
   resources_->ModifyTime(TimeDelta::FromMilliseconds(1));
@@ -544,7 +556,11 @@ TEST_F(InvalidationClientImplTest, PollingIntervalRespected) {
   resources_->ModifyTime(TimeDelta::FromMilliseconds(99999));
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   message.ParseFromString(serialized);
-  ASSERT_FALSE(message.has_action());
+
+  // Allow a heartbeat but not a poll.
+  if (message.has_action()) {
+    ASSERT_EQ(message.action(), ClientToServerMessage_Action_HEARTBEAT);
+  }
 
   // Advance so that the polling interval is fully elapsed, and check that the
   // Ticl does poll.
@@ -997,6 +1013,87 @@ TEST_F(InvalidationClientImplTest, Throttling) {
   }
   ASSERT_GE(ping_count, 28);
   ASSERT_LE(ping_count, 30);
+}
+
+TEST_F(InvalidationClientImplTest, Smearing) {
+  int n_iterations = 500;
+  double smear_factor = 0.2;
+  TimeDelta base_delay(TimeDelta::FromSeconds(1));
+  int num_not_exactly_equal = 0;
+  TimeDelta abs_smear_sum(TimeDelta::FromSeconds(0));
+  unsigned int random_seed = 0;
+  for (int i = 0; i < n_iterations; ++i) {
+    TimeDelta delay = InvalidationClientImpl::SmearDelay(
+        base_delay, smear_factor, &random_seed);
+    LOG(INFO) << "delay = " << delay.ToInternalValue();
+    ASSERT_TRUE((delay >= TimeDelta::FromMilliseconds(800)) &&
+                (delay <= TimeDelta::FromMilliseconds(1200)));
+    num_not_exactly_equal += (delay != base_delay);
+    if (delay < base_delay) {
+      abs_smear_sum = abs_smear_sum + (base_delay - delay);
+    } else {
+      abs_smear_sum = abs_smear_sum + (delay - base_delay);
+    }
+  }
+
+  // Make sure we actually smeared values. This is a conservative check -- we
+  // actually expect num_not_exactly_equal == n_iterations.
+  ASSERT_GT(num_not_exactly_equal, n_iterations / 2);
+
+  // Another check on smearing -- we'd actually expect / 2, but be conservative.
+  ASSERT_TRUE(abs_smear_sum >= base_delay * smear_factor * n_iterations / 3);
+}
+
+TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
+  // Check that the Ticl hasn't said it has a session yet.
+  ASSERT_FALSE(listener_->has_session_);
+
+  // Start up the Ticl, connect a network listener, and let it do its
+  // initialization.
+  ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
+
+  resources_->RunReadyTasks();
+
+  string serialized;
+  ClientToServerMessage message;
+  ClientExternalId external_id;
+  for (int i = 0; i < SessionManager::getMaxSessionAttemptsForTest(); ++i) {
+    // Check that it has a message to send, and pull the message.
+    ASSERT_TRUE(outbound_message_ready_);
+
+    outbound_message_ready_ = false;
+    ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
+    message.ParseFromString(serialized);
+
+    // Check that the message is a proper request for client id assignment.
+    CheckAssignClientIdRequest(message, &external_id);
+
+    // Don't respond.
+    resources_->ModifyTime(
+        // Default registration (session request) timeout plus periodic task
+        // interval.
+        TimeDelta::FromMinutes(1) + TimeDelta::FromMilliseconds(500));
+    resources_->RunReadyTasks();
+  }
+
+  // Check that it's given up and isn't trying to send anymore.
+  ASSERT_FALSE(outbound_message_ready_);
+
+  // Advance time another hour and check again.
+  resources_->ModifyTime(
+      SessionManager::getWakeUpAfterGiveUpIntervalForTest() +
+      TimeDelta::FromMilliseconds(500));
+  resources_->RunReadyTasks();
+
+  // Check that it has a message to send, and pull the message.
+  ASSERT_TRUE(outbound_message_ready_);
+
+  outbound_message_ready_ = false;
+  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
+  message.ParseFromString(serialized);
+
+  // Check that the message is a proper request for client id assignment.
+  CheckAssignClientIdRequest(message, &external_id);
 }
 
 }  // namespace invalidation

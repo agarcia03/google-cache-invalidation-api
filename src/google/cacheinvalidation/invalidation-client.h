@@ -229,12 +229,13 @@ struct RateLimit {
 struct ClientConfig {
   ClientConfig()
       : registration_timeout(TimeDelta::FromMinutes(1)),
-        initial_heartbeat_interval(TimeDelta::FromMinutes(1)),
-        initial_polling_interval(TimeDelta::FromMinutes(10)),
+        initial_heartbeat_interval(TimeDelta::FromMinutes(20)),
+        initial_polling_interval(TimeDelta::FromMinutes(60)),
         max_registrations_per_message(5),
         max_ops_per_message(10),
         max_registration_attempts(3),
-        periodic_task_interval(TimeDelta::FromMilliseconds(500)) {
+        periodic_task_interval(TimeDelta::FromMilliseconds(500)),
+        smear_factor(0.2) {
     AddDefaultRateLimits();
   }
 
@@ -273,6 +274,11 @@ struct ClientConfig {
 
   // The interval at which to execute the periodic task.
   TimeDelta periodic_task_interval;
+
+  // Smearing factor for scheduling. Delays will be smeared by +/- this
+  // factor. E.g., if this value is 0.2 and a delay has base value 1, the
+  // smeared value will be between 0.8 and 1.2.
+  double smear_factor;
 };
 
 // Allows an application to register and unregister for invalidations for

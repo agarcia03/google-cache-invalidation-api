@@ -59,13 +59,25 @@ class NetworkManager {
    */
   void HandleInboundMessage(const ServerToClientMessage& bundle);
 
-  /* Returns whether a heartbeat task should be performed, i.e., whether enough
-   * time has elapsed since the last communication with the server.
+  /* Returns whether a heartbeat needs to be sent -- i.e., where the current
+   * time is greater than the next_heartbeat_.
    */
-  bool HeartbeatNeeded() {
-    // If there's been no network traffic for the last heartbeatDelay_ ms, then
-    // send a heartbeat.
-    return resources_->current_time() >= last_send_ + heartbeat_delay_;
+  bool NeedsHeartbeat() {
+    return resources_->current_time() >= next_heartbeat_;
+  }
+
+  /* Returns whether a poll needs to be sent -- i.e., where the current time is
+   * greater than the nextPollMs_. Overrides any previously-scheduled heartbeat.
+   */
+  bool NeedsPoll() {
+    return resources_->current_time() >= next_poll_;
+  }
+
+  /* Returns whether a heartbeat or poll task should be performed, i.e., whether
+   * enough time has elapsed since the last communication with the server.
+   */
+  bool HasDataToSend() {
+    return NeedsHeartbeat() || NeedsPoll();
   }
 
   /* Indicates that the Ticl has data it's ready to send to the server.  If a
@@ -73,6 +85,16 @@ class NetworkManager {
    * outbound data since it last pulled a message, let it know.
    */
   void OutboundDataReady();
+
+  /* Schedules the next heartbeat by setting nextHeartbeatMs_ to the current
+   * time plus a smeared delay.
+   */
+  void ScheduleHeartbeat();
+
+  /* Schedules the next poll by setting next_poll_ to the current time plus a
+   * smeared delay. Overrides any previously-scheduled poll.
+   */
+  void SchedulePoll();
 
   /* Registers a listener to be notified when outbound data becomes available.
    * If there is outbound data already waiting to be send, notifies it
@@ -107,15 +129,15 @@ class NetworkManager {
   /* A callback to call when an outbound message is ready, or null. */
   NetworkCallback* outbound_listener_;
 
-  /* The last time we polled for invalidations, as reported by the system
-   * resources.
-   */
-  Time last_poll_;
+  /* Ticl configuration parameters. */
+  ClientConfig config_;
 
-  /* The last time we sent any message to the server, as reported by the system
-   * resources.
+  /* The next time we should send a poll request to the server. */
+  Time next_poll_;
+
+  /* The next time we should send a heartbeat to the server.
    */
-  Time last_send_;
+  Time next_heartbeat_;
 
   /* How long we should wait between polling for invalidations. */
   TimeDelta poll_delay_;
@@ -124,6 +146,14 @@ class NetworkManager {
    * message content to send).
    */
   TimeDelta heartbeat_delay_;
+
+  /* A message number used to identify an outgoing message. Incremented on every
+   * message and used to set the "message_id" field of ClientToServerMessage.
+   */
+  int message_number_;
+
+  /* Seed to generate random numbers for smearing. */
+  unsigned int random_seed_;
 
   /* The maximum delay for the timer that checks whether to send a heartbeat.
    */
