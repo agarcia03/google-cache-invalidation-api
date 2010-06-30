@@ -221,6 +221,7 @@ message ClientToServerMessage {
     ASSIGN_CLIENT_ID = 1; // assign a client id (and get a session)
     UPDATE_SESSION = 2; // get a session (client id already assigned)
     POLL_INVALIDATIONS = 3; // poll invalidations (session already exists)
+    HEARTBEAT = 4; // execute a push-path heartbeat.
   }
 
   // Client may request at most one special action.
