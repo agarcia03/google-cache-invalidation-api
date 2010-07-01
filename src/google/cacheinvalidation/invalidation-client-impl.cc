@@ -237,7 +237,8 @@ TimeDelta InvalidationClientImpl::SmearDelay(
   double normalized_rand = random->RandDouble();
   double applied_smear = smear_factor * (2.0 * normalized_rand - 1.0);
   return TimeDelta::FromMicroseconds(
-      base_delay.InMicroseconds() * (applied_smear + 1.0));
+      static_cast<int64>(
+          base_delay.InMicroseconds() * (applied_smear + 1.0)));
 }
 
 }  // namespace invalidation
