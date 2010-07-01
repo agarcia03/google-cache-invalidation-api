@@ -1042,7 +1042,8 @@ TEST_F(InvalidationClientImplTest, Smearing) {
   ASSERT_GT(num_not_exactly_equal, n_iterations / 2);
 
   // Another check on smearing -- we'd actually expect / 2, but be conservative.
-  ASSERT_TRUE(abs_smear_sum >= base_delay * smear_factor * n_iterations / 3);
+  ASSERT_TRUE(abs_smear_sum >=
+      base_delay * static_cast<int64>(smear_factor * n_iterations / 3));
 }
 
 TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
