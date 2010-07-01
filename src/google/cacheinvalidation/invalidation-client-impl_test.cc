@@ -773,7 +773,7 @@ TEST_F(InvalidationClientImplTest, RegistrationFailure) {
   ServerToClientMessage response;
   RegistrationUpdateResult* result1 = response.add_registration_result();
   result1->mutable_operation()->CopyFrom(reg_op1_);
-  result1->mutable_status()->set_code(Status_Code_OBJECT_UNKNOWN);
+  result1->mutable_status()->set_code(Status_Code_PERMANENT_FAILURE);
   result1->mutable_status()->set_description("Registration update failed");
   RegistrationUpdateResult* result2 = response.add_registration_result();
   result2->mutable_operation()->CopyFrom(reg_op2_);

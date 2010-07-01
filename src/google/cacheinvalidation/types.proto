@@ -71,8 +71,6 @@ message Status {
     // Next enum value: 14
 
     SUCCESS = 1;
-    // The provided user id did not match the one in the client id or session.
-    AUTHENTICATION_FAILURE = 3;
     UNKNOWN_CLIENT = 5; // The id provided by the client is unknown.
     INVALID_SESSION = 6; // The session provided by the client is invalid.
     TRANSIENT_FAILURE = 12;
@@ -84,16 +82,6 @@ message Status {
     // on the same object. The Ticl may use this code internally, but it
     // never receives it over the network.
     STALE_OPERATION = 9;
-
-    // The Ticl should never reference ever of these status codes.
-
-    // Request missing required fields or bad field values
-    INVALID_CLIENT_TYPE = 4; // The client type is unknown or missing.
-    MALFORMED_REQUEST = 2;
-    OBJECT_UNKNOWN = 7; // The object does not exist at the server.
-    OBJECT_DELETED = 8; // The object was deleted.
-    SERVICE_UNAVAILABLE = 10; // Temporary failure.
-    UNKNOWN_ERROR = 255;
   }
   optional Code code = 1;
 
