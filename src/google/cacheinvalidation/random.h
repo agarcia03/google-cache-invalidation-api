@@ -22,7 +22,7 @@ namespace invalidation {
 
 class Random {
  public:
-  Random(int64 seed);
+  explicit Random(int64 seed);
 
   double RandDouble();
 };
