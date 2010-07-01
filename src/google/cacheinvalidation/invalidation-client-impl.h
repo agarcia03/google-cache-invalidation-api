@@ -25,6 +25,7 @@
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/mutex.h"
 #include "google/cacheinvalidation/network-manager.h"
+#include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/registration-update-manager.h"
 #include "google/cacheinvalidation/session-manager.h"
 #include "google/cacheinvalidation/stl-namespace.h"
@@ -64,7 +65,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
         network_manager_(ALLOW_THIS_IN_INITIALIZER_LIST(this),
                          resources, config),
         session_manager_(config, client_type, app_name, resources),
-        random_seed_(resources->current_time().ToInternalValue()) {
+        random_(resources->current_time().ToInternalValue()) {
     resources->ScheduleImmediately(
         NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
   }
@@ -107,7 +108,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
    */
   // Visible for testing.
   static TimeDelta SmearDelay(TimeDelta base_delay, double smear_factor,
-                              unsigned int* random_seed);
+                              Random* random);
 
  private:
   // Internal methods:
@@ -170,8 +171,8 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   /* Invalidation acknowledgments waiting to be delivered to the server. */
   vector<Invalidation> pending_invalidation_acks_;
 
-  /* Seed to generate random numbers for smearing. */
-  unsigned int random_seed_;
+  /* Random number generator for smearing periodic intervals. */
+  Random random_;
 
   /* A lock to protect this object's state. */
   Mutex lock_;

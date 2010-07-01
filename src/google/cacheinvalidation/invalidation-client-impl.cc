@@ -51,7 +51,7 @@ void InvalidationClientImpl::PeriodicTask() {
   // Reschedule the periodic task. The following lines MUST run, or the Ticl
   // will stop working so don't use 'return' statements in this function.
   TimeDelta smeared_delay = SmearDelay(
-      config_.periodic_task_interval, config_.smear_factor, &random_seed_);
+      config_.periodic_task_interval, config_.smear_factor, &random_);
   resources_->ScheduleWithDelay(
       smeared_delay,
       NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
@@ -230,12 +230,11 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
 }
 
 TimeDelta InvalidationClientImpl::SmearDelay(
-    TimeDelta base_delay, double smear_factor, unsigned int* random_seed) {
+    TimeDelta base_delay, double smear_factor, Random* random) {
   CHECK(smear_factor >= 0.0);
   CHECK(smear_factor <= 1.0);
   // 2*r - 1 gives us a number in [-1, 1]
-  // TODO(ghc): [misc] Use standard google / chrome random functions.
-  double normalized_rand = static_cast<double>(rand_r(random_seed)) / RAND_MAX;
+  double normalized_rand = random->RandDouble();
   double applied_smear = smear_factor * (2.0 * normalized_rand - 1.0);
   return TimeDelta::FromMicroseconds(
       base_delay.InMicroseconds() * (applied_smear + 1.0));

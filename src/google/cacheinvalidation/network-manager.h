@@ -17,6 +17,7 @@
 
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/invalidation-client.h"
+#include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/throttle.h"
 #include "google/cacheinvalidation/time.h"
 #include "google/cacheinvalidation/types.pb.h"
@@ -152,8 +153,8 @@ class NetworkManager {
    */
   int message_number_;
 
-  /* Seed to generate random numbers for smearing. */
-  unsigned int random_seed_;
+  /* Random number generator for smearing. */
+  Random random_;
 
   /* The maximum delay for the timer that checks whether to send a heartbeat.
    */

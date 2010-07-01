@@ -47,7 +47,7 @@ NetworkManager::NetworkManager(
       poll_delay_(config.initial_polling_interval),
       heartbeat_delay_(config.initial_heartbeat_interval),
       message_number_(0),
-      random_seed_(resources->current_time().ToInternalValue()) {
+      random_(resources->current_time().ToInternalValue()) {
 }
 
 void NetworkManager::OutboundDataReady() {
@@ -62,14 +62,14 @@ void NetworkManager::OutboundDataReady() {
 void NetworkManager::ScheduleHeartbeat() {
   Time now = resources_->current_time();
   next_heartbeat_ = now + InvalidationClientImpl::SmearDelay(
-      heartbeat_delay_, config_.smear_factor, &random_seed_);
+      heartbeat_delay_, config_.smear_factor, &random_);
   TLOG(INFO_LEVEL, "Next heartbeat at %d", next_heartbeat_.ToInternalValue());
 }
 
 void NetworkManager::SchedulePoll() {
   Time now = resources_->current_time();
   next_poll_ = now + InvalidationClientImpl::SmearDelay(
-      poll_delay_, config_.smear_factor, &random_seed_);
+      poll_delay_, config_.smear_factor, &random_);
   TLOG(INFO_LEVEL, "Next poll at %d", next_heartbeat_.ToInternalValue());
 }
 

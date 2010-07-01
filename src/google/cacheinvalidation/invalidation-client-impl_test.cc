@@ -18,6 +18,7 @@
 #include "google/cacheinvalidation/googletest.h"
 #include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
+#include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/system-resources-for-test.h"
 
@@ -1021,10 +1022,10 @@ TEST_F(InvalidationClientImplTest, Smearing) {
   TimeDelta base_delay(TimeDelta::FromSeconds(1));
   int num_not_exactly_equal = 0;
   TimeDelta abs_smear_sum(TimeDelta::FromSeconds(0));
-  unsigned int random_seed = 0;
+  Random random(0);
   for (int i = 0; i < n_iterations; ++i) {
     TimeDelta delay = InvalidationClientImpl::SmearDelay(
-        base_delay, smear_factor, &random_seed);
+        base_delay, smear_factor, &random);
     LOG(INFO) << "delay = " << delay.ToInternalValue();
     ASSERT_TRUE((delay >= TimeDelta::FromMilliseconds(800)) &&
                 (delay <= TimeDelta::FromMilliseconds(1200)));
