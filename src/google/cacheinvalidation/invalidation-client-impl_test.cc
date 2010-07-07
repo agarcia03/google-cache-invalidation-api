@@ -217,7 +217,7 @@ class InvalidationClientImplTest : public testing::Test {
     response.mutable_app_client_id()->set_string_value(
         external_id.app_client_id().string_value());
     response.set_nonce(message.nonce());
-    response.set_client_id(client_uniquifier_);
+    response.set_client_uniquifier(client_uniquifier_);
     response.set_session_token(session_token_);
     response.mutable_status()->set_code(Status_Code_SUCCESS);
     response.set_message_type(
@@ -384,14 +384,14 @@ class InvalidationClientImplTest : public testing::Test {
     ASSERT_TRUE(request.has_message_type());
     ASSERT_EQ(request.message_type(),
               ClientToServerMessage_MessageType_TYPE_UPDATE_SESSION);
-    ASSERT_TRUE(request.has_client_id());
-    ASSERT_EQ(client_uniquifier_, request.client_id());
+    ASSERT_TRUE(request.has_client_uniquifier());
+    ASSERT_EQ(client_uniquifier_, request.client_uniquifier());
 
     // Give it a new session token.
     int all_registrations_lost_count = listener_->all_registrations_lost_count_;
     session_token_ = "NEW_OPAQUE_DATA";
     message.Clear();
-    message.set_client_id(client_uniquifier_);
+    message.set_client_uniquifier(client_uniquifier_);
     message.set_session_token(session_token_);
     message.mutable_status()->set_code(Status_Code_SUCCESS);
     message.set_message_type(
@@ -480,7 +480,7 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
   ServerToClientMessage response;
   response.mutable_client_type()->CopyFrom(external_id.client_type());
   response.mutable_app_client_id()->set_string_value("wrong-app-client-id");
-  response.set_client_id(client_uniquifier_);
+  response.set_client_uniquifier(client_uniquifier_);
   response.set_session_token(session_token_);
   response.mutable_status()->set_code(Status_Code_SUCCESS);
   response.SerializeToString(&serialized);
@@ -913,7 +913,7 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
   message.mutable_status()->set_code(Status_Code_UNKNOWN_CLIENT);
   message.set_session_token(session_token_);
   string serialized;
-  message.set_client_id(client_uniquifier_);
+  message.set_client_uniquifier(client_uniquifier_);
   message.set_message_type(
       ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID);
   message.SerializeToString(&serialized);
@@ -940,7 +940,7 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
   response.mutable_app_client_id()->set_string_value(
       external_id.app_client_id().string_value());
   response.set_nonce(request.nonce());
-  response.set_client_id(new_uniquifier_str);
+  response.set_client_uniquifier(new_uniquifier_str);
   response.set_message_type(
       ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
   response.SerializeToString(&serialized);
@@ -965,7 +965,7 @@ TEST_F(InvalidationClientImplTest, MismatchedUnknownClientIgnored) {
   ServerToClientMessage message;
   message.mutable_status()->set_code(Status_Code_UNKNOWN_CLIENT);
   message.set_session_token(session_token_);
-  message.set_client_id("bogus-client-id");
+  message.set_client_uniquifier("bogus-client-id");
   message.set_message_type(
       ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID);
   string serialized;
@@ -979,6 +979,32 @@ TEST_F(InvalidationClientImplTest, MismatchedUnknownClientIgnored) {
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   request.ParseFromString(serialized);
   ASSERT_FALSE(request.has_action());
+}
+
+TEST_F(InvalidationClientImplTest, InvalidateAll) {
+  /* Test plan: initialize the Ticl.  Send it a message with the "invalidate
+   * all" object id, and check that the app gets an invalidateAll() call.
+   */
+  TestInitialization();
+
+  ServerToClientMessage message;
+  message.mutable_status()->set_code(Status_Code_SUCCESS);
+  message.set_session_token(session_token_);
+  Invalidation* inv = message.add_invalidation();
+  inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
+  inv->mutable_object_id()->mutable_name()->set_string_value("ALL");
+  inv->set_version(1);
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
+  string serialized;
+  message.SerializeToString(&serialized);
+
+  ASSERT_EQ(0, listener_->invalidate_all_count_);
+
+  ticl_->network_endpoint()->HandleInboundMessage(serialized);
+  resources_->RunReadyTasks();
+
+  ASSERT_EQ(1, listener_->invalidate_all_count_);
 }
 
 TEST_F(InvalidationClientImplTest, Throttling) {

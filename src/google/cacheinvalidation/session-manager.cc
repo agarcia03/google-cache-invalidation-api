@@ -43,7 +43,7 @@ bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
     // Else, if we need a session, make a request that will get a session
     // token.
     // Sending message TYPE_UPDATE_SESSION.
-    message->set_client_id(uniquifier_);
+    message->set_client_uniquifier(uniquifier_);
     message->set_action(ClientToServerMessage_Action_UPDATE_SESSION);
     message->set_message_type(
         ClientToServerMessage_MessageType_TYPE_UPDATE_SESSION);
@@ -132,7 +132,7 @@ MessageAction SessionManager::ProcessAssignClientId(
   }
 
   // Ignore the message if it does not have a client id and session token.
-  if (!(message.has_session_token() && message.has_client_id())) {
+  if (!(message.has_session_token() && message.has_client_uniquifier())) {
     TLOG(WARNING_LEVEL, "Ignoring purported assign-client-id with a missing "
          "client id or session");
     return IGNORE_MESSAGE;
@@ -140,7 +140,7 @@ MessageAction SessionManager::ProcessAssignClientId(
 
   // Ignore the message if it has an empty client id or session token.
   // This check prevents us from accepting obviously-wrong data.
-  if (message.session_token().empty() || message.client_id().empty()) {
+  if (message.session_token().empty() || message.client_uniquifier().empty()) {
     TLOG(WARNING_LEVEL, "Ignoring purported assign-client-id with a empty "
          "client id or session");
     return IGNORE_MESSAGE;
@@ -162,7 +162,7 @@ MessageAction SessionManager::ProcessAssignClientId(
   // from the message. Clear our nonce.
   TLOG(INFO_LEVEL, "Accepting assign-client-id request");
   session_token_ = message.session_token();
-  uniquifier_ = message.client_id();
+  uniquifier_ = message.client_uniquifier();
   nonce_ = -1;
 
   // Reset the count of unsuccessful session acquisition attempts.
@@ -187,7 +187,7 @@ MessageAction SessionManager::ProcessUpdateSession(
   }
 
   // If the message does not have a client id, we can't process it.
-  if (!message.has_client_id()) {
+  if (!message.has_client_uniquifier()) {
     TLOG(WARNING_LEVEL, "Ignoring purported update-session with no client id");
     return IGNORE_MESSAGE;
   }
@@ -200,7 +200,7 @@ MessageAction SessionManager::ProcessUpdateSession(
   }
 
   // We accept the new session if the client id in the message matches our own.
-  if (message.client_id() == uniquifier_) {
+  if (message.client_uniquifier() == uniquifier_) {
     TLOG(INFO_LEVEL, "Accepting new session %s replacing old session %s",
          message.session_token().c_str(), session_token_.c_str());
     session_token_ = message.session_token();
@@ -228,7 +228,7 @@ MessageAction SessionManager::ProcessInvalidateClientId(
   }
 
   // Invalidate our client id if the client id in the message matches ours.
-  if (uniquifier_ == message.client_id()) {
+  if (uniquifier_ == message.client_uniquifier()) {
     TLOG(INFO_LEVEL, "Client id invalidated");
     uniquifier_.clear();
     session_token_.clear();

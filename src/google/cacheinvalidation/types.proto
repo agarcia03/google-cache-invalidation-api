@@ -111,7 +111,7 @@ message ComponentStamp {
 // List of transit times.
 // FOR INTERNAL USE ONLY.
 message ComponentStampLog {
-  repeated ComponentStamp stamps = 1;
+  repeated ComponentStamp stamp = 1;
 }
 
 // Specifies the intention to change a registration on a specific object.  To
@@ -238,7 +238,7 @@ message ClientToServerMessage {
 
   // This field must be set if action is UPDATE_SESSION.  Otherwise, it is
   // ignored.
-  optional bytes client_id = 3;
+  optional bytes client_uniquifier = 3;
 
   // Normal operation. /////////////////////////////////////////////////////////
 
@@ -281,10 +281,11 @@ message ServerToClientMessage {
   // Assign client id. /////////////////////////////////////////////////////////
 
   // If the client requested an ASSIGN_CLIENT_ID action, and this was
-  // successful, then client_id contains the assigned id.  If the status code is
-  // UNKNOWN_CLIENT, then this contains the unknown client id that that client
-  // tried to use.  In all other cases, the server may omit this field.
-  optional bytes client_id = 1;
+  // successful, then client_uniquifier contains the assigned uniquifier.  If
+  // the status code is UNKNOWN_CLIENT, then this contains the unknown client
+  // uniquifier that the client tried to use.  In all other cases, the server
+  // may omit this field.
+  optional bytes client_uniquifier = 1;
 
   // If a client id is being assigned, then these fields must contain the client
   // type, app client id, and nonce the client provided with the

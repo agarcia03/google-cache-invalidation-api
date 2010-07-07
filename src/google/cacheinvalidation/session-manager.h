@@ -143,11 +143,6 @@ class SessionManager {
   /* Returns whether the Ticl has data to send. */
   bool HasDataToSend();
 
-  /* Clears the is_new_client flag if ready_client_id is equal to the current
-   * client id.
-   */
-  void CompleteInitializationForClient(const string& ready_client_id);
-
   /* Configuration parameters. */
   ClientConfig config_;
 

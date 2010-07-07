@@ -223,6 +223,15 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
       ++invalidation_acks_sent;
       Invalidation* inv = message.add_acked_invalidation();
       inv->CopyFrom(pending_invalidation_acks_.back());
+      // If the invalidation contains a component stamp log, add a client stamp.
+      if (inv->has_component_stamp_log()) {
+        ComponentStamp* stamp = inv->mutable_component_stamp_log()->add_stamp();
+        stamp->set_component("C");  // "C" -> Client.
+        // Internal time value is in microseconds; stamp log should be in
+        // millis.
+        stamp->set_time(resources_->current_time().ToInternalValue() /
+                        Time::kMicrosecondsPerMillisecond);
+      }
       pending_invalidation_acks_.pop_back();
     }
   }
