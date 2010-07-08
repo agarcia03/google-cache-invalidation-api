@@ -20,6 +20,34 @@ option optimize_for = LITE_RUNTIME;
 
 package invalidation;
 
+// A basic message type used for versioning public proto messages and/or
+// types. The two fields are supposed to be used as follows:
+//
+// * The major version number is changed whenever an incompatible protocol
+//   change or type has been made.  When a message/object with a particular
+//   major version is received, the receiver needs to either know how to handle
+//   this version or it needs to drop the message
+//
+// * The minor version can be changed (say) to document some internal change
+//   for debugging purposes. When a message is received by a receiver, it MUST
+//   ignore the minor version number for making any protocol/type
+//   decisions. I.e., the minor version number is for debugging purposes only.
+//
+//   Versioning is used in various places - for entities that are part of a
+//   protocol (e.g., message requests), for various client implementations, and
+//   for other data types that change independently of the protocol (e.g.,
+//   session tokens).  For each versioned entity, we define a specific message
+//   type to encapsulate the version of that entity (e.g., ProtocolVersion,
+//   ClientVersion, etc.).
+message Version {
+  optional uint32 major = 1;
+  optional uint32 minor = 2;
+}
+
+message ProtocolVersion {
+  optional Version version = 1;
+}
+
 // The type of client / application.
 message ClientType {
   enum Type {
@@ -45,6 +73,20 @@ message ClientExternalId {
   optional ClientType client_type = 1;
   // A client id assigned by the application.
   optional StringOrBytes app_client_id = 2;
+}
+
+// Defines a specific version of the client library.
+message ClientVersion {
+  // The variety of implementation.
+  enum Flavor {
+    // Open-source C++ implementation at:
+    // http://code.google.com/p/google-cache-invalidation-api
+    OPEN_SOURCE_CPP = 4;
+  }
+  optional Flavor flavor = 1;
+
+  // Flavor-specific version number.
+  optional Version version = 2;
 }
 
 // Identifies an object that a client can register for.
@@ -184,9 +226,16 @@ message RegistrationUpdateResult {
 
 message ClientToServerMessage {
 
-  // Next field index: 12.
+  // Next field index: 14.
 
   // Configuration for the message /////////////////////////////////////////////
+
+  // Protocol version of this message.
+  optional ProtocolVersion protocol_version = 12;
+
+  // The implementation version of this client.  This field is advisory, and may
+  // or may not be set on any given message.
+  optional ClientVersion client_version = 13;
 
   // Type of message being sent.
 
@@ -255,7 +304,10 @@ message ClientToServerMessage {
 
 message ServerToClientMessage {
 
-  // Next field index: 14.
+  // Next field index: 15.
+
+  // Protocol version of this message.
+  optional ProtocolVersion protocol_version = 14;
 
   // Type of message being sent.
   enum MessageType {
