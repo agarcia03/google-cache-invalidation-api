@@ -119,6 +119,14 @@ void NetworkManager::HandleOutboundMessage(ClientToServerMessage* message,
   }
   ++message_number_;
   message->set_message_id(StringPrintf("%d", message_number_));
+  // Set the protocol version that we want to use.
+  VersionManager::GetLatestProtocolVersion(message->mutable_protocol_version());
+  // Set the client version.
+  VersionManager::GetClientVersion(message->mutable_client_version());
+  // Set a timestamp on the message.  Internal time is in microseconds, so
+  // divide to get milliseconds.
+  message->set_timestamp(resources_->current_time().ToInternalValue() /
+                         Time::kMicrosecondsPerMillisecond);
   has_outbound_data_ = false;
 }
 

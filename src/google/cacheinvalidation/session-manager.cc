@@ -66,6 +66,11 @@ MessageAction SessionManager::ProcessMessage(
     return IGNORE_MESSAGE;
   }
 
+  if (!version_manager_.ProtocolVersionSupported(message)) {
+    TLOG(WARNING_LEVEL, "Ignoring message with unsupported version");
+    return IGNORE_MESSAGE;
+  }
+
   ServerToClientMessage_MessageType msg_type = message.message_type();
   TLOG(INFO_LEVEL, "Process message with type %d", msg_type);
   switch (msg_type) {

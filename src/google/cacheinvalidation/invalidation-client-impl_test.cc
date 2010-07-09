@@ -21,6 +21,7 @@
 #include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/system-resources-for-test.h"
+#include "google/cacheinvalidation/version-manager.h"
 
 namespace invalidation {
 
@@ -152,7 +153,7 @@ class InvalidationClientImplTest : public testing::Test {
     reg_results_.push_back(result);
   }
 
-  scoped_ptr<RegistrationCallback > callback_;
+  scoped_ptr<RegistrationCallback> callback_;
 
   /* Checks that client's message contains a proper id-assignment request. */
   void CheckAssignClientIdRequest(
@@ -160,6 +161,29 @@ class InvalidationClientImplTest : public testing::Test {
     // Check that the message contains an "assign client id" action.
     ASSERT_TRUE(message.has_action());
     ASSERT_EQ(message.action(), ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
+
+    // Check that the message specifies the client's desired protocol version.
+    ProtocolVersion expected_version;
+    VersionManager::GetLatestProtocolVersion(&expected_version);
+    ASSERT_EQ(message.protocol_version().version().major(),
+              expected_version.version().major());
+    ASSERT_EQ(message.protocol_version().version().minor(),
+              expected_version.version().minor());
+
+    // Check that the message specifies the client's version.
+    ClientVersion expected_client_version;
+    VersionManager::GetClientVersion(&expected_client_version);
+    ASSERT_EQ(message.client_version().version().major(),
+              expected_client_version.version().major());
+    ASSERT_EQ(message.client_version().version().minor(),
+              expected_client_version.version().minor());
+    ASSERT_EQ(message.client_version().flavor(),
+              expected_client_version.flavor());
+
+    // Check that the message supplied a timestamp.
+    ASSERT_EQ(message.timestamp(),
+              resources_->current_time().ToInternalValue() /
+              Time::kMicrosecondsPerMillisecond);
 
     // Check that the message contains an "assign client id" type.
     ASSERT_TRUE(message.has_message_type());
@@ -440,7 +464,7 @@ const char* InvalidationClientImplTest::APP_NAME = "app_name";
 const char* InvalidationClientImplTest::OPAQUE_DATA = "opaque_data";
 const int64 InvalidationClientImplTest::VERSION = 5;
 
-TEST_F(InvalidationClientImplTest, InitializationTest) {
+TEST_F(InvalidationClientImplTest, Initialization) {
   /* Test plan: start up a new Ticl.  Check that it requests to send a message
    * and that the message requests client id assignment with an appropriately
    * formed partial client id.  Respond with a full client id and session token.
@@ -818,7 +842,7 @@ TEST_F(InvalidationClientImplTest, Invalidation) {
    */
   TestRegistration(true);
 
-  // Deliver and invalidation for an object.
+  // Deliver an invalidation for an object.
   ServerToClientMessage message;
   Invalidation* invalidation = message.add_invalidation();
   invalidation->mutable_object_id()->CopyFrom(object_id1_);
@@ -1005,6 +1029,65 @@ TEST_F(InvalidationClientImplTest, InvalidateAll) {
   resources_->RunReadyTasks();
 
   ASSERT_EQ(1, listener_->invalidate_all_count_);
+}
+
+TEST_F(InvalidationClientImplTest, AcceptsProtocolVersion1) {
+  /* Test plan: initialize the Ticl.  Send it a message with the "invalidate
+   * all" object id and protocol version 1, and check that the app gets an
+   * invalidateAll() call.
+   */
+  TestInitialization();
+
+  ServerToClientMessage message;
+  message.mutable_status()->set_code(Status_Code_SUCCESS);
+  message.set_session_token(session_token_);
+  message.mutable_protocol_version()->mutable_version()->set_major(1);
+  message.mutable_protocol_version()->mutable_version()->set_minor(0);
+  Invalidation* inv = message.add_invalidation();
+  inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
+  inv->mutable_object_id()->mutable_name()->set_string_value("ALL");
+  inv->set_version(1);
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
+  string serialized;
+  message.SerializeToString(&serialized);
+
+  ASSERT_EQ(0, listener_->invalidate_all_count_);
+
+  ticl_->network_endpoint()->HandleInboundMessage(serialized);
+  resources_->RunReadyTasks();
+
+  ASSERT_EQ(1, listener_->invalidate_all_count_);
+}
+
+TEST_F(InvalidationClientImplTest, RejectsProtocolVersion2) {
+  /* Test plan: initialize the Ticl.  Send it a message with the "invalidate
+   * all" object id and protocol version 2, and check that the app does not get
+   * an invalidateAll() call, which implies that the Ticl ignored the message
+   * whose version was too high.
+   */
+  TestInitialization();
+
+  ServerToClientMessage message;
+  message.mutable_status()->set_code(Status_Code_SUCCESS);
+  message.set_session_token(session_token_);
+  message.mutable_protocol_version()->mutable_version()->set_major(2);
+  message.mutable_protocol_version()->mutable_version()->set_minor(0);
+  Invalidation* inv = message.add_invalidation();
+  inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
+  inv->mutable_object_id()->mutable_name()->set_string_value("ALL");
+  inv->set_version(1);
+  message.set_message_type(
+      ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
+  string serialized;
+  message.SerializeToString(&serialized);
+
+  ASSERT_EQ(0, listener_->invalidate_all_count_);
+
+  ticl_->network_endpoint()->HandleInboundMessage(serialized);
+  resources_->RunReadyTasks();
+
+  ASSERT_EQ(0, listener_->invalidate_all_count_);
 }
 
 TEST_F(InvalidationClientImplTest, Throttling) {

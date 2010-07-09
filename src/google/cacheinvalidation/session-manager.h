@@ -20,6 +20,7 @@
 #include "base/basictypes.h"
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/stl-namespace.h"
+#include "google/cacheinvalidation/version-manager.h"
 
 namespace invalidation {
 
@@ -64,7 +65,9 @@ class SessionManager {
         session_attempt_count_(0),
         resources_(resources),
         uniquifier_(""),
-        session_token_("") {}
+        session_token_("") {
+    AddSupportedProtocolVersions();
+  }
 
   /* Constructs a session manager with a specified client id. */
   SessionManager(const ClientConfig& config, ClientType client_type,
@@ -78,7 +81,9 @@ class SessionManager {
         session_attempt_count_(0),
         resources_(resources),
         uniquifier_(client_internal_id),
-        session_token_("") {}
+        session_token_("") {
+    AddSupportedProtocolVersions();
+  }
 
   /* If the client currently has no client id, sets the ASSIGN_CLIENT_ID action
    * in the given message, along with the client type, app client id, and a
@@ -127,6 +132,14 @@ class SessionManager {
    */
   MessageAction CheckObjectControlMessage(const ServerToClientMessage& message);
 
+  /* Registers versions of the protocol that this client implementation
+   * understands.
+   */
+  void AddSupportedProtocolVersions() {
+    version_manager_.AddSupportedProtocolVersion(0);
+    version_manager_.AddSupportedProtocolVersion(1);
+  }
+
   const string& client_uniquifier() const {
     return uniquifier_;
   }
@@ -172,6 +185,9 @@ class SessionManager {
 
   /* The client's session id, or {@code null} if unassigned. */
   string session_token_;
+
+  /* Tracks versions supported by this client. */
+  VersionManager version_manager_;
 
   /* The maximum number of times we'll request a session (without a successful
    * response) before giving up.

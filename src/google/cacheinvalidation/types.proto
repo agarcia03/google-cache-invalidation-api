@@ -237,6 +237,9 @@ message ClientToServerMessage {
   // or may not be set on any given message.
   optional ClientVersion client_version = 13;
 
+  // Timestamp from the client's clock.
+  optional uint64 timestamp = 14;
+
   // Type of message being sent.
 
   enum MessageType {
@@ -304,10 +307,13 @@ message ClientToServerMessage {
 
 message ServerToClientMessage {
 
-  // Next field index: 15.
+  // Next field index: 16.
 
   // Protocol version of this message.
   optional ProtocolVersion protocol_version = 14;
+
+  // Timestamp from server's clock, for debugging.
+  optional uint64 timestamp = 15;
 
   // Type of message being sent.
   enum MessageType {
