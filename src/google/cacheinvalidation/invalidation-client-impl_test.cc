@@ -165,18 +165,18 @@ class InvalidationClientImplTest : public testing::Test {
     // Check that the message specifies the client's desired protocol version.
     ProtocolVersion expected_version;
     VersionManager::GetLatestProtocolVersion(&expected_version);
-    ASSERT_EQ(message.protocol_version().version().major(),
-              expected_version.version().major());
-    ASSERT_EQ(message.protocol_version().version().minor(),
-              expected_version.version().minor());
+    ASSERT_EQ(message.protocol_version().version().major_version(),
+              expected_version.version().major_version());
+    ASSERT_EQ(message.protocol_version().version().minor_version(),
+              expected_version.version().minor_version());
 
     // Check that the message specifies the client's version.
     ClientVersion expected_client_version;
     VersionManager::GetClientVersion(&expected_client_version);
-    ASSERT_EQ(message.client_version().version().major(),
-              expected_client_version.version().major());
-    ASSERT_EQ(message.client_version().version().minor(),
-              expected_client_version.version().minor());
+    ASSERT_EQ(message.client_version().version().major_version(),
+              expected_client_version.version().major_version());
+    ASSERT_EQ(message.client_version().version().minor_version(),
+              expected_client_version.version().minor_version());
     ASSERT_EQ(message.client_version().flavor(),
               expected_client_version.flavor());
 
@@ -1041,8 +1041,8 @@ TEST_F(InvalidationClientImplTest, AcceptsProtocolVersion1) {
   ServerToClientMessage message;
   message.mutable_status()->set_code(Status_Code_SUCCESS);
   message.set_session_token(session_token_);
-  message.mutable_protocol_version()->mutable_version()->set_major(1);
-  message.mutable_protocol_version()->mutable_version()->set_minor(0);
+  message.mutable_protocol_version()->mutable_version()->set_major_version(1);
+  message.mutable_protocol_version()->mutable_version()->set_minor_version(0);
   Invalidation* inv = message.add_invalidation();
   inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
   inv->mutable_object_id()->mutable_name()->set_string_value("ALL");
@@ -1071,8 +1071,8 @@ TEST_F(InvalidationClientImplTest, RejectsProtocolVersion2) {
   ServerToClientMessage message;
   message.mutable_status()->set_code(Status_Code_SUCCESS);
   message.set_session_token(session_token_);
-  message.mutable_protocol_version()->mutable_version()->set_major(2);
-  message.mutable_protocol_version()->mutable_version()->set_minor(0);
+  message.mutable_protocol_version()->mutable_version()->set_major_version(2);
+  message.mutable_protocol_version()->mutable_version()->set_minor_version(0);
   Invalidation* inv = message.add_invalidation();
   inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
   inv->mutable_object_id()->mutable_name()->set_string_value("ALL");

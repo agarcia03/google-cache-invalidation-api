@@ -40,8 +40,8 @@ package invalidation;
 //   type to encapsulate the version of that entity (e.g., ProtocolVersion,
 //   ClientVersion, etc.).
 message Version {
-  optional uint32 major = 1;
-  optional uint32 minor = 2;
+  optional uint32 major_version = 1;
+  optional uint32 minor_version = 2;
 }
 
 message ProtocolVersion {

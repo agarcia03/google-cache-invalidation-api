@@ -24,7 +24,7 @@ bool VersionManager::ProtocolVersionSupported(
     const ServerToClientMessage& message) {
   int32 major_number = 0;
   if (message.has_protocol_version()) {
-    major_number = message.protocol_version().version().major();
+    major_number = message.protocol_version().version().major_version();
   }
   return (supported_major_versions_.find(major_number) !=
           supported_major_versions_.end());
@@ -32,14 +32,14 @@ bool VersionManager::ProtocolVersionSupported(
 
 void VersionManager::GetClientVersion(ClientVersion* client_version) {
   client_version->set_flavor(ClientVersion_Flavor_OPEN_SOURCE_CPP);
-  client_version->mutable_version()->set_major(1);
-  client_version->mutable_version()->set_minor(0);
+  client_version->mutable_version()->set_major_version(1);
+  client_version->mutable_version()->set_minor_version(0);
 }
 
 void VersionManager::GetLatestProtocolVersion(
     ProtocolVersion* protocol_version) {
-  protocol_version->mutable_version()->set_major(1);
-  protocol_version->mutable_version()->set_minor(0);
+  protocol_version->mutable_version()->set_major_version(1);
+  protocol_version->mutable_version()->set_minor_version(0);
 }
 
 }  // namespace invalidation

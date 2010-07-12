@@ -336,6 +336,6 @@ bool SessionManager::HasDataToSend() {
 }
 
 const int SessionManager::kMaxSessionAttempts = 5;
-const int SessionManager::kWakeUpAfterGiveUpIntervalMinutes = 60;
+const int SessionManager::kWakeUpAfterGiveUpIntervalMinutes = 3 * 60;
 
 }  // namespace invalidation
