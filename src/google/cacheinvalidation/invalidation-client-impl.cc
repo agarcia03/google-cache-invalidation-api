@@ -122,8 +122,7 @@ void InvalidationClientImpl::HandleInboundMessage(const string& message) {
 
   MessageAction action = session_manager_.ProcessMessage(bundle);
 
-  TLOG(INFO_LEVEL, "Classified inbound message as %d (session token = %s)",
-       action, bundle.session_token().c_str());
+  TLOG(INFO_LEVEL, "Classified inbound message as %d", action);
   switch (action) {
     case IGNORE_MESSAGE:
       TLOG(INFO_LEVEL, "Ignored last received message");
