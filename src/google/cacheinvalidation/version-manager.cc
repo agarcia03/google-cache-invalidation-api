@@ -30,16 +30,19 @@ bool VersionManager::ProtocolVersionSupported(
           supported_major_versions_.end());
 }
 
+// Client version history.
+// 1.0 first version to include client version field
+// 1.1 adds PermanentShutdown()
 void VersionManager::GetClientVersion(ClientVersion* client_version) {
   client_version->set_flavor(ClientVersion_Flavor_OPEN_SOURCE_CPP);
   client_version->mutable_version()->set_major_version(1);
-  client_version->mutable_version()->set_minor_version(0);
+  client_version->mutable_version()->set_minor_version(1);
 }
 
 void VersionManager::GetLatestProtocolVersion(
     ProtocolVersion* protocol_version) {
   protocol_version->mutable_version()->set_major_version(1);
-  protocol_version->mutable_version()->set_minor_version(0);
+  protocol_version->mutable_version()->set_minor_version(1);
 }
 
 }  // namespace invalidation

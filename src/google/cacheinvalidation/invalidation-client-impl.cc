@@ -73,6 +73,12 @@ void InvalidationClientImpl::Unregister(
   registration_manager_.Unregister(oid, callback);
 }
 
+void InvalidationClientImpl::PermanentShutdown() {
+  MutexLock m(&lock_);
+  TLOG(INFO_LEVEL, "Doing permanent shutdown by application request");
+  session_manager_.Shutdown();
+}
+
 void InvalidationClientImpl::HandleNewSession() {
   string client_uniquifier = session_manager_.client_uniquifier();
 

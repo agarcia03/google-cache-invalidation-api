@@ -65,7 +65,8 @@ class SessionManager {
         session_attempt_count_(0),
         resources_(resources),
         uniquifier_(""),
-        session_token_("") {
+        session_token_(""),
+        shutdown_(false) {
     AddSupportedProtocolVersions();
   }
 
@@ -81,7 +82,8 @@ class SessionManager {
         session_attempt_count_(0),
         resources_(resources),
         uniquifier_(client_internal_id),
-        session_token_("") {
+        session_token_(""),
+        shutdown_(false) {
     AddSupportedProtocolVersions();
   }
 
@@ -131,6 +133,13 @@ class SessionManager {
    * REQUIRES: the message be of type OBJECT_CONTROL.
    */
   MessageAction CheckObjectControlMessage(const ServerToClientMessage& message);
+
+  /* Informs the session manager that the client is shutting down.  Any
+   * subsequent outbound messages will be of type SHUTDOWN.
+   */
+  void Shutdown() {
+    shutdown_ = true;
+  }
 
   /* Registers versions of the protocol that this client implementation
    * understands.
@@ -185,6 +194,9 @@ class SessionManager {
 
   /* The client's session id, or {@code null} if unassigned. */
   string session_token_;
+
+  /* Whether this client has been shut down. */
+  bool shutdown_;
 
   /* Tracks versions supported by this client. */
   VersionManager version_manager_;

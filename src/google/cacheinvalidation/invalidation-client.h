@@ -314,6 +314,8 @@ class InvalidationClient {
   // client takes ownership of the callback, which must be repeatable
   // (although it is called at most once) and unique.  When the
   // registration is done, callback->Run() is called with the result.
+  //
+  // REQUIRES: PermanentShutdown() has not been called.
   virtual void Register(
       const ObjectId& oid, RegistrationCallback* callback) = 0;
 
@@ -322,17 +324,29 @@ class InvalidationClient {
   // ownership of the callback, which must be repeatable (although it
   // is called at most once) and unique.  When the unregistration is
   // done, callback->Run() is called with the result.
+  //
+  // REQUIRES: PermanentShutdown() has not been called.
   virtual void Unregister(
       const ObjectId& oid, RegistrationCallback* callback) = 0;
+
+  // Indicates that the application is shutting down permanently (will not
+  // contact the server again).  The application should follow this call by
+  // immediately taking an outbound message from the network endpoint and
+  // delivering it to the server.  (The ordinary method of informing the
+  // application that there is a message ready has latency on the order of a
+  // second.)
+  //
+  // After pulling and sending the message, the application should follow its
+  // normal procedure for safely and cleanly destroying this object (i.e., this
+  // method does not release any resources).  The semantics of using this object
+  // for any other purpose after making this call are undefined.
+  virtual void PermanentShutdown() = 0;
 
   // Returns the network channel from which the application can get messages to
   // send on its network to the invalidation server and provide messages that
   // have been received from the server. The invalidation client owns the
   // endpoint.
   virtual NetworkEndpoint* network_endpoint() = 0;
-
-  // Returns the client's uniquifier via the 'uniquifier' output parameter.
-  virtual void GetClientUniquifier(string *uniquifier) const = 0;
 };
 
 }  // namespace invalidation

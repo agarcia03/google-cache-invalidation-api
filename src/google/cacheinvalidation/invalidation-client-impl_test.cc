@@ -1207,4 +1207,25 @@ TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
   CheckAssignClientIdRequest(message, &external_id);
 }
 
+/*
+ * Initialize a client, then call PermanentShutdown().  Pull a bundle and check
+ * that it has TYPE_SHUTDOWN, with the right uniquifier and session token.
+ */
+TEST_F(InvalidationClientImplTest, Shutdown) {
+  TestInitialization();
+
+  ticl_->PermanentShutdown();
+  string serialized;
+  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
+
+  ClientToServerMessage message;
+  message.ParseFromString(serialized);
+
+  ASSERT_TRUE(message.has_message_type());
+  ASSERT_EQ(
+      message.message_type(), ClientToServerMessage_MessageType_TYPE_SHUTDOWN);
+  ASSERT_EQ(message.client_uniquifier(), client_uniquifier_);
+  ASSERT_EQ(message.session_token(), session_token_);
+}
+
 }  // namespace invalidation

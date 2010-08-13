@@ -44,6 +44,9 @@ message Version {
   optional uint32 minor_version = 2;
 }
 
+// Protocol version history:
+// 1.0: first versioned version
+// 1.1: adds TYPE_SHUTDOWN to ClientToServerMessage.MessageType
 message ProtocolVersion {
   optional Version version = 1;
 }
@@ -246,6 +249,11 @@ message ClientToServerMessage {
     TYPE_ASSIGN_CLIENT_ID = 1;
     TYPE_UPDATE_SESSION = 2;
     TYPE_OBJECT_CONTROL = 3;
+
+    // This message indicates the client is terminating, so the server is
+    // advised to garbage-collect the client's persistent state as soon as it is
+    // convenient to do so.
+    TYPE_SHUTDOWN = 4;
   }
 
   // Message type MUST be set.

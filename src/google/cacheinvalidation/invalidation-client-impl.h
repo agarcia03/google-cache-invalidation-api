@@ -82,6 +82,8 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   virtual void Unregister(const ObjectId& oid,
                           RegistrationCallback* callback);
 
+  virtual void PermanentShutdown();
+
   virtual NetworkEndpoint* network_endpoint() {
     return this;
   }
