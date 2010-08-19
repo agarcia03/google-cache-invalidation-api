@@ -25,7 +25,9 @@ bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
     // If we're shutting down, just send a message with TYPE_SHUTDOWN.
     message->set_message_type(ClientToServerMessage_MessageType_TYPE_SHUTDOWN);
     message->set_client_uniquifier(uniquifier_);
-    message->set_session_token(session_token_);
+    if (!session_token_.empty()) {
+      message->set_session_token(session_token_);
+    }
     return false;
   }
   if (uniquifier_.empty()) {
