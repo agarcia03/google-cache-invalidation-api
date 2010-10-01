@@ -50,14 +50,16 @@ struct PendingOperation {
 class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
  public:
   /* Constructs an InvalidationClientImpl with the given system resources,
-   * client type, and application name.  It will deliver invalidations to the
-   * given listener.
+   * client type, application name, and persisted state.  It will deliver
+   * invalidations to the given listener.
+   * TODO(ghc): Use persisted state.
    */
   InvalidationClientImpl(SystemResources* resources,
                          const ClientType& client_type,
                          const string& app_name,
-                         InvalidationListener* listener,
-                         const ClientConfig& config)
+                         const string& persisted_state,
+                         const ClientConfig& config,
+                         InvalidationListener* listener)
       : config_(config),
         resources_(resources),
         listener_(listener),
@@ -88,7 +90,9 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
     return this;
   }
 
-  virtual void GetClientUniquifier(string* uniquifier) const {
+  virtual void GetClientUniquifier(string* uniquifier) {
+    CHECK(!resources_->IsRunningOnInternalThread());
+    MutexLock m(&lock_);
     *uniquifier = session_manager_.client_uniquifier();
   }
 
@@ -99,6 +103,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   virtual void HandleInboundMessage(const string& bundle);
 
   virtual void AdviseNetworkStatus(bool online) {
+    CHECK(!resources_->IsRunningOnInternalThread());
   }
 
   virtual void RegisterOutboundListener(

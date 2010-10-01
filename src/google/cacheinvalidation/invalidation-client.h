@@ -33,12 +33,11 @@ using INVALIDATION_STL_NAMESPACE::string;
 using INVALIDATION_STL_NAMESPACE::vector;
 
 class NetworkEndpoint;
-class StorageOperation;
 
 typedef INVALIDATION_CALLBACK1_TYPE(NetworkEndpoint* const&) NetworkCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(const RegistrationUpdateResult&)
     RegistrationCallback;
-typedef INVALIDATION_CALLBACK1_TYPE(const StorageOperation&) StorageCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(bool) StorageCallback;
 
 // -----------------------------------------------------------------------------
 // Interfaces that the application using the invalidation client library needs
@@ -46,7 +45,9 @@ typedef INVALIDATION_CALLBACK1_TYPE(const StorageOperation&) StorageCallback;
 // -----------------------------------------------------------------------------
 
 // System resources used by the client library, e.g., logging, mutexes, storage,
-// etc.
+// etc.  An object implementing this interface needs two distinct threads so
+// that tasks within the client library are scheduled separately from callbacks
+// to the application.
 class SystemResources {
  public:
 
@@ -105,6 +106,17 @@ class SystemResources {
   // REQUIRES: StartScheduler() has been called.
   virtual void ScheduleImmediately(Closure* task) = 0;
 
+  // Like ScheduleImmediately(), except the task is scheduled to run on the
+  // listener's (application's) thread, which must be different from the thread
+  // used for the other Schedule* functions.
+  //
+  // REQUIRES: StartScheduler() has been called.
+  virtual void ScheduleOnListenerThread(Closure* task) = 0;
+
+  // Returns whether execution is currently on the client library's internal
+  // thread (the one used for ScheduleImmediately and ScheduleWithDelay).
+  virtual bool IsRunningOnInternalThread() = 0;
+
   // Log a statement specified by format and the varargs. <file, line> indicate
   // where this call originated from and level indicates the severity of the log
   // statement.  The format string and optional arguments follow the style of
@@ -112,6 +124,11 @@ class SystemResources {
   virtual void Log(LogLevel level, const char* file, int line,
                    const char* format, ...) = 0;
 
+  // Persists the client library's internal state.  The resources object takes
+  // ownership of the callback and should invoke it with 'true' if the write
+  // succeeds, or 'false' if it fails.  The state should be read back on the
+  // next startup and passed to CreatePersistent.
+  virtual void WriteState(const string& state, StorageCallback* callback) = 0;
 };
 
 // The object on which invalidations (or lost registrations) are delivered by
@@ -266,7 +283,7 @@ struct ClientConfig {
   // The maximum number of messages that will be sent in a particular message.
   int max_registrations_per_message;
 
-  // The maximum number of registrations and invalidation acks per message;
+  // The maximum number of registrations and invalidation acks per message.
   int max_ops_per_message;
 
   // Maximum number of times to attempt a registration.
@@ -297,6 +314,9 @@ class InvalidationClient {
   //
   // resources - the system resources for logging, scheduling, etc.
   //
+  // persisted_state - previously persisted state for this client, or an empty
+  //     string if the client is starting fresh
+  //
   // listener - object on which the invalidations will be delivered
   //
   // Ownership for all parameters remains with the caller. However, the
@@ -305,9 +325,10 @@ class InvalidationClient {
   // the returned ticl.
   static InvalidationClient* Create(
       SystemResources* resources, const ClientType& client_type,
-      const string& client_id, InvalidationListener *listener);
+      const string& client_id, const string& persisted_state,
+      InvalidationListener *listener);
 
-  // TODO(ghc): allow Create() to take a ClientConfig.
+  // TODO(ghc): allow Create() to take configuration parameters.
 
   // Requests that the InvalidationClient register to receive
   // invalidations for the object with id oid.  The invalidation

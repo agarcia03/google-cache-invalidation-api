@@ -19,10 +19,11 @@ namespace invalidation {
 
 InvalidationClient* InvalidationClient::Create(
     SystemResources* resources, const ClientType& client_type,
-    const string& application_name, InvalidationListener *listener) {
+    const string& application_name, const string& persisted_state,
+    InvalidationListener* listener) {
   ClientConfig config;
   return new InvalidationClientImpl(resources, client_type, application_name,
-                                     listener, config);
+                                    persisted_state, config, listener);
 }
 
 }  // namespace invalidation

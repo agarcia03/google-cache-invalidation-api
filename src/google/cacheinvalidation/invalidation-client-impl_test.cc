@@ -32,16 +32,19 @@ using INVALIDATION_STL_NAMESPACE::vector;
 /* A listener for testing. */
 class TestListener : public InvalidationListener {
  public:
-  TestListener() : invalidate_all_count_(0), all_registrations_lost_count_(0),
-                   has_session_(false) {}
+  explicit TestListener(SystemResources* resources)
+      : resources_(resources), invalidate_all_count_(0),
+        all_registrations_lost_count_(0), has_session_(false) {}
 
   virtual void Invalidate(const Invalidation& invalidation, Closure* callback) {
     CHECK(IsCallbackRepeatable(callback));
+    CHECK(!resources_->IsRunningOnInternalThread());
     invalidations_.push_back(make_pair(invalidation, callback));
   }
 
   virtual void InvalidateAll(Closure* callback) {
     CHECK(IsCallbackRepeatable(callback));
+    CHECK(!resources_->IsRunningOnInternalThread());
     ++invalidate_all_count_;
     callback->Run();
     delete callback;
@@ -49,20 +52,26 @@ class TestListener : public InvalidationListener {
 
   virtual void AllRegistrationsLost(Closure* callback) {
     CHECK(IsCallbackRepeatable(callback));
+    CHECK(!resources_->IsRunningOnInternalThread());
     ++all_registrations_lost_count_;
     delete callback;
   }
 
   virtual void RegistrationLost(const ObjectId& objectId, Closure* callback) {
     CHECK(IsCallbackRepeatable(callback));
+    CHECK(!resources_->IsRunningOnInternalThread());
     removed_registrations_.push_back(objectId);
     callback->Run();
     delete callback;
   }
 
   virtual void SessionStatusChanged(bool has_session) {
+    CHECK(!resources_->IsRunningOnInternalThread());
     has_session_ = has_session;
   }
+
+  /* System resources, for checking that callbacks run on the right thread. */
+  SystemResources* resources_;
 
   /* The number of InvalidateAll() calls it's received. */
   int invalidate_all_count_;
@@ -122,6 +131,7 @@ class InvalidationClientImplTest : public testing::Test {
 
   /* Listens for outbound messages from the Ticl. */
   void HandleOutboundMessageReady(NetworkEndpoint* const& endpoint) {
+    ASSERT_FALSE(resources_->IsRunningOnInternalThread());
     outbound_message_ready_ = true;
   }
 
@@ -150,6 +160,7 @@ class InvalidationClientImplTest : public testing::Test {
 
   /* A registration callback that writes its result to reg_results_. */
   void HandleRegistrationResult(const RegistrationUpdateResult& result) {
+    ASSERT_FALSE(resources_->IsRunningOnInternalThread());
     reg_results_.push_back(result);
   }
 
@@ -213,9 +224,11 @@ class InvalidationClientImplTest : public testing::Test {
   void TestInitialization() {
     // Start up the Ticl, connect a network listener, and let it do its
     // initialization.
+    outbound_message_ready_ = false;
     ticl_->network_endpoint()->RegisterOutboundListener(
         network_listener_.get());
     resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
 
     // Check that it has a message to send, and pull the message.
     ASSERT_TRUE(outbound_message_ready_);
@@ -294,6 +307,7 @@ class InvalidationClientImplTest : public testing::Test {
         NewPermanentCallback(callback_.get(), run_function));
     resources_->ModifyTime(fine_throttle_interval_);
     resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
     ASSERT_TRUE(outbound_message_ready_);
 
     RegistrationUpdate_Type operation_type = is_register ?
@@ -356,6 +370,7 @@ class InvalidationClientImplTest : public testing::Test {
     response.SerializeToString(&serialized);
     ticl_->network_endpoint()->HandleInboundMessage(serialized);
     resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
 
     // Check that the registration callback was invoked.
     ASSERT_EQ(reg_results_.size(), 2);
@@ -395,6 +410,7 @@ class InvalidationClientImplTest : public testing::Test {
     ticl_->network_endpoint()->HandleInboundMessage(serialized);
     resources_->ModifyTime(fine_throttle_interval_);
     resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
 
     // Check that the Ticl has pinged the client to indicate it has a request.
     ASSERT_TRUE(outbound_message_ready_);
@@ -423,6 +439,7 @@ class InvalidationClientImplTest : public testing::Test {
     message.SerializeToString(&serialized);
     ticl_->network_endpoint()->HandleInboundMessage(serialized);
     resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
 
     // Check that it issued AllRegistrationsLost.
     ASSERT_EQ(all_registrations_lost_count + 1,
@@ -439,7 +456,7 @@ class InvalidationClientImplTest : public testing::Test {
     resources_.reset(new SystemResourcesForTest());
     resources_->ModifyTime(TimeDelta::FromSeconds(1000000));
     resources_->StartScheduler();
-    listener_.reset(new TestListener());
+    listener_.reset(new TestListener(resources_.get()));
     network_listener_.reset(
         NewPermanentCallback(
             this, &InvalidationClientImplTest::HandleOutboundMessageReady));
@@ -451,7 +468,8 @@ class InvalidationClientImplTest : public testing::Test {
     ClientType client_type;
     client_type.set_type(ClientType_Type_CHROME_SYNC);
     ticl_.reset(new InvalidationClientImpl(
-        resources_.get(), client_type, APP_NAME, listener_.get(), ticl_config));
+        resources_.get(), client_type, APP_NAME, "", ticl_config,
+        listener_.get()));
     reg_results_.clear();
   }
 
@@ -634,6 +652,7 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespected) {
   // Advance further, and check that it did nudge the application to send.
   resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_TRUE(outbound_message_ready_);
 
   // Shorten the heartbeat interval and repeat.
@@ -654,6 +673,7 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespected) {
   // Periodic task executes after this since heartbeat interval is large.
   resources_->ModifyTime(TimeDelta::FromMilliseconds(80000));
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_TRUE(outbound_message_ready_);
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   outbound_message_ready_ = false;
@@ -661,10 +681,12 @@ TEST_F(InvalidationClientImplTest, HeartbeatIntervalRespected) {
   // But subsequently, heartbeats should happen with the shorter interval.
   resources_->ModifyTime(TimeDelta::FromMilliseconds(9999));
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_FALSE(outbound_message_ready_);
 
   resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   ASSERT_TRUE(outbound_message_ready_);
 }
@@ -743,6 +765,7 @@ TEST_F(InvalidationClientImplTest, RegistrationRetried) {
   // Deliver the ack and check that the registration callback is invoked.
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_EQ(reg_results_.size(), 1);
 
   result->SerializeToString(&serialized);
@@ -775,6 +798,7 @@ TEST_F(InvalidationClientImplTest, RegistrationRetried) {
   // Check that the reg. callback was invoked for the second ack.
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_EQ(reg_results_.size(), 2);
 
   result->SerializeToString(&serialized);
@@ -812,6 +836,7 @@ TEST_F(InvalidationClientImplTest, RegistrationFailure) {
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   // Check that the registration callback was invoked.
   ASSERT_EQ(reg_results_.size(), 2);
@@ -855,6 +880,7 @@ TEST_F(InvalidationClientImplTest, Invalidation) {
   message.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   // Check that the app (listener) was informed of the invalidation.
   ASSERT_EQ(listener_->invalidations_.size(), 1);
@@ -877,6 +903,7 @@ TEST_F(InvalidationClientImplTest, Invalidation) {
   delete tmp.second;
   resources_->ModifyTime(fine_throttle_interval_);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_TRUE(outbound_message_ready_);
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   client_message.ParseFromString(serialized);
@@ -972,6 +999,7 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
   int all_registrations_lost_count = listener_->all_registrations_lost_count_;
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   // Check that it invoked AllRegistrationsLost().
   ASSERT_EQ(all_registrations_lost_count + 1,
@@ -1027,6 +1055,7 @@ TEST_F(InvalidationClientImplTest, InvalidateAll) {
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   ASSERT_EQ(1, listener_->invalidate_all_count_);
 }
@@ -1056,6 +1085,7 @@ TEST_F(InvalidationClientImplTest, AcceptsProtocolVersion1) {
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   ASSERT_EQ(1, listener_->invalidate_all_count_);
 }
@@ -1086,6 +1116,7 @@ TEST_F(InvalidationClientImplTest, RejectsProtocolVersion2) {
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   ASSERT_EQ(0, listener_->invalidate_all_count_);
 }
@@ -1115,6 +1146,7 @@ TEST_F(InvalidationClientImplTest, Throttling) {
   for (int i = 0; i < 30000; ++i) {
     resources_->ModifyTime(TimeDelta::FromMilliseconds(10));
     resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
     if (outbound_message_ready_) {
       ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
       outbound_message_ready_ = false;
@@ -1122,7 +1154,7 @@ TEST_F(InvalidationClientImplTest, Throttling) {
     }
   }
   ASSERT_GE(ping_count, 28);
-  ASSERT_LE(ping_count, 30);
+  ASSERT_LE(ping_count, 31);
 }
 
 TEST_F(InvalidationClientImplTest, Smearing) {
@@ -1164,6 +1196,7 @@ TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
 
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   string serialized;
   ClientToServerMessage message;
@@ -1185,6 +1218,7 @@ TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
         // interval.
         TimeDelta::FromMinutes(1) + TimeDelta::FromMilliseconds(500));
     resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
   }
 
   // Check that it's given up and isn't trying to send anymore.
@@ -1195,6 +1229,7 @@ TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
       SessionManager::getWakeUpAfterGiveUpIntervalForTest() +
       TimeDelta::FromMilliseconds(500));
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
   // Check that it has a message to send, and pull the message.
   ASSERT_TRUE(outbound_message_ready_);

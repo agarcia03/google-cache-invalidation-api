@@ -59,6 +59,7 @@ void InvalidationClientImpl::PeriodicTask() {
 
 void InvalidationClientImpl::Register(
     const ObjectId& oid, RegistrationCallback* callback) {
+  CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   TLOG(INFO_LEVEL, "Received register for %d/%s", oid.source(),
        oid.name().string_value().c_str());
@@ -67,6 +68,7 @@ void InvalidationClientImpl::Register(
 
 void InvalidationClientImpl::Unregister(
     const ObjectId& oid, RegistrationCallback* callback) {
+  CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   TLOG(INFO_LEVEL, "Received unregister for %d/%s", oid.source(),
        oid.name().string_value().c_str());
@@ -74,6 +76,7 @@ void InvalidationClientImpl::Unregister(
 }
 
 void InvalidationClientImpl::PermanentShutdown() {
+  CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   TLOG(INFO_LEVEL, "Doing permanent shutdown by application request");
   session_manager_.Shutdown();
@@ -88,7 +91,7 @@ void InvalidationClientImpl::HandleNewSession() {
 
   // Tell the listener we acquired a session and that its registrations were
   // removed.
-  resources_->ScheduleImmediately(
+  resources_->ScheduleOnListenerThread(
       NewPermanentCallback(
           this, &InvalidationClientImpl::InformListenerOfNewSession));
 
@@ -97,7 +100,7 @@ void InvalidationClientImpl::HandleNewSession() {
 }
 
 void InvalidationClientImpl::HandleLostSession() {
-  resources_->ScheduleImmediately(
+  resources_->ScheduleOnListenerThread(
       NewPermanentCallback(
           // Tell the listener we lost our session.
           listener_, &InvalidationListener::SessionStatusChanged, false));
@@ -121,6 +124,7 @@ void InvalidationClientImpl::InformListenerOfNewSession() {
 }
 
 void InvalidationClientImpl::HandleInboundMessage(const string& message) {
+  CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
 
   ServerToClientMessage bundle;
@@ -171,11 +175,11 @@ void InvalidationClientImpl::ProcessInvalidation(
   const ObjectId& oid = invalidation.object_id();
   if ((oid.source() == ObjectId_Source_INTERNAL) &&
       (oid.name().string_value() == INVALIDATE_ALL_OBJECT_NAME)) {
-    resources_->ScheduleImmediately(
+    resources_->ScheduleOnListenerThread(
         NewPermanentCallback(listener_, &InvalidationListener::InvalidateAll,
                              callback));
   } else {
-    resources_->ScheduleImmediately(
+    resources_->ScheduleOnListenerThread(
         NewPermanentCallback(listener_, &InvalidationListener::Invalidate,
                              invalidation, callback));
   }
@@ -200,15 +204,19 @@ void InvalidationClientImpl::ScheduleAcknowledgeInvalidation(
 
 void InvalidationClientImpl::RegisterOutboundListener(
     NetworkCallback* outbound_message_ready) {
-
+  CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   network_manager_.RegisterOutboundListener(outbound_message_ready);
 }
 
 void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
+  CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
 
   ClientToServerMessage message;
+
+  // If PermanentShutdown() has been called, the session manager will return a
+  // message of TYPE_SHUTDOWN.
   bool is_object_control = session_manager_.AddSessionAction(&message);
   network_manager_.HandleOutboundMessage(&message, is_object_control);
   if (is_object_control) {

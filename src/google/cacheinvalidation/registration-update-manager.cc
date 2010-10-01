@@ -178,7 +178,7 @@ void RegistrationUpdateManager::ProcessRegistrationUpdateResult(
 
     // In any case, remove the object from the map of pending operations, and
     // call the callback.
-    resources_->ScheduleImmediately(
+    resources_->ScheduleOnListenerThread(
         NewPermanentCallback(&RunAndDeleteRegistrationCallback,
                              pending_operation.callback,
                              result));
@@ -243,7 +243,7 @@ void RegistrationUpdateManager::UpdateRegistration(
       RegistrationCallback* old_callback = pending_record.callback;
       result.mutable_operation()->CopyFrom(pending_record.operation);
       result.mutable_status()->set_code(Status_Code_STALE_OPERATION);
-      resources_->ScheduleImmediately(
+      resources_->ScheduleOnListenerThread(
           NewPermanentCallback(&RunAndDeleteRegistrationCallback, old_callback,
                                result));
 
@@ -273,7 +273,7 @@ void RegistrationUpdateManager::UpdateRegistration(
         // switch statement.
         result.mutable_operation()->CopyFrom(confirmed_record);
         result.mutable_status()->set_code(Status_Code_SUCCESS);
-        resources_->ScheduleImmediately(
+        resources_->ScheduleOnListenerThread(
             NewPermanentCallback(&RunAndDeleteRegistrationCallback, callback,
                                  result));
         return;
@@ -400,7 +400,7 @@ void RegistrationUpdateManager::AbortPending(
   result.mutable_operation()->CopyFrom(op_info.operation);
   result.mutable_status()->set_code(Status_Code_TRANSIENT_FAILURE);
   // Invoke the callback with the failure result.
-  resources_->ScheduleImmediately(
+  resources_->ScheduleOnListenerThread(
       NewPermanentCallback(&RunAndDeleteRegistrationCallback, op_info.callback,
                            result));
   // Remove the operation from the map.

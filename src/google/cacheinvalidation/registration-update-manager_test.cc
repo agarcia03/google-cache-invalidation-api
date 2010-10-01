@@ -43,7 +43,9 @@ class RegistrationUpdateManagerTest : public testing::Test {
 };
 
 void GenericRegCallback(RegistrationUpdateResult* box,
+                        SystemResources* resources,
                         const RegistrationUpdateResult& result) {
+  CHECK(!resources->IsRunningOnInternalThread());
   *box = result;
 }
 
@@ -60,7 +62,8 @@ TEST_F(RegistrationUpdateManagerTest, NoInfoToRegPending) {
 
   RegistrationUpdateResult result;
   registration_manager_->Register(
-      object_id, NewPermanentCallback(&GenericRegCallback, &result));
+      object_id, NewPermanentCallback(&GenericRegCallback, &result,
+                                      resources_.get()));
   resources_->RunReadyTasks();
 
   // Verify in state pending.
@@ -71,8 +74,10 @@ TEST_F(RegistrationUpdateManagerTest, NoInfoToRegPending) {
   // Register again and check first callback invoked.
   RegistrationUpdateResult second_result;
   registration_manager_->Register(
-      object_id, NewPermanentCallback(&GenericRegCallback, &second_result));
+      object_id, NewPermanentCallback(&GenericRegCallback, &second_result,
+                                      resources_.get()));
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_EQ(Status_Code_STALE_OPERATION, result.status().code());
   ASSERT_EQ(RegistrationState_REG_PENDING,
             registration_manager_->GetObjectState(object_id));
@@ -90,6 +95,7 @@ TEST_F(RegistrationUpdateManagerTest, NoInfoToRegPending) {
   // callback is invoked.
   registration_manager_->ProcessRegistrationUpdateResult(reg_op_response);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
   ASSERT_TRUE(second_result.has_status());
   ASSERT_EQ(Status_Code_SUCCESS, second_result.status().code());
 
@@ -101,7 +107,8 @@ TEST_F(RegistrationUpdateManagerTest, NoInfoToRegPending) {
   // no additional messages are sent.
   RegistrationUpdateResult third_result;
   registration_manager_->Register(
-      object_id, NewPermanentCallback(&GenericRegCallback, &third_result));
+      object_id, NewPermanentCallback(&GenericRegCallback, &third_result,
+                                      resources_.get()));
   resources_->RunReadyTasks();
   ASSERT_EQ(Status_Code_SUCCESS, third_result.status().code());
   ASSERT_EQ(RegistrationState_REG_CONFIRMED,
@@ -113,10 +120,13 @@ TEST_F(RegistrationUpdateManagerTest, NoInfoToRegPending) {
   ASSERT_EQ(0, c2s_message.register_operation_size());
 
   // Finally, do an unregister and verify a transition to UNREG_PENDING.
+  RegistrationUpdateResult dummy_result;
   registration_manager_->Unregister(
-      object_id, NewPermanentCallback(&GenericRegCallback, NULL));  // never run
+      object_id, NewPermanentCallback(&GenericRegCallback, &dummy_result,
+                                      resources_.get()));
   ASSERT_EQ(RegistrationState_UNREG_PENDING,
             registration_manager_->GetObjectState(object_id));
+  resources_->StopScheduler();
 }
 
 }  // namespace invalidation

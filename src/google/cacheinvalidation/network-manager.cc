@@ -97,7 +97,7 @@ void NetworkManager::DoInformOutboundListener() {
   // bundle of its own accord in the mean time).
   if (has_outbound_data_) {
     TLOG(INFO_LEVEL, "scheduling outbound listener");
-    resources_->ScheduleImmediately(
+    resources_->ScheduleOnListenerThread(
         NewPermanentCallback(outbound_listener_, run_function, endpoint_));
   }
 }

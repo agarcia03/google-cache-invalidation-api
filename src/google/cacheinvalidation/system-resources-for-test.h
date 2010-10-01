@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// An implementation of SystemResources for unit testing.
+// An implementation of SystemResources for unit testing (in a single-threaded
+// environment).  Multiplexes two logical threads (work queues) onto a single
+// real thread.
 
 #ifndef GOOGLE_CACHEINVALIDATION_SYSTEM_RESOURCES_FOR_TEST_H_
 #define GOOGLE_CACHEINVALIDATION_SYSTEM_RESOURCES_FOR_TEST_H_
@@ -50,7 +52,9 @@ struct TaskEntry {
 
 class SystemResourcesForTest : public SystemResources {
  public:
-  SystemResourcesForTest() : current_id_(0), started_(false), stopped_(false) {}
+  SystemResourcesForTest()
+      : current_id_(0), started_(false), stopped_(false),
+        running_internal_(false) {}
 
   ~SystemResourcesForTest() {
     StopScheduler();
@@ -76,6 +80,13 @@ class SystemResourcesForTest : public SystemResources {
       }
       delete top_elt.task;
     }
+    while (!listener_work_queue_.empty()) {
+      // All listener tasks were to run immediately, so run them all.
+      Closure* task = listener_work_queue_.front();
+      listener_work_queue_.pop();
+      task->Run();
+      delete task;
+    }
   }
 
   virtual void ScheduleImmediately(Closure* task) {
@@ -99,6 +110,20 @@ class SystemResourcesForTest : public SystemResources {
     }
   }
 
+  virtual void ScheduleOnListenerThread(Closure* task) {
+    CHECK(IsCallbackRepeatable(task));
+    CHECK(started_);
+    if (!stopped_) {
+      listener_work_queue_.push(task);
+    } else {
+      delete task;
+    }
+  }
+
+  virtual bool IsRunningOnInternalThread() {
+    return running_internal_;
+  }
+
   virtual void Log(LogLevel level, const char* file, int line,
                    const char* format, ...) {
     va_list ap;
@@ -107,6 +132,10 @@ class SystemResourcesForTest : public SystemResources {
     StringAppendV(&result, format, ap);
     LogMessage(file, line).stream() << result;
     va_end(ap);
+  }
+
+  virtual void WriteState(const string& state, StorageCallback* callback) {
+    // TODO(ghc): Implement.
   }
 
   void SetTime(Time new_time) {
@@ -119,10 +148,24 @@ class SystemResourcesForTest : public SystemResources {
 
   // Runs all the work in the queue that should be executed by the current time.
   // Note that tasks run may enqueue additional immediate tasks, and this call
-  // won't return until they've completed as well.
+  // won't return until they've completed as well.  While these tasks are
+  // running, the running_internal_ flag is set, so IsRunningOnInternalThread()
+  // will return true.
   void RunReadyTasks() {
+    running_internal_ = true;
     while (RunNextTask()) {
       continue;
+    }
+    running_internal_ = false;
+  }
+
+  // Runs all queued listener tasks.
+  void RunListenerTasks() {
+    while (!listener_work_queue_.empty()) {
+      Closure* task = listener_work_queue_.front();
+      listener_work_queue_.pop();
+      task->Run();
+      delete task;
     }
   }
 
@@ -157,8 +200,15 @@ class SystemResourcesForTest : public SystemResources {
   // Whether or not the scheduler has been stopped.
   bool stopped_;
 
+  // Whether or not we're currently running internal tasks from the internal
+  // queue.
+  bool running_internal_;
+
   // A priority queue on which the actual tasks are enqueued.
   std::priority_queue<TaskEntry> work_queue_;
+
+  // A simple queue for the listener tasks.
+  std::queue<Closure*> listener_work_queue_;
 };
 
 }  // namespace invalidation
