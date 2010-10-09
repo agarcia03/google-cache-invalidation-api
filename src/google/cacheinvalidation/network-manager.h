@@ -44,21 +44,18 @@ class NetworkManager {
   NetworkManager(NetworkEndpoint* endpoint, SystemResources* resources,
                  const ClientConfig& config);
 
-  /* If have_session is true and it has been at least poll_delay since we
-   * last polled for invalidations, sets a POLL_INVALIDATIONS action on the
-   * message.
-   *
-   * message - a message being prepared for sending to the server
-   *
-   * is_object_control - whether the outbound message is of type OBJECT_CONTROL
-   */
-  void HandleOutboundMessage(
-      ClientToServerMessage* message, bool is_object_control);
+  void AddHeartbeat(ClientToServerMessage* message);
+
+  void FinalizeOutboundMessage(ClientToServerMessage* message);
 
   /* Updates the heartbeat and polling intervals if these are present in the
    * bundle.
    */
   void HandleInboundMessage(const ServerToClientMessage& bundle);
+
+  void RecordImplicitHeartbeat() {
+    ScheduleHeartbeat();
+  }
 
   /* Returns whether a heartbeat needs to be sent -- i.e., where the current
    * time is greater than the next_heartbeat_.
@@ -67,18 +64,11 @@ class NetworkManager {
     return resources_->current_time() >= next_heartbeat_;
   }
 
-  /* Returns whether a poll needs to be sent -- i.e., where the current time is
-   * greater than the nextPollMs_. Overrides any previously-scheduled heartbeat.
-   */
-  bool NeedsPoll() {
-    return resources_->current_time() >= next_poll_;
-  }
-
-  /* Returns whether a heartbeat or poll task should be performed, i.e., whether
+  /* Returns whether a heartbeat task should be performed, i.e., whether
    * enough time has elapsed since the last communication with the server.
    */
   bool HasDataToSend() {
-    return NeedsHeartbeat() || NeedsPoll();
+    return NeedsHeartbeat();
   }
 
   /* Indicates that the Ticl has data it's ready to send to the server.  If a
@@ -91,11 +81,6 @@ class NetworkManager {
    * time plus a smeared delay.
    */
   void ScheduleHeartbeat();
-
-  /* Schedules the next poll by setting next_poll_ to the current time plus a
-   * smeared delay. Overrides any previously-scheduled poll.
-   */
-  void SchedulePoll();
 
   /* Registers a listener to be notified when outbound data becomes available.
    * If there is outbound data already waiting to be send, notifies it

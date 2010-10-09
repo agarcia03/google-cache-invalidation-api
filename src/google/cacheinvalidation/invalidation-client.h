@@ -35,8 +35,6 @@ using INVALIDATION_STL_NAMESPACE::vector;
 class NetworkEndpoint;
 
 typedef INVALIDATION_CALLBACK1_TYPE(NetworkEndpoint* const&) NetworkCallback;
-typedef INVALIDATION_CALLBACK1_TYPE(const RegistrationUpdateResult&)
-    RegistrationCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(bool) StorageCallback;
 
 // -----------------------------------------------------------------------------
@@ -55,7 +53,7 @@ class SystemResources {
   enum LogLevel {
     INFO_LEVEL,
     WARNING_LEVEL,
-    ERROR_LEVEL
+    SEVERE_LEVEL
   };
 
   virtual ~SystemResources() {}
@@ -131,6 +129,38 @@ class SystemResources {
   virtual void WriteState(const string& state, StorageCallback* callback) = 0;
 };
 
+// Parameter delivered to InvalidationListener::RegistrationStateChanged() when
+// the status is UNKNOWN.  It conveys additional hints about why the status was
+// UNKNOWN, e.g., whether it is worthwhile for the application to retry an
+// operation.
+class UnknownHint {
+ public:
+  UnknownHint() {}
+
+  UnknownHint(bool is_transient, const string& message)
+      : is_transient_(is_transient),
+        message_(message) {}
+
+  bool is_transient() const {
+    return is_transient_;
+  }
+
+  string message() const {
+    return message_;
+  }
+
+ private:
+  bool is_transient_;
+  string message_;
+};
+
+// Possible registration states in which an object may exist.
+enum RegistrationState {
+  RegistrationState_REGISTERED = 0,
+  RegistrationState_UNREGISTERED = 1,
+  RegistrationState_UNKNOWN = 2
+};
+
 // The object on which invalidations (or lost registrations) are delivered by
 // the client library to the application.
 class InvalidationListener {
@@ -161,12 +191,13 @@ class InvalidationListener {
   // (although it is called at most once).
   virtual void InvalidateAll(Closure* done) = 0;
 
-  // Indicates that a registration for a specific object has been lost.
-  //
-  // The application must invoke the provided callback to indicate that it's
-  // done processing the lost registration.  The callback is owned by the
-  // listener and must be repeatable (although it is called at most once).
-  virtual void RegistrationLost(const ObjectId& oid, Closure* done) = 0;
+  // Indicates that the registration state of an object has changed. Note that
+  // if the new state is UNKNOWN, the unknown_hint provides a hint as to whether
+  // or not the UNKNOWN state is transient.  If it is, future calls to
+  // (un)register may be able to transition the object out of this state.
+  virtual void RegistrationStateChanged(const ObjectId& object_id,
+                                        RegistrationState new_state,
+                                        const UnknownHint& unknown_hint) = 0;
 
   // Indicates that the application's registrations have been lost.
   //
@@ -252,6 +283,8 @@ struct ClientConfig {
         max_ops_per_message(10),
         max_registration_attempts(3),
         periodic_task_interval(TimeDelta::FromMilliseconds(500)),
+        registration_sync_timeout(TimeDelta::FromSeconds(20)),
+        seqno_block_size(10000000),  // ten million
         smear_factor(0.2) {
     AddDefaultRateLimits();
   }
@@ -292,6 +325,12 @@ struct ClientConfig {
   // The interval at which to execute the periodic task.
   TimeDelta periodic_task_interval;
 
+  // Timeout for registration sync operations.
+  TimeDelta registration_sync_timeout;
+
+  // Number of sequence numbers to allocate per restart.
+  int seqno_block_size;
+
   // Smearing factor for scheduling. Delays will be smeared by +/- this
   // factor. E.g., if this value is 0.2 and a delay has base value 1, the
   // smeared value will be between 0.8 and 1.2.
@@ -331,37 +370,12 @@ class InvalidationClient {
   // TODO(ghc): allow Create() to take configuration parameters.
 
   // Requests that the InvalidationClient register to receive
-  // invalidations for the object with id oid.  The invalidation
-  // client takes ownership of the callback, which must be repeatable
-  // (although it is called at most once) and unique.  When the
-  // registration is done, callback->Run() is called with the result.
-  //
-  // REQUIRES: PermanentShutdown() has not been called.
-  virtual void Register(
-      const ObjectId& oid, RegistrationCallback* callback) = 0;
+  // invalidations for the object with id oid.
+  virtual void Register(const ObjectId& oid) = 0;
 
   // Requests that the InvalidationClient unregister for invalidations
-  // for the object with id oid.  The invalidation client takes
-  // ownership of the callback, which must be repeatable (although it
-  // is called at most once) and unique.  When the unregistration is
-  // done, callback->Run() is called with the result.
-  //
-  // REQUIRES: PermanentShutdown() has not been called.
-  virtual void Unregister(
-      const ObjectId& oid, RegistrationCallback* callback) = 0;
-
-  // Indicates that the application is shutting down permanently (will not
-  // contact the server again).  The application should follow this call by
-  // immediately taking an outbound message from the network endpoint and
-  // delivering it to the server.  (The ordinary method of informing the
-  // application that there is a message ready has latency on the order of a
-  // second.)
-  //
-  // After pulling and sending the message, the application should follow its
-  // normal procedure for safely and cleanly destroying this object (i.e., this
-  // method does not release any resources).  The semantics of using this object
-  // for any other purpose after making this call are undefined.
-  virtual void PermanentShutdown() = 0;
+  // for the object with id oid.
+  virtual void Unregister(const ObjectId& oid) = 0;
 
   // Returns the network channel from which the application can get messages to
   // send on its network to the invalidation server and provide messages that

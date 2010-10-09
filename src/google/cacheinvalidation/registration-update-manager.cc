@@ -22,389 +22,664 @@
 
 namespace invalidation {
 
-namespace {
+// RegistrationInfo definitions.
 
-// Helper function to run and delete a RegistrationCallback (meant to
-// be passed to new callbacks).
-void RunAndDeleteRegistrationCallback(
-    RegistrationCallback* registration_callback,
+RegistrationInfo::RegistrationInfo(RegistrationUpdateManager* reg_manager,
+                                   const ObjectId& object_id)
+    : reg_manager_(reg_manager),
+      resources_(reg_manager_->resources_),
+      object_id_(object_id),
+      latest_known_server_state_(RegistrationUpdate_Type_UNREGISTER) {}
+
+void RegistrationInfo::ProcessRegistrationUpdateResult(
     const RegistrationUpdateResult& result) {
-  CHECK(registration_callback != NULL);
-  registration_callback->Run(result);
-  delete registration_callback;
-}
+  if (!IsResultValid(result)) {
+    // Ignore invalid messages.
+    return;
+  }
+  const RegistrationUpdate& op = result.operation();
 
-}  // namespace
+  // If this operation has a sequence number older than what we already know,
+  // ignore it.
+  if ((latest_known_server_seqno_.get() != NULL) &&
+      (*latest_known_server_seqno_ >= op.sequence_number())) {
+    TLOG(INFO_LEVEL, "ignoring operation on %s with old seqno %lld: ",
+         GetObjectName(op.object_id()), op.sequence_number());
+    return;
+  }
 
-RegistrationUpdateManager::RegistrationUpdateManager(SystemResources* resources,
-                                                     const ClientConfig& config)
-    : resources_(resources), config_(config), current_op_seq_num_(0) {}
+  const Status& status = result.status();
+  if (status.code() == Status_Code_SUCCESS) {
+    bool matched_previous_state = (latest_known_server_state_ == op.type());
 
-RegistrationUpdateManager::~RegistrationUpdateManager() {
-  // Delete all the callbacks that we haven't responded to.
-  for (map<string, PendingOperationInfo>::iterator iter = pending_ops_.begin();
-       iter != pending_ops_.end(); ++iter) {
-    CHECK(iter->second.callback != NULL);
-    delete iter->second.callback;
+    if (IsInProgress()) {
+      if (op.type() == *pending_state_) {
+        // We received a message that matched our desired state, so we can
+        // consider the operation to be no longer pending.
+        TLOG(INFO_LEVEL, "Server message discharges pending on %s: %d",
+             GetObjectName(object_id_), op.type());
+        pending_state_.reset(NULL);
+      } else {
+        CHECK(matched_previous_state);
+      }
+    } else {
+      // There's nothing pending: if the known server state is changing, then
+      // inform the listener of the change.
+      if (!matched_previous_state) {
+        TLOG(INFO_LEVEL,
+             "Message changes known state for %s to %d; invoking listener",
+             GetObjectName(object_id_), op.type());
+        InvokeStateChangedCallback(GetStateFromOpType(op.type()),
+                                   UnknownHint());
+      } else {
+        TLOG(INFO_LEVEL,
+             "Got message but object %s already in state %d; invoking listener",
+             GetObjectName(object_id_), op.type());
+      }
+    }
+
+    // Update our latest server state from the message.
+    TLOG(INFO_LEVEL, "Accepting new state for %s at seqno %d",
+         GetObjectName(op.object_id()), op.sequence_number());
+    latest_known_server_state_ = op.type();
+    latest_known_server_seqno_.reset(new int64(op.sequence_number()));
+  } else if (IsInProgress() && (op.sequence_number() == *pending_seqno_)) {
+    // Failure case: clear the pending state and inform the listener of the
+    // change.
+    TLOG(INFO_LEVEL, "Received error with matching seqno for %s",
+         GetObjectName(object_id_));
+    pending_state_.reset();
+    bool is_transient = (status.code() == Status_Code_TRANSIENT_FAILURE);
+    UnknownHint unknown_hint(is_transient, status.description());
+    InvokeStateChangedCallback(RegistrationState_UNKNOWN, unknown_hint);
   }
 }
 
-RegistrationState RegistrationUpdateManager::GetObjectState(
-    const ObjectId& object_id) {
-  RegistrationState state = RegistrationState_NO_INFO;
-  const char* description = "NO_INFO";
-
-  string serialized;
-  object_id.SerializeToString(&serialized);
-  map<string, PendingOperationInfo>::iterator pending_iter =
-      pending_ops_.find(serialized);
-  map<string, RegistrationUpdate>::iterator confirmed_iter =
-      confirmed_ops_.find(serialized);
-
-  if (pending_iter != pending_ops_.end()) {
-    // A pending record implies that we must be in a *_PENDING state. Determine
-    // whether it's REG_PENDING or UNREG_PENDING.
-    switch (pending_iter->second.operation.type()) {
-      case RegistrationUpdate_Type_REGISTER:
-        state = RegistrationState_REG_PENDING;
-        description = "REG_PENDING";
-        break;
-      case RegistrationUpdate_Type_UNREGISTER:
-        state = RegistrationState_UNREG_PENDING;
-        description = "UNREG_PENDING";
-        break;
-      default:
-        // Can't happen.
-        description = "[pending with unknown op type: should never happen!]";
-        break;
+void RegistrationInfo::ProcessApplicationRequest(
+    RegistrationUpdate_Type op_type) {
+  if (IsInProgress()) {
+    if (GetInProgressType() == op_type) {
+      // Already pending for this type, so nothing to do.
+      CHECK(latest_known_server_state_ != op_type);
+      return;
+    } else {
+      // We had something pending for the other operation type, but the latest
+      // known server state was for the desired type.  So, we can just clear the
+      // pending operation and return.  If later the pending operation completes
+      // and we switch to the wrong type, we'll tell the app and it can correct
+      // things.
+      CHECK(latest_known_server_state_ == op_type);
+      pending_state_.reset();
+      send_time_.reset();
+      return;
     }
-  } else if (confirmed_iter != confirmed_ops_.end()) {
-    // A confirmed record implies that we must be in a *_CONFIRMED state.
-    // Determine whether it's REG_CONFIRMED or UNREG_CONFIRMED.
-    switch (confirmed_iter->second.type()) {
-      case RegistrationUpdate_Type_REGISTER:
-        state = RegistrationState_REG_CONFIRMED;
-        description = "REG_CONFIRMED";
-        break;
-      case RegistrationUpdate_Type_UNREGISTER:
-        state = RegistrationState_UNREG_CONFIRMED;
-        description = "UNREG_CONFIRMED";
-        break;
-      default:
-        // Can't happen.
-        description = "[confirmed with unknown op type: should never happen!]";
-        break;
+  } else {
+    // Nothing pending.  Nothing to do if the latest known state is what the
+    // application is requesting.
+    if (latest_known_server_state_ != op_type) {
+      // We need to issue a request;
+      pending_state_.reset(new RegistrationUpdate_Type(op_type));
+      send_time_.reset();
+      pending_seqno_.reset(new int64(reg_manager_->current_op_seqno_++));
     }
   }
-  TLOG(INFO_LEVEL, "Determined object %s/%d to be in state %s (%d)",
-       object_id.name().string_value().c_str(), object_id.source(), description,
-       state);
-  return state;
 }
 
-int RegistrationUpdateManager::AddOutboundRegistrationUpdates(
-    ClientToServerMessage* message) {
-  // Loop over the table of pending registrations and add to the message all
-  // those that haven't been sent within the registration timeout.
-  int sent_count = 0;
-  Time now = resources_->current_time();
-  TLOG(INFO_LEVEL, "Will send up to %d registrations.",
-       config_.max_registrations_per_message);
-  for (map<string, PendingOperationInfo>::iterator iter = pending_ops_.begin();
-       (iter != pending_ops_.end()) &&
-           (sent_count < config_.max_registrations_per_message); ++iter) {
-    PendingOperationInfo& op_info = iter->second;
-    TLOG(INFO_LEVEL, "Found pending record for %s/%d, is_sent = %d",
-         op_info.operation.object_id().name().string_value().c_str(),
-         op_info.operation.object_id().source(), op_info.is_sent);
-    if (!op_info.is_sent) {
-      op_info.sent_time = now;
-      op_info.is_sent = true;
-      ++sent_count;
-      RegistrationUpdate* op = message->add_register_operation();
-      op->CopyFrom(op_info.operation);
-    }
+void RegistrationInfo::CheckTimeout(Time now, TimeDelta deadline) {
+  // If we don't have anything in progress, we can't time out.
+  // TLOG(INFO_LEVEL, "checking timeout");
+  if (!IsInProgress()) {
+    return;
   }
-  return sent_count;
+
+  // If we're not yet sent, we can't time out.
+  if (send_time_.get() == NULL) {
+    TLOG(INFO_LEVEL, "%s not timed out since not sent",
+         GetObjectName(object_id_));
+    return;
+  }
+
+  // If we're before the deadline, we haven't timed out.
+  if (now < *send_time_ + deadline) {
+    TLOG(INFO_LEVEL, "%s not timed out since deadline not exceeded",
+         GetObjectName(object_id_));
+  }
+
+  // We've timed out.
+  UnknownHint unknown_hint(true, "Timed out");
+  InvokeStateChangedCallback(RegistrationState_UNKNOWN, unknown_hint);
+  pending_state_.reset();
+  send_time_.reset();
 }
 
-void RegistrationUpdateManager::ProcessRegistrationUpdateResult(
-    const RegistrationUpdateResult& result) {
+bool RegistrationInfo::HasDataToSend() {
+  bool has_data =
+      IsInProgress() &&
+      (send_time_.get() == NULL) &&
+      (*pending_seqno_ <= reg_manager_->maximum_op_seqno_inclusive_);
+  if (has_data) {
+    CHECK(*pending_state_ != latest_known_server_state_);
+  }
+  return has_data;
+}
+
+void RegistrationInfo::TakeData(ClientToServerMessage* message, Time now) {
+  CHECK(HasDataToSend());
+  TLOG(INFO_LEVEL, "Sending registration message for %s, desired = %d",
+       GetObjectName(object_id_), *pending_state_);
+  RegistrationUpdate* op_to_send = message->add_register_operation();
+  op_to_send->mutable_object_id()->CopyFrom(object_id_);
+  op_to_send->set_type(*pending_state_);
+  op_to_send->set_sequence_number(*pending_seqno_);
+  send_time_.reset(new Time(now));
+}
+
+void RegistrationInfo::InvokeStateChangedCallback(
+    RegistrationState new_state, const UnknownHint& unknown_hint) {
+  resources_->ScheduleOnListenerThread(
+      NewPermanentCallback(
+          reg_manager_->listener_,
+          &InvalidationListener::RegistrationStateChanged,
+          object_id_,
+          new_state,
+          unknown_hint));
+}
+
+bool RegistrationInfo::IsResultValid(const RegistrationUpdateResult& result) {
+  // Note: no condition checked in this function should ever be false.  If one
+  // of these checks fails, it indicates a serious protocol or server-side bug.
   if (!result.has_status()) {
     // Ignore the message if it didn't contain a valid status.
-    TLOG(WARNING_LEVEL, "received a message without a status");
-    return;
+    TLOG(WARNING_LEVEL, "ignoring status-less registration result");
+    return false;
   }
   const Status& status = result.status();
   if (!status.has_code()) {
     // Ignore the message if the status doesn't have a code.
-    TLOG(WARNING_LEVEL, "received a message whose status had no code");
-    return;
+    TLOG(WARNING_LEVEL, "ignoring registration result without status code");
+    return false;
+  }
+  if (!result.has_operation()) {
+    // Ignore the message if the result doesn't have an operation.
+    TLOG(WARNING_LEVEL, "ignoring registration result without operation");
+    return false;
   }
   const RegistrationUpdate& op = result.operation();
-  const ObjectId& object_id = op.object_id();
-  string serialized_oid;
-  object_id.SerializeToString(&serialized_oid);
+  if (op.sequence_number() >= reg_manager_->current_op_seqno_) {
+    // Ignore the message if the sequence number is beyond what we could have
+    // issued.
+    TLOG(SEVERE_LEVEL,
+         "Got message with seqno beyond what we could have issued; ignoring");
+    return false;
+  }
+  if (op.sequence_number() < RegistrationUpdateManager::kFirstSequenceNumber) {
+    TLOG(SEVERE_LEVEL,
+         "Got message with seqno before first seqno; ignoring");
+    return false;
+  }
+  // Check omitted.
+  return true;
+}
 
-  map<string, PendingOperationInfo>::iterator iter =
-      pending_ops_.find(serialized_oid);
-  if (iter != pending_ops_.end()) {
-    // If the result corresponds to a pending operation (i.e., we were expecting
-    // a result), then handle it.
-    const PendingOperationInfo& pending_operation = iter->second;
-
-    // First, check that the sequence number and operation type all match what's
-    // in the pending operation. (We know the object id matches because we
-    // looked the record up by object id.) If not, ignore this message.
-    if (op.sequence_number() != pending_operation.operation.sequence_number()) {
-      TLOG(INFO_LEVEL, "Seqno mismatch for oid %s/%d (%lld vs. %lld); ignoring",
-           object_id.name().string_value().c_str(), object_id.source(),
-           op.sequence_number(), pending_operation.operation.sequence_number());
-      return;
-    }
-    if (op.type() != pending_operation.operation.type()) {
-      TLOG(INFO_LEVEL, "Op type mismatch for oid %s/%d (%d vs. %d); ignoring",
-           object_id.name().string_value().c_str(), object_id.source(),
-           op.type(), pending_operation.operation.type());
-      return;
-    }
-
-    // Checks succeeded; process the result.
-    if (status.code() == Status_Code_SUCCESS) {
-      // If the operation was successful, add it to the map of confirmed
-      // operations.
-      confirmed_ops_[serialized_oid] = op;
-    }
-
-    // In any case, remove the object from the map of pending operations, and
-    // call the callback.
-    resources_->ScheduleOnListenerThread(
-        NewPermanentCallback(&RunAndDeleteRegistrationCallback,
-                             pending_operation.callback,
-                             result));
-    pending_ops_.erase(iter);
-  } else {
-    // We've received a response for an operation that's not pending.  Don't
-    // bother computing a result code or informing the application.  Log the
-    // spurious response.
-    TLOG(INFO_LEVEL, "Spurious response (seqno = %d)",
-         result.operation().sequence_number());
+RegState RegistrationInfo::GetRegistrationState() {
+  if (IsInProgress()) {
+    return (*pending_state_ == RegistrationUpdate_Type_REGISTER) ?
+        RegState_REG_PENDING :
+        RegState_UNREG_PENDING;
+  }
+  switch (latest_known_server_state_) {
+    case RegistrationUpdate_Type_REGISTER:
+      return RegState_REGISTERED;
+    case RegistrationUpdate_Type_UNREGISTER:
+      return RegState_UNREGISTERED;
+    default:
+      CHECK(false);  // Unknown state -- crash.
   }
 }
 
-void RegistrationUpdateManager::UpdateRegistration(
-    const ObjectId& object_id, RegistrationUpdate_Type op_type,
-    RegistrationCallback* callback) {
-  CHECK(IsCallbackRepeatable(callback));
-
-  // This method is organized in two parts: a switch statement that does
-  // specific processing based on the state of the registration, and common code
-  // following it that sends a request to the server. In two cases, the switch
-  // statement executes an early return, and no message is sent to the
-  // server. Given an object "x", these cases are:
-  //
-  // 1) A register or unregister was already pending for x, and the application
-  //    requested that an operation of the same type be performed. In this case,
-  //    we have already sent the message that we would send for the requested
-  //    operation, so there's no point in sending another. Additionally, if we
-  //    did send a new message with a new sequence number, we'd just give the
-  //    server more work to do, which can cause a downward spiral under load.
-  //
-  // 2) A register or unregister was already confirmed for x, and the
-  //    application requested an operation of the same type. In this case, we
-  //    can simply invoke the callback: there is no work for the server to do on
-  //    our behalf for this operation.
-
-  // We first find the registration state of the object, which we need for the
-  // switch statement.
-
-  RegistrationState reg_state = GetObjectState(object_id);
-  TLOG(INFO_LEVEL, "Starting register for object %s/%d: current state is %d",
-       object_id.name().string_value().c_str(), object_id.source(), reg_state);
-  string serialized_oid;
-  object_id.SerializeToString(&serialized_oid);
-  RegistrationUpdateResult result;
-
-  switch (reg_state) {
-    case RegistrationState_NO_INFO:
-      // We don't know anything about this object, so send a request.
-      break;
-
-    case RegistrationState_REG_PENDING:
-      // The code for REG_PENDING and UNREG_PENDING is identical, so just
-      // fall-through.
-    case RegistrationState_UNREG_PENDING: {
-      // If we have a pending operation of *any* type on an object, and the
-      // application requests *any* operation on that object, then we
-      // immediately respond to the first callback with STALE_OPERATION.
-      PendingOperationInfo& pending_record = pending_ops_[serialized_oid];
-
-      // Invoke the old callback with STALE_OPERATION;
-      RegistrationCallback* old_callback = pending_record.callback;
-      result.mutable_operation()->CopyFrom(pending_record.operation);
-      result.mutable_status()->set_code(Status_Code_STALE_OPERATION);
-      resources_->ScheduleOnListenerThread(
-          NewPermanentCallback(&RunAndDeleteRegistrationCallback, old_callback,
-                               result));
-
-      // If the operation types match, just keep the new callback for future use
-      // and return -- we do NOT send a new request to the server. Otherwise,
-      // continue after switch statement and issue a new request;
-      if (pending_record.operation.type() == op_type) {
-        TLOG(INFO_LEVEL, "Updating callbacks: %llx to %llx",
-             pending_record.callback, callback);
-        pending_record.callback = callback;
-        return;
-      }
-      break;
-    }
-
-    case RegistrationState_UNREG_CONFIRMED:
-      // The code for REG_CONFIRMED and UNREG_CONFIRMED is identical, so just
-      // fall-through.
-    case RegistrationState_REG_CONFIRMED: {
-      RegistrationUpdate confirmed_record = confirmed_ops_[serialized_oid];
-      if (op_type == confirmed_record.type()) {
-        // If we have a confirmed result for the same object and operation type,
-        // then we can immediately respond with SUCCESS to the callback.
-        //
-        // NOTE: in this case, we do NOT want to send a request to the server,
-        // so we return and do not execute the NO_INFO common code after the
-        // switch statement.
-        result.mutable_operation()->CopyFrom(confirmed_record);
-        result.mutable_status()->set_code(Status_Code_SUCCESS);
-        resources_->ScheduleOnListenerThread(
-            NewPermanentCallback(&RunAndDeleteRegistrationCallback, callback,
-                                 result));
-        return;
-      } else {
-        // We have a confirmed registration but are requesting an
-        // unregistration. Remove the object from confirmed map, then
-        // proceed as in NO_INFO.
-        confirmed_ops_.erase(serialized_oid);
-      }
-      break;
-    }
-    default:
-      // Can't happen.
-      TLOG(ERROR_LEVEL, "Unrecognized registration state: %d", reg_state);
-      return;
+void RegistrationInfo::CheckSequenceNumber() {
+  if (latest_known_server_seqno_.get() != NULL) {
+    reg_manager_->CheckSequenceNumber(object_id_, *latest_known_server_seqno_);
   }
-  // If we made it through the switch statement without executing an early
-  // return, then we need to send a message to the server. This code does not
-  // depend on the registration state.
+  if (IsInProgress()) {
+    reg_manager_->CheckSequenceNumber(object_id_, *pending_seqno_);
+  }
+}
 
-  // Construct a registration update message and add an entry in the pending
-  // operations map from it to the callback.
-  RegistrationUpdate op;
-  op.mutable_object_id()->CopyFrom(object_id);
-  op.set_type(op_type);
-  uint64 seq_num = ++current_op_seq_num_;
-  op.set_sequence_number(seq_num);
-  // TODO: Perhaps have a set of callback pointers to check
-  // uniqueness.
-  pending_ops_[serialized_oid] = PendingOperationInfo(op, callback);
+// RegistrationInfoStore definitions
+
+RegistrationInfoStore::RegistrationInfoStore(
+    RegistrationUpdateManager* reg_manager)
+    : reg_manager_(reg_manager),
+      resources_(reg_manager->resources_) {}
+
+
+void RegistrationInfoStore::ProcessRegistrationUpdateResult(
+    const RegistrationUpdateResult& result) {
+  const ObjectId& object_id = result.operation().object_id();
+  EnsureRecordPresent(object_id);
+  string serialized;
+  object_id.SerializeToString(&serialized);
+  registration_state_[serialized].ProcessRegistrationUpdateResult(result);
+}
+
+void RegistrationInfoStore::ProcessApplicationRequest(
+    const ObjectId& object_id, RegistrationUpdate_Type op_type) {
+  EnsureRecordPresent(object_id);
+  string serialized;
+  object_id.SerializeToString(&serialized);
+  registration_state_[serialized].ProcessApplicationRequest(op_type);
+}
+
+void RegistrationInfoStore::Reset() {
+  TLOG(INFO_LEVEL, "Resetting all registration state");
+  registration_state_.clear();
+}
+
+bool RegistrationInfoStore::HasServerStateForChecks() {
+  for (map<string, RegistrationInfo>::iterator iter =
+           registration_state_.begin();
+       iter != registration_state_.end();
+       ++iter) {
+    if (iter->second.latest_known_server_seqno_.get() != NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool RegistrationInfoStore::HasDataToSend() {
+  for (map<string, RegistrationInfo>::iterator iter =
+           registration_state_.begin();
+       iter != registration_state_.end();
+       ++iter) {
+    if (iter->second.HasDataToSend()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int RegistrationInfoStore::TakeData(ClientToServerMessage* message) {
+  int registrations_added = 0;
+  for (map<string, RegistrationInfo>::iterator iter =
+           registration_state_.begin();
+       iter != registration_state_.end();
+       ++iter) {
+    RegistrationInfo& reg_info = iter->second;
+    if (reg_info.HasDataToSend()) {
+      reg_info.TakeData(message, resources_->current_time());
+      ++registrations_added;
+    }
+    if (registrations_added ==
+        reg_manager_->config_.max_registrations_per_message) {
+      break;
+    }
+  }
+  return registrations_added;
+}
+
+void RegistrationInfoStore::CheckTimedOutRegistrations() {
+  for (map<string, RegistrationInfo>::iterator iter =
+           registration_state_.begin();
+       iter != registration_state_.end();
+       ++iter) {
+    RegistrationInfo& reg_info = iter->second;
+    reg_info.CheckTimeout(resources_->current_time(),
+                          reg_manager_->config_.registration_timeout);
+  }
+}
+
+void RegistrationInfoStore::CheckSequenceNumbers() {
+  for (map<string, RegistrationInfo>::iterator iter =
+           registration_state_.begin();
+       iter != registration_state_.end();
+       ++iter) {
+    RegistrationInfo& reg_info = iter->second;
+    reg_info.CheckSequenceNumber();
+    if ((reg_info.pending_seqno_.get() != NULL) &&
+        (*reg_info.pending_seqno_ >
+         reg_manager_->maximum_op_seqno_inclusive_)) {
+      CHECK(reg_info.send_time_.get() == NULL);
+    }
+  }
+}
+
+void RegistrationInfoStore::CheckNoPendingOpsSent() {
+  for (map<string, RegistrationInfo>::iterator iter =
+           registration_state_.begin();
+       iter != registration_state_.end();
+       ++iter) {
+    RegistrationInfo& reg_info = iter->second;
+    if (reg_info.IsInProgress() &&
+        (*reg_info.pending_seqno_ <=
+         reg_manager_->maximum_op_seqno_inclusive_)) {
+      CHECK(reg_info.HasDataToSend());
+    }
+  }
+}
+
+RegState RegistrationInfoStore::GetRegistrationState(
+    const ObjectId& object_id) {
+  string serialized;
+  object_id.SerializeToString(&serialized);
+  map<string, RegistrationInfo>::iterator iter =
+      registration_state_.find(serialized);
+  if (iter == registration_state_.end()) {
+    return RegState_UNREGISTERED;
+  }
+  return iter->second.GetRegistrationState();
+}
+
+void RegistrationInfoStore::EnsureRecordPresent(const ObjectId& object_id) {
+  string serialized;
+  object_id.SerializeToString(&serialized);
+  map<string, RegistrationInfo>::iterator iter =
+      registration_state_.find(serialized);
+  if (iter == registration_state_.end()) {
+    registration_state_[serialized] = RegistrationInfo(reg_manager_, object_id);
+  }
+}
+
+// SyncState definitions.
+
+SyncState::SyncState(RegistrationUpdateManager* reg_manager)
+    : reg_manager_(reg_manager),
+      request_send_time_(reg_manager_->resources_->current_time()),
+      num_expected_registrations_(-1) {}
+
+bool SyncState::IsSyncComplete() {
+  int num_registrations = reg_manager_->GetNumConfirmedRegistrations();
+  bool have_enough_registrations = (num_expected_registrations_ != -1) &&
+      (num_expected_registrations_ <= num_registrations);
+  return have_enough_registrations || IsTimedOut();
+}
+
+bool SyncState::IsTimedOut() {
+  return reg_manager_->resources_->current_time() >=
+      reg_manager_->config_.registration_sync_timeout + request_send_time_;
+}
+
+// RegistrationUpdateManager definitions.
+
+RegistrationUpdateManager::RegistrationUpdateManager(
+    SystemResources* resources, const ClientConfig& config,
+    int64 current_op_seqno, InvalidationListener* listener)
+    : state_(State_LIMBO),
+      resources_(resources),
+      listener_(listener),
+      current_op_seqno_(current_op_seqno),
+      maximum_op_seqno_inclusive_(current_op_seqno_ - 1),
+      config_(config),
+      registration_state_manager_(this) {}
+
+RegistrationUpdateManager::~RegistrationUpdateManager() {
+}
+
+void RegistrationUpdateManager::EnterState(State new_state) {
+  CheckRep();
+  switch (new_state) {
+    case State_LIMBO:
+      // Abort any existing sync operation.
+      sync_state_.reset();
+
+      // Abort all pending operations and clear state.
+      registration_state_manager_.Reset();
+      break;
+
+    case State_SYNC_NOT_STARTED:
+      CHECK(state_ == State_LIMBO);
+      break;
+
+    case State_SYNC_STARTED:
+      CHECK(state_ == State_SYNC_NOT_STARTED);
+      CHECK(!registration_state_manager_.HasServerStateForChecks());
+      sync_state_.reset(new SyncState(this));
+      break;
+
+    case State_SYNCED: {
+      bool is_short_circuit_sync_completion =
+          (state_ == State_SYNC_NOT_STARTED) &&
+          (current_op_seqno_ == kFirstSequenceNumber);
+      bool is_normal_sync_completion =
+          (state_ == State_SYNC_STARTED) && sync_state_->IsSyncComplete();
+      CHECK(is_normal_sync_completion || is_short_circuit_sync_completion);
+      sync_state_.reset();
+      break;
+    }
+
+    default:
+      CHECK(false);
+      break;
+  }
+  state_ = new_state;
+  CheckRep();
+}
+
+void RegistrationUpdateManager::CheckRep() {
+  registration_state_manager_.CheckSequenceNumbers();
+  switch (state_) {
+    case State_LIMBO:
+      CHECK(!registration_state_manager_.HasServerStateForChecks());
+      // Fall through.
+    case State_SYNC_NOT_STARTED:
+      CHECK(sync_state_.get() == NULL);
+      registration_state_manager_.CheckNoPendingOpsSent();
+      break;
+
+    case State_SYNC_STARTED:
+      CHECK(sync_state_.get() != NULL);
+      registration_state_manager_.CheckNoPendingOpsSent();
+      break;
+
+    case State_SYNCED:
+      CHECK(sync_state_.get() == NULL);
+      break;
+
+    default:
+      CHECK(false);  // Illegal state.
+  }
+}
+
+void RegistrationUpdateManager::CheckSequenceNumber(const ObjectId& object_id,
+                                                    int64 sequence_number) {
+  CHECK(sequence_number >= kFirstSequenceNumber);
+  CHECK(sequence_number < current_op_seqno_);
+}
+
+int RegistrationUpdateManager::GetNumConfirmedRegistrations() {
+  int count = 0;
+  for (map<string, RegistrationInfo>::iterator iter =
+           registration_state_manager_.registration_state_.begin();
+       iter != registration_state_manager_.registration_state_.end();
+       ++iter) {
+    if (iter->second.IsLatestKnownServerStateRegistration()) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+void RegistrationUpdateManager::HandleLostSession() {
+  // Approach: regardless of whether or not we have sequence numbers available,
+  // simply go directly to the State_LIMBO state, since we can no longer
+  // meaningfully issue registration requests to the server.  Abort all pending
+  // requests, since we know we'll ignore the responses, as they'll have the old
+  // session token.  Additionally, clear the confirmed-registrations list, since
+  // those registrations are no longer valid in the absence of a session.
+  CheckRep();
+  CHECK(state_ != State_LIMBO);
+  EnterState(State_LIMBO);
+  CheckRep();
+}
+
+void RegistrationUpdateManager::HandleLostClientId() {
+  // Approach: we'll put the manager in a state appropriate to a newly-created
+  // client.  I.e., we'll abort all of our pending registrations and discard all
+  // of our confirmed registrations, since both of them were issued on behalf of
+  // a client that no longer exists.  We'll then enter the State_LIMBO state,
+  // since we won't be able to issue any registrations until we obtain a new
+  // client id and session.
+
+  // Enter State_LIMBO, discard all registrations (pending or confirmed).
+  CheckRep();
+  EnterState(State_LIMBO);
+
+  // Reset sequence numbers.
+  current_op_seqno_ = kFirstSequenceNumber;
+  maximum_op_seqno_inclusive_ = config_.seqno_block_size;
+  CheckRep();
+}
+
+void RegistrationUpdateManager::HandleNewSession() {
+  // Approach: first, ensure that we're in the State_LIMBO.  This reduces
+  // acquiring a new session when the existing session was still valid to the
+  // problem of acquiring a new session after the old session was invalidated by
+  // the server.
+  //
+  // Then, we handle acquiring a new session after invalidation of the old one
+  // as follows.  If this is the first session ever acquired by this client, we
+  // go directly to State_SYNCED, since there can be no registrations to sync
+  // from the server. Otherwise, we go to State_SYNC_NOT_STARTED, since there
+  // might be registrations to sync, and we have not yet sent the message.
+
+  // Reduce to reacquire-after-invalidated case.  It's important to check that
+  // we're not already in State_LIMBO. Otherwise, we could:
+  // 1) Lose a session and tell the app registrations-removed.
+  // 2) App re-issues registrations, and we queue them.
+  // 3) We get a new session and abort all the pending (queued) operations.
+  CheckRep();
+  if (state_ != State_LIMBO) {
+    HandleLostSession();
+  }
+
+  // TODO(ghc): [misc] Consider moving this to SYNCED transition.
+  resources_->ScheduleOnListenerThread(
+      NewPermanentCallback(
+          listener_,
+          &InvalidationListener::AllRegistrationsLost,
+          NewPermanentCallback(&DoNothing)));
+
+  // Need to sync.
+  BeginSync();
+  CheckRep();
+}
+
+int RegistrationUpdateManager::AddOutboundData(ClientToServerMessage* message) {
+  CheckRep();
+  int num_registrations_added = 0;
+
+  switch (state_) {
+    case State_LIMBO:
+    case State_SYNC_STARTED:
+      TLOG(INFO_LEVEL, "No data to send since in state %d", state_);
+      break;
+
+    case State_SYNC_NOT_STARTED:
+      message->set_message_type(
+          ClientToServerMessage_MessageType_TYPE_REGISTRATION_SYNC);
+      EnterState(State_SYNC_STARTED);
+      TLOG(INFO_LEVEL, "Setting message type to TYPE_REGISTRATION_SYNC");
+      break;
+
+    case State_SYNCED:
+      message->set_message_type(
+          ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
+      num_registrations_added = registration_state_manager_.TakeData(message);
+      TLOG(INFO_LEVEL, "Adding %d registrations in from State_SYNCED");
+      break;
+  }
+
+  CheckRep();
+  return num_registrations_added;
+}
+
+void RegistrationUpdateManager::ProcessInboundMessage(
+    const ServerToClientMessage& message) {
+  CheckRep();
+  CHECK(message.message_type() ==
+        ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
+  CHECK(state_ != State_LIMBO);
+  for (int i = 0; i < message.registration_result_size(); ++i) {
+    registration_state_manager_.ProcessRegistrationUpdateResult(
+        message.registration_result(i));
+  }
+  if (message.has_num_total_registrations()) {
+    if (state_ == State_SYNC_STARTED) {
+      sync_state_->set_num_expected_registrations(
+          message.num_total_registrations());
+    }
+  }
+  CheckRep();
 }
 
 bool RegistrationUpdateManager::DoPeriodicRegistrationCheck() {
-  Time now = resources_->current_time();
+  // Approach: we know that we definitely do not have data to send in two cases:
+  // 1) We are in state LIMBO. In this case, we can do nothing since we have no
+  //    session.
+  // 2) We are in state SYNC_STARTED.
+  //
+  // If we are LIMBO, we simply return false. If we are SYNC_STARTED, we return
+  // false after possibly transitioning to SYNCED, if the sync has finished.
+  // Otherwise, we must be in either the SYNC_NOT_STARTED or SYNCED states.
+  //
+  // 1) SYNC_NOT_STARTED. In this case, we have data to send -- the sync message
+  //    itself.
+  //
+  // 2) SYNCED. In this case, we have data to send if we have registrations
+  //    ready to send.
+  CheckRep();
+  bool result;
+  switch (state_) {
+    case State_LIMBO:
+      // Never have anything to send.
+      result = false;
+      break;
 
-  // Whether we have registrations to send to the server. This is true if we
-  // have unsent registrations or timed-out registrations to resend.
-  bool data_to_send = false;
+    case State_SYNC_STARTED:
+      // Never have anything to send, but we need to check if the sync has timed
+      // out.
+      CHECK(sync_state_.get() != NULL);
+      if (sync_state_->IsSyncComplete()) {
+        EnterState(State_SYNCED);
 
-  // Visit each pending registration. If it hasn't been sent, then tell the Ticl
-  // we have data to send. If it's been sent and has timed out, then handle it
-  // by either retrying it or returning STALE_OPERATION to the app, depending on
-  // whether retries remain.
-  for (map<string, PendingOperationInfo>::iterator iter = pending_ops_.begin();
-       iter != pending_ops_.end();) {
-    map<string, PendingOperationInfo>::iterator next_iter = iter;
-    ++next_iter;
-    PendingOperationInfo& op_info = iter->second;
-    const ObjectId& object_id = op_info.operation.object_id();
-    if (!op_info.is_sent) {
-      // If is_sent is false, we have not sent this operation for this attempt;
-      // is_sent will only be reset to false if the code that handles a
-      // timed-out registration determined that the operation had retry attempts
-      // remaining.
-      data_to_send = true;
-      TLOG(INFO_LEVEL, "Detected unsent (un)registration for: %s/%d",
-           object_id.name().string_value().c_str(), object_id.source());
-      iter = next_iter;
-      continue;
-    }
+        // Since we entered the SYNCED state, we'll evaluate its has-data
+        // condition.
+        result = SyncedStateHasDataToSend();
+      } else {
+        // We didn't enter the SYNCED state, so we have no data to send.
+        result = false;
+      }
+      break;
 
-    Time deadline = op_info.sent_time + config_.registration_timeout;
-    if (deadline > now) {
-      TLOG(INFO_LEVEL, "Not timing out (un)registration for %s/%d since "
-           "now = %lld and timeout at %lld",
-           object_id.name().string_value().c_str(), object_id.source(),
-           now.ToInternalValue(), deadline.ToInternalValue());
-    } else {
-      TLOG(INFO_LEVEL, "Detected timed-out (un)registration for %s/%d "
-           "sent at %lld, now = %lld",
-           object_id.name().string_value().c_str(), object_id.source(),
-           op_info.sent_time.ToInternalValue(), now.ToInternalValue());
-      bool timedout_has_data = HandleTimedOutRegistration(&op_info);
-      data_to_send |= timedout_has_data;
-    }
-    iter = next_iter;
+    case State_SYNC_NOT_STARTED:
+      CHECK(current_op_seqno_ > kFirstSequenceNumber);
+      // Always have something to send (sync message).
+      TLOG(INFO_LEVEL, "Signaling data to send for SYNC_NOT_STARTED");
+      result = true;
+      break;
+
+    case State_SYNCED:
+      registration_state_manager_.CheckTimedOutRegistrations();
+      result = SyncedStateHasDataToSend();
+      break;
+
+    default:
+      CHECK(false);
   }
-  return data_to_send;
+  CheckRep();
+  return result;
 }
 
-bool RegistrationUpdateManager::HandleTimedOutRegistration(
-    PendingOperationInfo* op_info) {
-  // If we have tried too many times, then issue transient-failure to the app.
-  const ObjectId& object_id = op_info->operation.object_id();
-  if (op_info->attempt_count == config_.max_registration_attempts) {
-    TLOG(INFO_LEVEL, "Maxed-out attempt count for (un)registration on %s/%d "
-         "(limit was %d)", object_id.name().string_value().c_str(),
-         object_id.source(), config_.max_registration_attempts);
-    AbortPending(*op_info);
-    return false;  // No data to be sent.
-  } else {
-    // Otherwise, we still have retries remaining, so increment the attempt
-    // count and set sentTime to null. Setting sentTime to null will cause
-    // addOutboundRegistrations to include this record when next invoked.
-    TLOG(INFO_LEVEL, "Attempt %d of operation on %s/%d timed out; retrying "
-         "(limit is %d)", op_info->attempt_count,
-         object_id.name().string_value().c_str(), object_id.source());
-    ++op_info->attempt_count;
-    op_info->is_sent = false;
-    return true;  // Data to be sent.
+void RegistrationUpdateManager::BeginSync() {
+  EnterState(State_SYNC_NOT_STARTED);
+  if (current_op_seqno_ == kFirstSequenceNumber) {
+    // If sequence number is FIRST_SEQUENCE_NUMBER, then we can't have any
+    // pending registrations queued to be sent, so we know we can return false
+    // here.
+    EnterState(State_SYNCED);
+    CHECK(!SyncedStateHasDataToSend());
   }
-}
-
-void RegistrationUpdateManager::RemoveAllOperations() {
-  // Abort all pending operations.
-  for (map<string, PendingOperationInfo>::iterator iter = pending_ops_.begin();
-       iter != pending_ops_.end();) {
-    map<string, PendingOperationInfo>::iterator next_iter = iter;
-    ++next_iter;
-    AbortPending(iter->second);
-    iter = next_iter;
-  }
-
-  // Clear the confirmed map.
-  confirmed_ops_.clear();
-}
-
-void RegistrationUpdateManager::AbortPending(
-    const PendingOperationInfo& op_info) {
-  // Construct a result for the operation with TRANSIENT_FAILURE status.
-  RegistrationUpdateResult result;
-  string serialized_oid;
-  op_info.operation.object_id().SerializeToString(&serialized_oid);
-  result.mutable_operation()->CopyFrom(op_info.operation);
-  result.mutable_status()->set_code(Status_Code_TRANSIENT_FAILURE);
-  // Invoke the callback with the failure result.
-  resources_->ScheduleOnListenerThread(
-      NewPermanentCallback(&RunAndDeleteRegistrationCallback, op_info.callback,
-                           result));
-  // Remove the operation from the map.
-  pending_ops_.erase(serialized_oid);
 }
 
 }  // namespace invalidation

@@ -37,6 +37,9 @@ enum MessageAction {
   // We lost our session.
   LOSE_SESSION,
 
+  // We lost our client id.
+  LOSE_CLIENT_ID,
+
   // This message's session token matches the one we had.  The Ticl should
   // continue processing content from this message.
   PROCESS_OBJECT_CONTROL,
@@ -53,10 +56,19 @@ enum MessageAction {
  *
  * This is an internal helper class for InvalidationClientImpl.
  */
+
 class SessionManager {
  private:
+  enum State {
+    State_NO_UNIQUIFIER_OR_SESSION,  // has neither uniqifier nor session token
+    State_UNIQUIFIER_ONLY,  // has uniquifier but no session token
+    State_UNIQUIFIER_AND_SESSION  // has uniquifier and session token
+    // Note: a client cannot have a session token without a uniquifier
+  };
+
   SessionManager(const ClientConfig& config, ClientType client_type,
-                 const string& app_client_id, SystemResources* resources)
+                 const string& app_client_id, SystemResources* resources,
+                 const string& uniquifier, const string& session_token)
       : config_(config),
         client_type_(client_type),
         app_client_id_(app_client_id),
@@ -64,10 +76,11 @@ class SessionManager {
         last_send_time_(Time() - TimeDelta::FromHours(1)),
         session_attempt_count_(0),
         resources_(resources),
-        uniquifier_(""),
-        session_token_(""),
+        uniquifier_(uniquifier),
+        session_token_(session_token),
         shutdown_(false) {
     AddSupportedProtocolVersions();
+    UpdateState();
   }
 
   /* Constructs a session manager with a specified client id. */
@@ -85,17 +98,25 @@ class SessionManager {
         session_token_(""),
         shutdown_(false) {
     AddSupportedProtocolVersions();
+    UpdateState();
   }
 
-  /* If the client currently has no client id, sets the ASSIGN_CLIENT_ID action
-   * in the given message, along with the client type, app client id, and a
-   * nonce with which the reply will be matched.  If the client has an id but no
-   * valid session, sets the UPDATE_SESSION action in the given message.
-   * Returns whether it believes the current session to be valid, in which case
-   * the Ticl may add invalidation acknowledgments and registration updates to
-   * the message.
-   */
-  bool AddSessionAction(ClientToServerMessage* message);
+  // Updates the field that tracks this object's state.
+  void UpdateState();
+
+  /* Returns whether the session manager has a session. */
+  bool HasSession() {
+    return !session_token_.empty();
+  }
+
+  // Returns true if the message is intended for this client.  The actual
+  // verification is message-type dependent. E.g., for an assign-client-id
+  // message, a nonce check is involved, whereas for an object control message,
+  // the session token is checked.
+  bool IsMessageIntendedForClient(const ServerToClientMessage& message);
+
+  // Adds content to the message relating to client id and session.
+  void AddSessionAction(ClientToServerMessage* message);
 
   /* Consumes a message received from the server. If the message is a
    * session-related message (i.e., has type TYPE_ASSIGN_CLIENT_ID,
@@ -121,6 +142,8 @@ class SessionManager {
    */
   MessageAction ProcessInvalidateClientId(const ServerToClientMessage& message);
 
+  void DoLoseClientId();
+
   /* Processes an INVALIDATE_SESSION message.
    * REQUIRES: the message be of type INVALIDATE_SESSION.
    */
@@ -133,6 +156,9 @@ class SessionManager {
    * REQUIRES: the message be of type OBJECT_CONTROL.
    */
   MessageAction CheckObjectControlMessage(const ServerToClientMessage& message);
+
+  /* Returns whether the session manager has data to send. */
+  bool HasDataToSend();
 
   /* Informs the session manager that the client is shutting down.  Any
    * subsequent outbound messages will be of type SHUTDOWN.
@@ -157,14 +183,6 @@ class SessionManager {
     return session_token_;
   }
 
-  /* Returns whether the session manager has a session. */
-  bool HasSession() {
-    return !session_token_.empty();
-  }
-
-  /* Returns whether the Ticl has data to send. */
-  bool HasDataToSend();
-
   /* Configuration parameters. */
   ClientConfig config_;
 
@@ -188,6 +206,9 @@ class SessionManager {
 
   /* System resources (just used for logging here). */
   SystemResources * const resources_;
+
+  /* The current state of the session manager. */
+  State state_;
 
   /* The client's id, or {@code null} if unassigned. */
   string uniquifier_;

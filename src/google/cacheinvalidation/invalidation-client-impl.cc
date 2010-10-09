@@ -17,6 +17,7 @@
 #include <string>
 
 #include "google/cacheinvalidation/log-macro.h"
+#include "google/cacheinvalidation/persistence-utils.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 
 namespace invalidation {
@@ -25,81 +26,243 @@ using INVALIDATION_STL_NAMESPACE::string;
 
 const char* InvalidationClientImpl::INVALIDATE_ALL_OBJECT_NAME = "ALL";
 
+InvalidationClientImpl::InvalidationClientImpl(
+    SystemResources* resources,
+    const ClientType& client_type,
+    const string& app_name,
+    const string& serialized_state,
+    const ClientConfig& config,
+    InvalidationListener* listener)
+  : resources_(resources),
+    listener_(listener),
+    config_(config),
+    network_manager_(ALLOW_THIS_IN_INITIALIZER_LIST(this),
+                     resources, config),
+    persistence_manager_(resources_),
+    awaiting_seqno_writeback_(false),
+    random_(resources->current_time().ToInternalValue()) {
+  // Initialize the registration and session managers from persisted state if
+  // present.
+  TiclState persistent_state;
+  uint64 initial_seqno;
+  string uniquifier;
+  string session_token;
+  bool persistent = DeserializeState(serialized_state, &persistent_state);
+  if (!persistent && !serialized_state.empty()) {
+    TLOG(SEVERE_LEVEL, "Got persisted state but failed to deserialize");
+  }
+  if (persistent) {
+    // The Ticl is being restarted with a uniquifier, session token, and
+    // sequence number from persistent storage.  In this case, we initialize a
+    // session manager with these persisted values, and we start the
+    // registration manager with the persisted sequence number.  Before we can
+    // send out any registrations, we need to write back a new state blob
+    // reserving a new block of sequence numbers.  If that fails, then we need
+    // to forget the persisted client id and session and do a fresh start.
+    uniquifier = persistent_state.uniquifier();
+    session_token = persistent_state.session_token();
+    initial_seqno = persistent_state.sequence_number_limit();
+  } else {
+    // Either we had no persisted state, or we couldn't parse it, so we'll start
+    // fresh.  When we get a session, we'll attempt to write out our state.  In
+    // the case of a non-persistent client, the write will appear to succeed.
+    uniquifier = "";
+    session_token = "";
+    initial_seqno = RegistrationUpdateManager::kFirstSequenceNumber;
+  }
+  session_manager_.reset(
+      new SessionManager(config, client_type, app_name, resources, uniquifier,
+                         session_token));
+  registration_manager_.reset(
+      new RegistrationUpdateManager(resources, config, initial_seqno,
+                                    listener_));
+  if (persistent) {
+    // If we started from persisted state, then we "have" a session already, and
+    // we need to write back a state blob to claim a new block of sequence
+    // numbers.
+    TLOG(INFO_LEVEL, "Taking session actions for persistent state restart");
+    registration_manager_->HandleNewSession();
+    resources_->ScheduleOnListenerThread(
+        NewPermanentCallback(
+            listener_,
+            &InvalidationListener::SessionStatusChanged,
+            true));
+    AllocateNewSequenceNumbers(persistent_state);
+  } else {
+    // If we're starting fresh, then we can claim an initial block of sequence
+    // numbers without writing out state.  When we get a session, we'll attempt
+    // to update the state with the session token, etc.
+    TLOG(INFO_LEVEL, "Taking actions for fresh start");
+    registration_manager_->UpdateMaximumSeqno(config_.seqno_block_size);
+  }
+
+  resources->ScheduleImmediately(
+      NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
+}
+
+void InvalidationClientImpl::AllocateNewSequenceNumbers(
+    const TiclState& persistent_state) {
+  int64 maximum_op_seqno_inclusive =
+      persistent_state.sequence_number_limit() + config_.seqno_block_size;
+  TiclState new_state;
+  new_state.CopyFrom(persistent_state);
+  new_state.set_sequence_number_limit(maximum_op_seqno_inclusive);
+  awaiting_seqno_writeback_ = true;
+  string serialized;
+  SerializeState(new_state, &serialized);
+  persistence_manager_.WriteState(
+      serialized,
+      NewPermanentCallback(
+          this,
+          &InvalidationClientImpl::HandleSeqnoWritebackResult,
+          maximum_op_seqno_inclusive));
+}
+
+void InvalidationClientImpl::HandleSeqnoWritebackResult(
+    int64 maximum_op_seqno_inclusive, bool success) {
+  MutexLock m(&lock_);
+
+  TLOG(INFO_LEVEL, "seqno writeback returned %d", success);
+  awaiting_seqno_writeback_ = false;
+  if (success) {
+    registration_manager_->UpdateMaximumSeqno(maximum_op_seqno_inclusive);
+  } else {
+    // If we can't reserve a new block of sequence numbers, start over with a
+    // new client id.  When we receive the new client id, we'll retry writing
+    // the state blob.  If it succeeds, then we'll become a persistent client
+    // with that id.  If it fails, then we'll be a non-persistent client with
+    // that id.  That's safe, because there can't be any existing operations for
+    // that new id.  In the current case, the write must succeed for us to
+    // proceed, since otherwise we might end up reusing sequence numbers the
+    // next time we restart.
+    ForgetClientId();
+  }
+}
+
+void InvalidationClientImpl::HandleBestEffortWrite(bool result) {
+  TLOG(INFO_LEVEL, "Write completed with result: %d", result);
+}
+
+class Finally {
+ public:
+  Finally(Closure* task) : task_(task) {
+    CHECK(IsCallbackRepeatable(task));
+  }
+
+  ~Finally() {
+    task_->Run();
+    delete task_;
+  }
+
+ private:
+  Closure* task_;
+};
+
 void InvalidationClientImpl::PeriodicTask() {
   MutexLock m(&lock_);
 
+  // Reschedule the periodic task at the end, however we exit this function.
+  TimeDelta smeared_delay = SmearDelay(
+      config_.periodic_task_interval, config_.smear_factor, &random_);
+  Finally reschedule_periodic_task(
+      NewPermanentCallback(
+          resources_,
+          &SystemResources::ScheduleWithDelay,
+          smeared_delay,
+          NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask)));
+
+  persistence_manager_.DoPeriodicCheck();
+  if (awaiting_seqno_writeback_) {
+    TLOG(INFO_LEVEL, "Skipping periodic check while awaiting local write");
+    // Don't send any messages until the initial write-back has finished.
+    return;
+  }
+
+  // Check if we have run out of sequence numbers.  If so, restart as a new
+  // client.
+  if (registration_manager_->current_op_seqno() >
+      registration_manager_->maximum_op_seqno_inclusive()) {
+    TLOG(INFO_LEVEL, "Exhausted seqnos; forgetting client id");
+    ForgetClientId();
+  }
+
   // Check for session data to send.
-  bool have_session_data = session_manager_.HasDataToSend();
+  bool have_session_data = session_manager_->HasDataToSend();
 
   // Check for registrations to send.
   bool have_registration_data =
-      registration_manager_.DoPeriodicRegistrationCheck();
+      registration_manager_->DoPeriodicRegistrationCheck();
 
   // Check to see if we need to send a heartbeat or poll.
   bool should_heartbeat_or_poll = network_manager_.HasDataToSend();
 
   // If there's no session data to send, and we don't have a session, then we
   // can't send anything.
-  if (!have_session_data && !session_manager_.HasSession()) {
+  if (!have_session_data && !session_manager_->HasSession()) {
     TLOG(INFO_LEVEL,
          "Not sending data since no session and session request in-flight");
   } else if (have_session_data || have_registration_data ||
              should_heartbeat_or_poll) {
     network_manager_.OutboundDataReady();
   }
-
-  // Reschedule the periodic task. The following lines MUST run, or the Ticl
-  // will stop working so don't use 'return' statements in this function.
-  TimeDelta smeared_delay = SmearDelay(
-      config_.periodic_task_interval, config_.smear_factor, &random_);
-  resources_->ScheduleWithDelay(
-      smeared_delay,
-      NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
 }
 
-void InvalidationClientImpl::Register(
-    const ObjectId& oid, RegistrationCallback* callback) {
+void InvalidationClientImpl::Register(const ObjectId& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   TLOG(INFO_LEVEL, "Received register for %d/%s", oid.source(),
        oid.name().string_value().c_str());
-  registration_manager_.Register(oid, callback);
+  registration_manager_->Register(oid);
 }
 
-void InvalidationClientImpl::Unregister(
-    const ObjectId& oid, RegistrationCallback* callback) {
+void InvalidationClientImpl::Unregister(const ObjectId& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   TLOG(INFO_LEVEL, "Received unregister for %d/%s", oid.source(),
        oid.name().string_value().c_str());
-  registration_manager_.Unregister(oid, callback);
+  registration_manager_->Unregister(oid);
 }
 
 void InvalidationClientImpl::PermanentShutdown() {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   TLOG(INFO_LEVEL, "Doing permanent shutdown by application request");
-  session_manager_.Shutdown();
+  session_manager_->Shutdown();
 }
 
 void InvalidationClientImpl::HandleNewSession() {
-  string client_uniquifier = session_manager_.client_uniquifier();
+  string client_uniquifier = session_manager_->client_uniquifier();
 
   TLOG(INFO_LEVEL, "Received new session: %s", client_uniquifier.c_str());
 
-  registration_manager_.RemoveAllOperations();
+  registration_manager_->HandleNewSession();
+  network_manager_.RecordImplicitHeartbeat();
+  TiclState state;
+  string uniquifier = session_manager_->client_uniquifier();
+  state.set_uniquifier(uniquifier);
+  state.set_session_token(session_manager_->session_token());
+  state.set_sequence_number_limit(
+      registration_manager_->maximum_op_seqno_inclusive());
+
+  string serialized;
+  SerializeState(state, &serialized);
+  persistence_manager_.WriteState(
+      serialized,
+      NewPermanentCallback(
+          this,
+          &InvalidationClientImpl::HandleBestEffortWrite));
 
   // Tell the listener we acquired a session and that its registrations were
   // removed.
   resources_->ScheduleOnListenerThread(
       NewPermanentCallback(
-          this, &InvalidationClientImpl::InformListenerOfNewSession));
-
-  // In case we have any pending registrations...
-  network_manager_.OutboundDataReady();
+          listener_,
+          &InvalidationListener::SessionStatusChanged,
+          true));
 }
 
 void InvalidationClientImpl::HandleLostSession() {
+  registration_manager_->HandleLostSession();
   resources_->ScheduleOnListenerThread(
       NewPermanentCallback(
           // Tell the listener we lost our session.
@@ -109,28 +272,29 @@ void InvalidationClientImpl::HandleLostSession() {
 void InvalidationClientImpl::HandleObjectControl(
     const ServerToClientMessage& bundle) {
   // Handle registration response.
-  for (int i = 0; i < bundle.registration_result_size(); ++i) {
-    ProcessRegistrationUpdateResult(bundle.registration_result(i));
-  }
+  registration_manager_->ProcessInboundMessage(bundle);
   // Process invalidations.
   for (int i = 0; i < bundle.invalidation_size(); ++i) {
     ProcessInvalidation(bundle.invalidation(i));
   }
 }
 
-void InvalidationClientImpl::InformListenerOfNewSession() {
-  listener_->SessionStatusChanged(true);
-  listener_->AllRegistrationsLost(NewPermanentCallback(&DoNothing));
-}
-
 void InvalidationClientImpl::HandleInboundMessage(const string& message) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
 
+  if (awaiting_seqno_writeback_) {
+    // If the initial write back to allocate sequence numbers hasn't returned,
+    // don't process any messages, since they could cause state changes that
+    // would require substantial complexity to handle.
+    TLOG(INFO_LEVEL, "Dropping inbound message since seqno write in-progress");
+    return;
+  }
+
   ServerToClientMessage bundle;
   bundle.ParseFromString(message);
 
-  MessageAction action = session_manager_.ProcessMessage(bundle);
+  MessageAction action = session_manager_->ProcessMessage(bundle);
 
   TLOG(INFO_LEVEL, "Classified inbound message as %d", action);
   switch (action) {
@@ -139,6 +303,9 @@ void InvalidationClientImpl::HandleInboundMessage(const string& message) {
       return;
     case ACQUIRE_SESSION:
       HandleNewSession();
+      break;
+    case LOSE_CLIENT_ID:
+      ForgetClientId();
       break;
     case LOSE_SESSION:
       HandleLostSession();
@@ -157,11 +324,6 @@ void InvalidationClientImpl::HandleInboundMessage(const string& message) {
   // cases that reach here verified that the message was addressed to this
   // client.
   network_manager_.HandleInboundMessage(bundle);
-}
-
-void InvalidationClientImpl::ProcessRegistrationUpdateResult(
-    const RegistrationUpdateResult& result) {
-  registration_manager_.ProcessRegistrationUpdateResult(result);
 }
 
 /* Handles an invalidation. */
@@ -217,22 +379,35 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
 
   // If PermanentShutdown() has been called, the session manager will return a
   // message of TYPE_SHUTDOWN.
-  bool is_object_control = session_manager_.AddSessionAction(&message);
-  network_manager_.HandleOutboundMessage(&message, is_object_control);
-  if (is_object_control) {
-    TLOG(INFO_LEVEL, "Adding data to outbound OBJECT_CONTROL message");
+  session_manager_->AddSessionAction(&message);
+
+  // If the session manager didn't set a message type, then we can let the
+  // registration manager add fields.
+  if (!message.has_message_type()) {
+    registration_manager_->AddOutboundData(&message);
+  } else {
+    TLOG(INFO_LEVEL, "message had type %d, not giving to reg manager",
+         message.message_type());
+  }
+
+  // If the registration manager is sending an OBJECT_CONTROL message, we can
+  // let the network manager try to attach a heartbeat to it if needed, and we
+  // can send invalidation acks.
+  if (message.message_type() ==
+      ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL) {
+    network_manager_.AddHeartbeat(&message);
 
     // Add up to maxRegistrationsPerMessage registrations.
-    int sent_count =
-        registration_manager_.AddOutboundRegistrationUpdates(&message);
     int invalidation_acks_sent = 0;
+    int registration_count = message.register_operation_size();
 
     // Add any outbound invalidations, up to max_ops_per_message. We ack the
     // newest invalidations first (since we pop from the array), which is good,
     // because an invalidation for a newer version of an object subsumes an
     // older invalidation.
     while (!pending_invalidation_acks_.empty() &&
-           sent_count + invalidation_acks_sent < config_.max_ops_per_message) {
+           (registration_count + invalidation_acks_sent <
+            config_.max_ops_per_message)) {
       ++invalidation_acks_sent;
       Invalidation* inv = message.add_acked_invalidation();
       inv->CopyFrom(pending_invalidation_acks_.back());
@@ -248,6 +423,11 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
       pending_invalidation_acks_.pop_back();
     }
   }
+  // Regardless, we'll let the network manager add a message id and signal data
+  // to send.
+  network_manager_.FinalizeOutboundMessage(&message);
+  CHECK(message.has_message_type());
+  CHECK(message.has_client_type());
   message.SerializeToString(serialized);
 }
 

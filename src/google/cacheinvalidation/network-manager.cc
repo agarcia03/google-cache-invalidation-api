@@ -66,13 +66,6 @@ void NetworkManager::ScheduleHeartbeat() {
   TLOG(INFO_LEVEL, "Next heartbeat at %d", next_heartbeat_.ToInternalValue());
 }
 
-void NetworkManager::SchedulePoll() {
-  Time now = resources_->current_time();
-  next_poll_ = now + InvalidationClientImpl::SmearDelay(
-      poll_delay_, config_.smear_factor, &random_);
-  TLOG(INFO_LEVEL, "Next poll at %d", next_heartbeat_.ToInternalValue());
-}
-
 void NetworkManager::RegisterOutboundListener(
     NetworkCallback* outbound_message_ready) {
   CHECK(IsCallbackRepeatable(outbound_message_ready));
@@ -102,21 +95,18 @@ void NetworkManager::DoInformOutboundListener() {
   }
 }
 
-void NetworkManager::HandleOutboundMessage(ClientToServerMessage* message,
-                                           bool is_object_control) {
+void NetworkManager::AddHeartbeat(ClientToServerMessage* message) {
+  CHECK(message->message_type() ==
+        ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
   Time now = resources_->current_time();
-  if (is_object_control) {
-    if (NeedsPoll()) {
-      // If we should poll for invalidations, do so.
-      TLOG(INFO_LEVEL, "Adding POLL_INVALIDATIONS action to outbound message");
-      message->set_action(ClientToServerMessage_Action_POLL_INVALIDATIONS);
-      SchedulePoll();
-    } else if (NeedsHeartbeat()) {
-      // Heartbeat required.
-      message->set_action(ClientToServerMessage_Action_HEARTBEAT);
-      ScheduleHeartbeat();
-    }
+  if (NeedsHeartbeat()) {
+    // Heartbeat required.
+    message->set_action(ClientToServerMessage_Action_HEARTBEAT);
+    ScheduleHeartbeat();
   }
+}
+
+void NetworkManager::FinalizeOutboundMessage(ClientToServerMessage* message) {
   ++message_number_;
   message->set_message_id(StringPrintf("%d", message_number_));
   // Set the protocol version that we want to use.
@@ -131,28 +121,7 @@ void NetworkManager::HandleOutboundMessage(ClientToServerMessage* message,
 }
 
 void NetworkManager::HandleInboundMessage(const ServerToClientMessage& bundle) {
-  // Update the heartbeat and polling delays.
-  if (bundle.has_next_poll_interval_ms()) {
-    int new_poll_interval_ms = bundle.next_poll_interval_ms();
-    // Don't accept intervals of 0 or less -- that has to be bad data.
-    if (new_poll_interval_ms > 0) {
-      TimeDelta new_poll_interval =
-          TimeDelta::FromMilliseconds(new_poll_interval_ms);
-      if (poll_delay_ != new_poll_interval) {
-        TLOG(INFO_LEVEL, "Accepting new polling interval of %d ms",
-             new_poll_interval_ms);
-        poll_delay_ = TimeDelta::FromMilliseconds(new_poll_interval_ms);
-        // Schedule the next poll using the new delay.
-        SchedulePoll();
-      } else {
-        // Poll interval is unchanged: do nothing.
-      }
-    } else {
-      TLOG(INFO_LEVEL, "Ignoring bad server-provided poll delay of %d ms",
-           new_poll_interval_ms);
-    }
-  }
-
+  // Update the heartbeat interval.
   if (bundle.has_next_heartbeat_interval_ms()) {
     int new_heartbeat_interval_ms = bundle.next_heartbeat_interval_ms();
     // Don't accept intervals of 0 or less -- that has to be bad data.

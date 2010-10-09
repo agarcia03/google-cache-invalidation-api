@@ -24,46 +24,240 @@
 
 namespace invalidation {
 
+using INVALIDATION_STL_NAMESPACE::hash_map;
 using INVALIDATION_STL_NAMESPACE::map;
 
-struct ClientConfig;
 class SystemResources;
 
-/* Contains the last time an operation message was sent, and the operation's
- * callback.
- */
-struct PendingOperationInfo {
-  // The pending operation.
-  RegistrationUpdate operation;
-
-  // Whether we have an outstanding (not timed-out) message to the server
-  // requesting this operation.
-  bool is_sent;
-
-  // The time that we sent a request with this operation.
-  Time sent_time;
-
-  // The number of times we have attempted this registration.
-  int attempt_count;
-
-  // The callback to invoke when this operation completes.
-  RegistrationCallback* callback;
-
-  PendingOperationInfo() {}
-  PendingOperationInfo(const RegistrationUpdate& op,
-                       RegistrationCallback* cb)
-      : operation(op), is_sent(false), attempt_count(1), callback(cb) {}
-};
-
 // Possible states in which an object may be.
-enum RegistrationState {
-  RegistrationState_NO_INFO = 0,
-  RegistrationState_REG_PENDING = 1,
-  RegistrationState_REG_CONFIRMED = 2,
-  RegistrationState_UNREG_PENDING = 3,
-  RegistrationState_UNREG_CONFIRMED = 4
+enum RegState {
+  RegState_UNREGISTERED = 0,
+  RegState_REG_PENDING = 1,
+  RegState_REGISTERED = 2,
+  RegState_UNREG_PENDING = 3
 };
 
+// High-level states the registration manager can be in.
+enum State {
+  State_LIMBO = 0,  // No session.
+  State_SYNC_NOT_STARTED = 1,  // Have session, but need to send sync message.
+  State_SYNC_STARTED = 2,  // Sent reg sync message, awaiting replies / timeout.
+  State_SYNCED = 3  // Received regs from server, processing client regs.
+};
+
+class RegistrationUpdateManager;
+
+// Record of the registration state of an object.
+class RegistrationInfo {
+ public:
+  RegistrationInfo() {}
+
+  RegistrationInfo(RegistrationUpdateManager* reg_manager,
+                   const ObjectId& object_id);
+
+  explicit RegistrationInfo(const RegistrationInfo& reg_info) {
+    *this = reg_info;
+  }
+
+  RegistrationInfo& operator=(const RegistrationInfo& reg_info) {
+    reg_manager_ = reg_info.reg_manager_;
+    resources_ = reg_info.resources_;
+    object_id_ = reg_info.object_id_;
+    latest_known_server_state_ = reg_info.latest_known_server_state_;
+    if (reg_info.pending_state_.get() != NULL) {
+      pending_state_.reset(
+          new RegistrationUpdate_Type(*reg_info.pending_state_));
+    } else {
+      pending_state_.reset();
+    }
+    if (reg_info.send_time_.get() != NULL) {
+      send_time_.reset(new Time(*reg_info.send_time_));
+    } else {
+      send_time_.reset();
+    }
+    if (reg_info.pending_seqno_.get() != NULL) {
+      pending_seqno_.reset(new int64(*reg_info.pending_seqno_));
+    } else {
+      pending_seqno_.reset();
+    }
+    return *this;
+  }
+
+  // Updates registration state and invokes callbacks as apprpriate for the
+  // receipt of the result from the server.
+  void ProcessRegistrationUpdateResult(const RegistrationUpdateResult& result);
+
+  // Updates state and invokes callbacks as appropriate for an application
+  // request of the given operation.
+  void ProcessApplicationRequest(RegistrationUpdate_Type op_type);
+
+  // Checks to see if an in-progress operation has timed out, if one exists.  If
+  // so, attempts a retry or invokes a callback with TRANSIENT_FAILURE if no
+  // retries remain.
+  void CheckTimeout(Time now, TimeDelta deadline);
+
+  // Returns whether there is any data to be sent for this object.
+  bool HasDataToSend();
+
+  // Adds data to be sent for this object and updates the last sent time.
+  void TakeData(ClientToServerMessage* message, Time now);
+
+ private:
+  RegistrationState GetStateFromOpType(RegistrationUpdate_Type op_type) {
+    return (op_type == RegistrationUpdate_Type_REGISTER) ?
+        RegistrationState_REGISTERED :
+        RegistrationState_UNREGISTERED;
+  }
+
+  // Invokes the RegistrationStateChanged() callback on object_id_ and
+  // new_state_.
+  void InvokeStateChangedCallback(RegistrationState new_state_,
+                                  const UnknownHint& unknown_hint);
+
+  // Returns whether an operation is in-progress.
+  bool IsInProgress() {
+    return pending_state_.get() != NULL;
+  }
+
+  // Returns the type of operation in-progress.
+  // REQUIRES: IsInProgress().
+  RegistrationUpdate_Type GetInProgressType() {
+    CHECK(IsInProgress());
+    return *pending_state_;
+  }
+
+  // Returns whether the latest known server state is a registration.
+  bool IsLatestKnownServerStateRegistration() {
+    return latest_known_server_state_ == RegistrationUpdate_Type_REGISTER;
+  }
+
+  // Returns whether result is a valid message and can be processed.
+  bool IsResultValid(const RegistrationUpdateResult& result);
+
+  // Returns the registration state for the associated object.
+  RegState GetRegistrationState();
+
+  // Verifies that sequence numbers in this record are valid.
+  void CheckSequenceNumber();
+
+  const char* GetObjectName(const ObjectId& object_id) {
+    return object_id.name().string_value().c_str();
+  }
+
+  // The registration manager to which this state object belongs.
+  RegistrationUpdateManager* reg_manager_;
+
+  // System resources for logging, etc.
+  SystemResources* resources_;
+
+  // The object id whose registration state we're tracking.
+  ObjectId object_id_;
+
+  // Latest state at the server that we know (registered or unregistered).
+  RegistrationUpdate_Type latest_known_server_state_;
+
+  // Sequence number associated with latest server state, or NULL if we've
+  // received no explicit state from the server.
+  scoped_ptr<int64> latest_known_server_seqno_;
+
+  // The state desired by the client application, or NULL if there is no
+  // operation pending.
+  scoped_ptr<RegistrationUpdate_Type> pending_state_;
+
+  // The time, if any, at which a message was sent requesting this operation.
+  scoped_ptr<Time> send_time_;
+
+  // The sequence number, if any, of the pending operation.
+  scoped_ptr<int64> pending_seqno_;
+
+  friend class RegistrationInfoStore;
+  friend class RegistrationUpdateManager;
+};
+
+// Class to manage RegistrationInfo records representing the total registration
+// state known to a manager.
+class RegistrationInfoStore {
+ public:
+  RegistrationInfoStore(RegistrationUpdateManager* reg_manager);
+
+  // Handles a registration result received from the server.
+  void ProcessRegistrationUpdateResult(const RegistrationUpdateResult& result);
+
+  // Handles a request from the client application to put the given object_id
+  // into the given registration state (indicated by op_type).
+  void ProcessApplicationRequest(const ObjectId& object_id,
+                                 RegistrationUpdate_Type op_type);
+
+  // Clears the registration state map.
+  void Reset();
+
+  // Returns whether the store has received any state from the server.
+  bool HasServerStateForChecks();
+
+  // Returns whether any (un)registrations are ready to be sent to the server.
+  bool HasDataToSend();
+
+  // Adds outbound registration messages to the given message.  Returns the
+  // number of registrations added.
+  int32 TakeData(ClientToServerMessage* message);
+
+  // Checks for timed-out registrations, either invoking callbacks or
+  // arranging for retries as needed.
+  void CheckTimedOutRegistrations();
+
+  // Validates sequence numbers in the store.
+  void CheckSequenceNumbers();
+
+  // Verifies that no pending operations have been sent, for checks.
+  void CheckNoPendingOpsSent();
+
+  // Returns the registration state for object_id.
+  RegState GetRegistrationState(const ObjectId& object_id);
+
+ private:
+  // Ensures that a record for object_id is present in the registration_state_
+  // map.
+  void EnsureRecordPresent(const ObjectId& object_id);
+
+  // The registration update manager to which this store belongs.
+  RegistrationUpdateManager* reg_manager_;
+
+  // System resources for logging, etc.
+  SystemResources* resources_;
+
+  // Map from serialized object id to associated record.
+  map<string, RegistrationInfo> registration_state_;
+
+  friend class RegistrationUpdateManager;
+};
+
+// Represents the state of an on-going registration synchronization operation.
+class SyncState {
+ public:
+  SyncState(RegistrationUpdateManager* reg_manager);
+
+  // Returns whether the sync process has completed, either due to receipt of
+  // all messages or timeout.
+  bool IsSyncComplete();
+
+  void set_num_expected_registrations(int num_expected_registrations) {
+    num_expected_registrations_ = num_expected_registrations;
+  }
+
+ private:
+  // Returns whether the sync process has timed out -- i.e., it has started and
+  // too much time has passed.
+  bool IsTimedOut();
+
+  // The registration manager to which this synchronization state pertains.
+  RegistrationUpdateManager* reg_manager_;
+
+  // The time at which we sent the request to sync registrations.
+  Time request_send_time_;
+
+  // The total number of registrations we expect from the server.
+  int32 num_expected_registrations_;
+};
 
 /* Keeps track of pending and confirmed registration update operations for a
  * given Invalidation Client Library.  This class is not thread-safe, so the
@@ -73,99 +267,158 @@ enum RegistrationState {
  */
 class RegistrationUpdateManager {
  public:
-  // Visible for testing only.
   RegistrationUpdateManager(SystemResources* resources,
-                            const ClientConfig& config);
+                            const ClientConfig& config,
+                            int64 current_op_seqno,
+                            InvalidationListener* listener);
 
   ~RegistrationUpdateManager();
 
-  /* Initiates registration on the given object_id, invoking the callback with
-   * the server's eventual response.  Will retry indefinitely until the server
-   * responds.  Takes ownership of the callback, which must be
-   * repeatable and unique.
-   */
-  void Register(const ObjectId& object_id,
-                RegistrationCallback* callback) {
-    UpdateRegistration(object_id, RegistrationUpdate_Type_REGISTER, callback);
+  // Handles a lost session.
+  void HandleLostSession();
+
+  // Handles a lost client id.
+  void HandleLostClientId();
+
+  // Handles a new session.
+  void HandleNewSession();
+
+  // Returns the registration state of the given object.
+  RegState GetRegistrationState(const ObjectId& object_id) {
+    CheckRep();
+    return registration_state_manager_.GetRegistrationState(object_id);
   }
 
-  /* Initiates unregistration on the given object_id, invoking the callback with
-   * the server's eventual response.  Will retry indefinitely until the server
-   * responds.  Takes ownership of the callback, which must be
-   * repeatable and unique.
-   */
-  void Unregister(const ObjectId& object_id,
-                  RegistrationCallback* callback) {
-    UpdateRegistration(object_id, RegistrationUpdate_Type_UNREGISTER, callback);
-  }
+  // For each pending registration update that was not aready sent out recently,
+  // adds a message to the given message (up to
+  // config.max_registrations_per_message).
+  int AddOutboundData(ClientToServerMessage* message);
 
-  /* Returns the registration state of an object. */
-  RegistrationState GetObjectState(const ObjectId& object_id);
+  // Handles a message from the server.
+  void ProcessInboundMessage(const ServerToClientMessage& message);
 
-  /* For each pending registration update that was not already sent out
-   * recently, adds an update request to the given message.  Returns the number
-   * of operations added.
-   */
-  int AddOutboundRegistrationUpdates(ClientToServerMessage* message);
-
-  /* Given the result of a registration update, finds and invokes the associated
-   * callback.  Also removes the operation from the pending operations map, and
-   * if the result was successful, adds it to the maps of confirmed operations.
-   */
-  void ProcessRegistrationUpdateResult(const RegistrationUpdateResult& result);
-
-  /* Performs the actual work of registering or unregistering for invalidations
-   * on a specific object.  The callback will be invoked when the server
-   * responds to the request.  Takes ownership of the callback, which
-   * must be repeatable and unique.
-   */
+  // Performs the actual work of registering or unregistering for invalidations
+  // on a specific object.
   void UpdateRegistration(const ObjectId& object_id,
-                          RegistrationUpdate_Type op_type,
-                          RegistrationCallback* callback);
+                          RegistrationUpdate_Type op_type) {
+    // If we're in LIMBO, then we silently ignore registrations, since we know that:
+    // 1) We can't send them now.
+    // 2) We'll issue registrations-removed when we leave LIMBO, which will cause the
+    //    application to re-register everything anyway.
+    if (state_ == State_LIMBO) {
+      return;
+    }
+    registration_state_manager_.ProcessApplicationRequest(object_id, op_type);
+  }
+
+  // Initiates registration on the given object_id.
+  void Register(const ObjectId& object_id) {
+    CheckRep();
+    UpdateRegistration(object_id, RegistrationUpdate_Type_REGISTER);
+    CheckRep();
+  }
+
+  // Initiates unregistration on the given object_id.
+  void Unregister(const ObjectId& object_id) {
+    CheckRep();
+    UpdateRegistration(object_id, RegistrationUpdate_Type_UNREGISTER);
+    CheckRep();
+  }
 
   /* Implements the periodic check of registrations (called by the top-level,
    * half-second periodic task in the Ticl) by doing two things:
    *
-   * 1) Checks for timed-out (un)registrations. If any are found, schedules
-   *    their callbacks to be run and removes the records from the pending_ops_
-   *    map.
+   * 1) Checks for timed-out (un)registrations.
    *
    * 2) Checks for unsent registrations. If any are found, returns true,
    *    indicating that it has data to send to the server.
    */
   bool DoPeriodicRegistrationCheck();
 
-  /* Handles a timed-out registration operation. If attempts remain, tries
-   * again; else, aborts the operation.  Returns whether there is any data to be
-   * sent to the server.
-   */
-  bool HandleTimedOutRegistration(PendingOperationInfo* op_info);
+  // Updates the maximum sequence number.
+  void UpdateMaximumSeqno(int64 new_maximum_seqno_inclusive) {
+    CHECK(new_maximum_seqno_inclusive > maximum_op_seqno_inclusive_);
+    maximum_op_seqno_inclusive_ = new_maximum_seqno_inclusive;
+  }
 
-  /* Aborts all pending (un)registrations and invokes their callbacks with
-   * TRANSIENT_FAILURE. Removes all confirmed registrations. Called by the Ticl
-   * on UNKNOWN_SESSION or INVALID_CLIENT.
-   */
-  void RemoveAllOperations();
+  State GetStateForTest() {
+    CheckRep();
+    return state_;
+  }
 
-  /* Aborts a pending (un)registration. Removes it from the pending_ops_ map and
-   * invokes the callback with TRANSIENT_FAILURE.
-   */
-  void AbortPending(const PendingOperationInfo& op_info);
+  int64 maximum_op_seqno_inclusive() {
+    CheckRep();
+    return maximum_op_seqno_inclusive_;
+  }
+
+  int64 current_op_seqno() {
+    CheckRep();
+    return current_op_seqno_;
+  }
+
+ private:
+  // Checks invariants for the current state, checks that it's legal to make a
+  // transition to new_state, performs the transition, and checks invariants for
+  // the new state.
+  void EnterState(State new_state);
+
+  // Performs sanity checks on internal state.
+  void CheckRep();
+
+  // Checks that sequence_number is between kFirstSequenceNumber and
+  // maximum_op_seqno_inclusive_.
+  void CheckSequenceNumber(const ObjectId& object_id, int64 sequence_number);
+
+  // Returns the number of objects from which we've received explicit
+  // notification from the server about registration state.
+  int GetNumConfirmedRegistrations();
+
+  // Starts the registration sync process.  If our current sequence number is
+  // kFirstSequenceNumber, then we know we can't have issued any registrations,
+  // and we transition directly to State_SYNCED.  Otherwise, we transition to
+  // State_SYNC_NOT_STARTED.
+  void BeginSync();
+
+  // Returns whether there is any data to send, given that the manager is in
+  // State_SYNCED.
+  bool SyncedStateHasDataToSend() {
+    CHECK(state_ == State_SYNCED);
+    return registration_state_manager_.HasDataToSend();
+  }
+
+  // The registration manager's current state.
+  State state_;
 
   // Logging, scheduling, persistence, etc.
   SystemResources* resources_;
+
+  // Listener on which to invoke callbacks indicating changes in registration
+  // state.
+  InvalidationListener* listener_;
+
+  // Sequence number to use for the next registration operation.
+  int64 current_op_seqno_;
+
+  // Maximum sequence number we're allowed to use.
+  int64 maximum_op_seqno_inclusive_;
+
   // Ticl configuration parameters.
   ClientConfig config_;
-  // Sequence number to use for the next registration operation.
-  uint64 current_op_seq_num_;
-  // Set of confirmed registration update operations. The map keys are
-  // serialized object ids, and the value values are RegistrationUpdates.
-  map<string, RegistrationUpdate> confirmed_ops_;
-  // Pending registrations and unregistrations. The map keys are serialized
-  // object ids, and the values are PendingOperationInfo structs.
-  map<string, PendingOperationInfo> pending_ops_;
+
+  // State of the current registration synchronization operation.  Non-null iff
+  // state_ == State_SYNC_STARTED.
+  scoped_ptr<SyncState> sync_state_;
+
+  // Registration info store
+  RegistrationInfoStore registration_state_manager_;
+
+  // The lowest sequence number allowed.
+  static const int64 kFirstSequenceNumber = 1;
 
   friend class InvalidationClientImpl;
+  friend class RegistrationInfo;
+  friend class RegistrationInfoStore;
+  friend class SyncState;
 };
 
 }  // namespace invalidation

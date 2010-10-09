@@ -254,6 +254,7 @@ message ClientToServerMessage {
     // advised to garbage-collect the client's persistent state as soon as it is
     // convenient to do so.
     TYPE_SHUTDOWN = 4;
+    TYPE_REGISTRATION_SYNC = 5;
   }
 
   // Message type MUST be set.
@@ -315,7 +316,7 @@ message ClientToServerMessage {
 
 message ServerToClientMessage {
 
-  // Next field index: 16.
+  // Next field index: 17.
 
   // Protocol version of this message.
   optional ProtocolVersion protocol_version = 14;
@@ -372,14 +373,18 @@ message ServerToClientMessage {
 
   // Results of registration updates.
   repeated RegistrationUpdateResult registration_result = 3;
+
   // Invalidations.
   repeated Invalidation invalidation = 4;
+
+  // Information about the server registration state.
+  optional uint32 num_total_registrations = 16;
 
   // Client control. ///////////////////////////////////////////////////////////
 
   // The earliest the client may send its next heartbeat.
-  optional uint32 next_heartbeat_interval_ms = 5;
+  optional uint32 next_heartbeat_interval_ms = 5 [default = 1200000];
 
   // The earliest the client may poll for invalidations again.
-  optional uint32 next_poll_interval_ms = 6;
+  optional uint32 next_poll_interval_ms = 6 [default = 3600000];
 }

@@ -25,6 +25,8 @@
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/mutex.h"
 #include "google/cacheinvalidation/network-manager.h"
+#include "google/cacheinvalidation/persistence-manager.h"
+#include "google/cacheinvalidation/persistence-utils.h"
 #include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/registration-update-manager.h"
 #include "google/cacheinvalidation/session-manager.h"
@@ -35,15 +37,6 @@ namespace invalidation {
 using INVALIDATION_STL_NAMESPACE::map;
 using INVALIDATION_STL_NAMESPACE::vector;
 
-// A pending operation, the time it was attempted, and the callback to invoke
-// when it finishes.
-struct PendingOperation {
-  PendingOperation() : callback(NULL) {}
-  RegistrationUpdate::Type op_type;
-  uint64 time;
-  RegistrationCallback* callback;
-};
-
 /**
  * Implementation of the Invalidation Client Library (Ticl).
  */
@@ -52,25 +45,13 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   /* Constructs an InvalidationClientImpl with the given system resources,
    * client type, application name, and persisted state.  It will deliver
    * invalidations to the given listener.
-   * TODO(ghc): Use persisted state.
    */
   InvalidationClientImpl(SystemResources* resources,
                          const ClientType& client_type,
                          const string& app_name,
                          const string& persisted_state,
                          const ClientConfig& config,
-                         InvalidationListener* listener)
-      : config_(config),
-        resources_(resources),
-        listener_(listener),
-        registration_manager_(resources, config),
-        network_manager_(ALLOW_THIS_IN_INITIALIZER_LIST(this),
-                         resources, config),
-        session_manager_(config, client_type, app_name, resources),
-        random_(resources->current_time().ToInternalValue()) {
-    resources->ScheduleImmediately(
-        NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
-  }
+                         InvalidationListener* listener);
 
   static const char* INVALIDATE_ALL_OBJECT_NAME;
 
@@ -78,11 +59,9 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
 
   // Inherited from InvalidationClient:
 
-  virtual void Register(const ObjectId& oid,
-                        RegistrationCallback* callback);
+  virtual void Register(const ObjectId& oid);
 
-  virtual void Unregister(const ObjectId& oid,
-                          RegistrationCallback* callback);
+  virtual void Unregister(const ObjectId& oid);
 
   virtual void PermanentShutdown();
 
@@ -93,7 +72,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   virtual void GetClientUniquifier(string* uniquifier) {
     CHECK(!resources_->IsRunningOnInternalThread());
     MutexLock m(&lock_);
-    *uniquifier = session_manager_.client_uniquifier();
+    *uniquifier = session_manager_->client_uniquifier();
   }
 
   // Inherited from NetworkEndpoint:
@@ -109,6 +88,14 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   virtual void RegisterOutboundListener(
       NetworkCallback* outbound_message_ready);
 
+  RegState GetRegistrationStateForTest(const ObjectId& object_id) {
+    return registration_manager_->GetRegistrationState(object_id);
+  }
+
+  State GetRegistrationManagerState() {
+    return registration_manager_->GetStateForTest();
+  }
+
   /**
    * Generates a "smeared" delay. The returned smeared delay must be baseDelay
    * +/- (baseDelay * smearFactor).
@@ -119,6 +106,18 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
 
  private:
   // Internal methods:
+
+  /* Persists a state blob that allocates {@code config.seqnoBlockSize}
+   * sequence numbers.  If the write is successful, reinitializes the
+   * registration manager with the new block of sequence numbers.
+   */
+  void AllocateNewSequenceNumbers(const TiclState& persistent_state);
+
+  /* Handles the result of an initial seqno write-back. */
+  void HandleSeqnoWritebackResult(int64 maximum_op_seqno, bool result);
+
+  /* Handles a non-initial write result. */
+  void HandleBestEffortWrite(bool result);
 
   /* Checks for messages that need to be sent, operations to time out, etc. */
   void PeriodicTask();
@@ -132,17 +131,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   /* Handles an OBJECT_CONTROL message. */
   void HandleObjectControl(const ServerToClientMessage& bundle);
 
-  /* Informs the application that it has a new session and that its
-   * registrations have been removed.
-   */
-  void InformListenerOfNewSession();
-
   // Handlers for server-to-client messages. ///////////////////////////////////
-
-  /* Handles a response from the NFE regarding an attempt to perform an
-   * operation of {@code opType} on {@code objectId}.
-   */
-  void ProcessRegistrationUpdateResult(const RegistrationUpdateResult& result);
 
   /* Handles an invalidation. */
   void ProcessInvalidation(const Invalidation& invalidation);
@@ -157,8 +146,11 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
    */
   void ScheduleAcknowledgeInvalidation(const Invalidation& invalidation);
 
-  /* Configuration parameters. */
-  ClientConfig config_;
+  void ForgetClientId() {
+    HandleLostSession();
+    registration_manager_->HandleLostClientId();
+    session_manager_->DoLoseClientId();
+  }
 
   /* Various system resources needed by the Ticl (storage, CPU, logging). */
   SystemResources* resources_;
@@ -166,17 +158,26 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   /* The listener that will be notified of changes to objects. */
   InvalidationListener* listener_;
 
+  /* Configuration parameters. */
+  ClientConfig config_;
+
   /* Keeps track of pending and confirmed registrations. */
-  RegistrationUpdateManager registration_manager_;
+  scoped_ptr<RegistrationUpdateManager> registration_manager_;
 
   /* Manages push heartbeats and polling. */
   NetworkManager network_manager_;
 
   /* Manages client ids and session tokens. */
-  SessionManager session_manager_;
+  scoped_ptr<SessionManager> session_manager_;
+
+  /* Ensures that we don't make re-entrant calls to resources_->WriteState(). */
+  PersistenceManager persistence_manager_;
 
   /* Invalidation acknowledgments waiting to be delivered to the server. */
   vector<Invalidation> pending_invalidation_acks_;
+
+  /* Whether we're waiting for the initial seqno write-back to complete. */
+  bool awaiting_seqno_writeback_;
 
   /* Random number generator for smearing periodic intervals. */
   Random random_;

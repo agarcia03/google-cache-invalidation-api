@@ -20,53 +20,81 @@
 
 namespace invalidation {
 
-bool SessionManager::AddSessionAction(ClientToServerMessage* message) {
-  if (shutdown_) {
-    // If we're shutting down, just send a message with TYPE_SHUTDOWN.
-    message->set_message_type(ClientToServerMessage_MessageType_TYPE_SHUTDOWN);
-    if (!uniquifier_.empty()) {
-      message->set_client_uniquifier(uniquifier_);
-    }
-    if (!session_token_.empty()) {
-      message->set_session_token(session_token_);
-    }
-    return false;
-  }
+void SessionManager::UpdateState() {
   if (uniquifier_.empty()) {
-    // If we need a client id, make a request that will get a client id.
-    // Sending message TYPE_ASSIGN_CLIENT_ID.
+    CHECK(session_token_.empty());
+    state_ = State_NO_UNIQUIFIER_OR_SESSION;
+  } else if (session_token_.empty()) {
+    state_ = State_UNIQUIFIER_ONLY;
+  } else {
+    state_ = State_UNIQUIFIER_AND_SESSION;
+  }
+}
 
-    // Generate a nonce if we haven't already done so.
-    if (nonce_ == -1) {
-      nonce_ = resources_->current_time().ToInternalValue();
-    }
-    message->mutable_client_type()->CopyFrom(client_type_);
-    message->mutable_app_client_id()->set_string_value(app_client_id_);
-    message->set_nonce(nonce_);
-    message->set_action(ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
-    message->set_message_type(
-        ClientToServerMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
-    last_send_time_ = resources_->current_time();
-    ++session_attempt_count_;
-    return false;
+bool SessionManager::IsMessageIntendedForClient(
+    const ServerToClientMessage& message) {
+  // Intentional fall-throughs in switch statement.
+  switch (message.message_type()) {
+    case ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID:
+    case ServerToClientMessage_MessageType_TYPE_UPDATE_SESSION:
+    case ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID:
+    case ServerToClientMessage_MessageType_TYPE_INVALIDATE_SESSION:
+      // The session manager decides whether or not to handle these messages
+      // based on its own internal state, so we just always say that they're
+      // intended for us and then do those verification checks later, when we're
+      // given the message back.
+      return true;
+
+    case ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL:
+      return HasSession() && (session_token_ == message.session_token());
+
+    default:
+      CHECK(false);
   }
-  if (session_token_.empty()) {
-    // Else, if we need a session, make a request that will get a session
-    // token.
-    // Sending message TYPE_UPDATE_SESSION.
-    message->set_client_uniquifier(uniquifier_);
-    message->set_action(ClientToServerMessage_Action_UPDATE_SESSION);
-    message->set_message_type(
-        ClientToServerMessage_MessageType_TYPE_UPDATE_SESSION);
-    last_send_time_ = resources_->current_time();
-    ++session_attempt_count_;
-    return false;
+}
+
+void SessionManager::AddSessionAction(ClientToServerMessage* message) {
+  // This method is called by takeOutboundMessage() to determine the type of all
+  // outbound messages.
+  message->mutable_client_type()->CopyFrom(client_type_);
+  switch (state_) {
+    case State_NO_UNIQUIFIER_OR_SESSION:
+      // If we need a client id, make a request that will get a client id.
+      // Sending message TYPE_ASSIGN_CLIENT_ID.
+
+      // Generate a nonce if we haven't already done so.
+      if (nonce_ == -1) {
+        nonce_ = resources_->current_time().ToInternalValue();
+      }
+      message->mutable_app_client_id()->set_string_value(app_client_id_);
+      message->set_nonce(nonce_);
+      message->set_action(ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
+      message->set_message_type(
+          ClientToServerMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
+      last_send_time_ = resources_->current_time();
+      ++session_attempt_count_;
+      break;
+
+    case State_UNIQUIFIER_ONLY:
+      // Else, if we need a session, make a request that will get a session
+      // token.
+      // Sending message TYPE_UPDATE_SESSION.
+      message->set_client_uniquifier(uniquifier_);
+      message->set_action(ClientToServerMessage_Action_UPDATE_SESSION);
+      message->set_message_type(
+          ClientToServerMessage_MessageType_TYPE_UPDATE_SESSION);
+      last_send_time_ = resources_->current_time();
+      ++session_attempt_count_;
+      break;
+
+    case State_UNIQUIFIER_AND_SESSION:
+      // Sending TYPE_OBJECT_CONTROL.
+      message->set_session_token(session_token_);
+      break;
+
+    default:
+      CHECK(false);
   }
-  // Sending TYPE_OBJECT_CONTROL.
-  message->set_message_type(
-      ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
-  message->set_session_token(session_token_);
-  return true;
 }
 
 MessageAction SessionManager::ProcessMessage(
@@ -180,6 +208,7 @@ MessageAction SessionManager::ProcessAssignClientId(
   session_token_ = message.session_token();
   uniquifier_ = message.client_uniquifier();
   nonce_ = -1;
+  UpdateState();
 
   // Reset the count of unsuccessful session acquisition attempts.
   session_attempt_count_ = 0;
@@ -220,6 +249,7 @@ MessageAction SessionManager::ProcessUpdateSession(
     TLOG(INFO_LEVEL, "Accepting new session %s replacing old session %s",
          message.session_token().c_str(), session_token_.c_str());
     session_token_ = message.session_token();
+    UpdateState();
     // Reset the count of unsuccessful session acquisition attempts.
     session_attempt_count_ = 0;
     return ACQUIRE_SESSION;
@@ -245,17 +275,21 @@ MessageAction SessionManager::ProcessInvalidateClientId(
 
   // Invalidate our client id if the client id in the message matches ours.
   if (uniquifier_ == message.client_uniquifier()) {
-    TLOG(INFO_LEVEL, "Client id invalidated");
-    uniquifier_.clear();
-    session_token_.clear();
-    // Set the "last send time" into the far past so we'll be allowed to send an
-    // assign-client-id request at least once.
-    last_send_time_ = Time() - TimeDelta::FromHours(1);
-    return LOSE_SESSION;
+    return LOSE_CLIENT_ID;
   } else {
     TLOG(INFO_LEVEL, "Ignoring invalidate-client with mis-matching client id");
     return IGNORE_MESSAGE;
   }
+}
+
+void SessionManager::DoLoseClientId() {
+  TLOG(INFO_LEVEL, "Client id invalidated");
+  uniquifier_.clear();
+  session_token_.clear();
+  // Set the "last send time" into the far past so we'll be allowed to send an
+  // assign-client-id request at least once.
+  last_send_time_ = Time() - TimeDelta::FromHours(1);
+  UpdateState();
 }
 
 MessageAction SessionManager::ProcessInvalidateSession(
@@ -288,6 +322,7 @@ MessageAction SessionManager::ProcessInvalidateSession(
     // Set the "last send time" into the far past so we'll be allowed to send an
     // update-session request at least once.
     last_send_time_ = Time() - TimeDelta::FromHours(1);
+    UpdateState();
     return LOSE_SESSION;
   }
   return IGNORE_MESSAGE;
