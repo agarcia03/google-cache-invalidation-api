@@ -57,7 +57,7 @@ class RegistrationInfo {
   RegistrationInfo(RegistrationUpdateManager* reg_manager,
                    const ObjectId& object_id);
 
-  explicit RegistrationInfo(const RegistrationInfo& reg_info) {
+  RegistrationInfo(const RegistrationInfo& reg_info) {
     *this = reg_info;
   }
 
