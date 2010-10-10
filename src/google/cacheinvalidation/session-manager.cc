@@ -90,6 +90,8 @@ void SessionManager::AddSessionAction(ClientToServerMessage* message) {
 
     case State_UNIQUIFIER_AND_SESSION:
       // Sending TYPE_OBJECT_CONTROL.
+      message->set_message_type(
+          ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
       message->set_session_token(session_token_);
       break;
 
