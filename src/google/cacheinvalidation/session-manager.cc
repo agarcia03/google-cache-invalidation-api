@@ -16,6 +16,7 @@
 
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/log-macro.h"
+#include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/types.pb.h"
 
 namespace invalidation {

@@ -15,9 +15,12 @@
 #ifndef GOOGLE_CACHEINVALIDATION_PERSISTENCE_UTILS_H_
 #define GOOGLE_CACHEINVALIDATION_PERSISTENCE_UTILS_H_
 
+#include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/ticl_persistence.pb.h"
 
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::string;
 
 // Creates an envelope for state including a message digest and serializes the
 // whole thing to out.

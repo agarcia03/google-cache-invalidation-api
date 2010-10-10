@@ -16,6 +16,8 @@
 
 #include "google/cacheinvalidation/persistence-utils.h"
 #include "google/cacheinvalidation/googletest.h"
+// Hack to pull in int64.
+#include "google/cacheinvalidation/logging.h"
 
 namespace invalidation {
 

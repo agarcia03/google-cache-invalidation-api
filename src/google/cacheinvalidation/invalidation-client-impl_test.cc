@@ -19,6 +19,7 @@
 #include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 #include "google/cacheinvalidation/random.h"
+#include "google/cacheinvalidation/scoped_ptr.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/system-resources-for-test.h"
 #include "google/cacheinvalidation/version-manager.h"
@@ -48,6 +49,12 @@ class TestListener : public InvalidationListener {
     ++invalidate_all_count_;
     callback->Run();
     delete callback;
+  }
+
+  virtual void RegistrationStateChanged(const ObjectId& object_id,
+                                        RegistrationState new_state,
+                                        const UnknownHint& unknown_hint) {
+    ADD_FAILURE();
   }
 
   virtual void AllRegistrationsLost(Closure* callback) {
@@ -157,14 +164,6 @@ class InvalidationClientImplTest : public testing::Test {
 
   /* The default registration timeout. */
   TimeDelta default_registration_timeout_;
-
-  /* A registration callback that writes its result to reg_results_. */
-  void HandleRegistrationResult(const RegistrationUpdateResult& result) {
-    ASSERT_FALSE(resources_->IsRunningOnInternalThread());
-    reg_results_.push_back(result);
-  }
-
-  scoped_ptr<RegistrationCallback> callback_;
 
   /* Checks that client's message contains a proper id-assignment request. */
   void CheckAssignClientIdRequest(
@@ -287,24 +286,17 @@ class InvalidationClientImplTest : public testing::Test {
    * (un)registrations.
    */
   void MakeAndCheckRegistrations(bool is_register) {
-    void (InvalidationClient::*operation)(const ObjectId&,
-                                          RegistrationCallback*) =
+    ASSERT_FALSE(resources_->IsRunningOnInternalThread());
+    void (InvalidationClient::*operation)(const ObjectId&) =
         is_register ?
         &InvalidationClient::Register : &InvalidationClient::Unregister;
 
-    // Explicitness hack here to work around broken callback
-    // implementations.
-    void (RegistrationCallback::*run_function)(
-        const RegistrationUpdateResult&) = &RegistrationCallback::Run;
-
     // Ask the Ticl to register for two objects.
     outbound_message_ready_ = false;
-    (ticl_.get()->*operation)(
-        object_id1_,
-        NewPermanentCallback(callback_.get(), run_function));
-    (ticl_.get()->*operation)(
-        object_id2_,
-        NewPermanentCallback(callback_.get(), run_function));
+    (ticl_.get()->*operation)(object_id1_);
+    reg_results_.push_back(RegistrationUpdateResult());
+    (ticl_.get()->*operation)(object_id2_);
+    reg_results_.push_back(RegistrationUpdateResult());
     resources_->ModifyTime(fine_throttle_interval_);
     resources_->RunReadyTasks();
     resources_->RunListenerTasks();
@@ -460,9 +452,6 @@ class InvalidationClientImplTest : public testing::Test {
     network_listener_.reset(
         NewPermanentCallback(
             this, &InvalidationClientImplTest::HandleOutboundMessageReady));
-    callback_.reset(
-        NewPermanentCallback(
-            this, &InvalidationClientImplTest::HandleRegistrationResult));
     ClientConfig ticl_config;
     ticl_config.smear_factor = 0.0;  // Disable smearing for determinism.
     ClientType client_type;
@@ -1240,27 +1229,6 @@ TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
 
   // Check that the message is a proper request for client id assignment.
   CheckAssignClientIdRequest(message, &external_id);
-}
-
-/*
- * Initialize a client, then call PermanentShutdown().  Pull a bundle and check
- * that it has TYPE_SHUTDOWN, with the right uniquifier and session token.
- */
-TEST_F(InvalidationClientImplTest, Shutdown) {
-  TestInitialization();
-
-  ticl_->PermanentShutdown();
-  string serialized;
-  ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
-
-  ClientToServerMessage message;
-  message.ParseFromString(serialized);
-
-  ASSERT_TRUE(message.has_message_type());
-  ASSERT_EQ(
-      message.message_type(), ClientToServerMessage_MessageType_TYPE_SHUTDOWN);
-  ASSERT_EQ(message.client_uniquifier(), client_uniquifier_);
-  ASSERT_EQ(message.session_token(), session_token_);
 }
 
 }  // namespace invalidation

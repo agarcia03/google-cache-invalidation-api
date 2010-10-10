@@ -18,13 +18,15 @@
 #include <map>
 
 #include "google/cacheinvalidation/callback.h"
+#include "google/cacheinvalidation/hash_map.h"
 #include "google/cacheinvalidation/invalidation-client.h"
+#include "google/cacheinvalidation/logging.h"
+#include "google/cacheinvalidation/scoped_ptr.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/types.pb.h"
 
 namespace invalidation {
 
-using INVALIDATION_STL_NAMESPACE::hash_map;
 using INVALIDATION_STL_NAMESPACE::map;
 
 class SystemResources;

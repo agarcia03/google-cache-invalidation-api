@@ -18,6 +18,7 @@
 #include <queue>
 
 #include "google/cacheinvalidation/invalidation-client.h"
+#include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 
 namespace invalidation {
