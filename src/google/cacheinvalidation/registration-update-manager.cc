@@ -571,7 +571,6 @@ int RegistrationUpdateManager::AddOutboundData(ClientToServerMessage* message) {
 
   switch (state_) {
     case State_LIMBO:
-    case State_SYNC_STARTED:
       TLOG(INFO_LEVEL, "No data to send since in state %d", state_);
       break;
 
@@ -583,10 +582,15 @@ int RegistrationUpdateManager::AddOutboundData(ClientToServerMessage* message) {
       break;
 
     case State_SYNCED:
+      num_registrations_added = registration_state_manager_.TakeData(message);
+      TLOG(INFO_LEVEL, "Adding %d registrations in from State_SYNCED",
+           num_registrations_added);
+      // Fall through.
+    case State_SYNC_STARTED:
+      // We need to set the message type to OBJECT_CONTROL even if we're not
+      // SYNCED, since the network manager might be trying to send a heartbeat.
       message->set_message_type(
           ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
-      num_registrations_added = registration_state_manager_.TakeData(message);
-      TLOG(INFO_LEVEL, "Adding %d registrations in from State_SYNCED");
       break;
   }
 

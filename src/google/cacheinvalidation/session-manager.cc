@@ -89,9 +89,8 @@ void SessionManager::AddSessionAction(ClientToServerMessage* message) {
       break;
 
     case State_UNIQUIFIER_AND_SESSION:
-      // Sending TYPE_OBJECT_CONTROL.
-      message->set_message_type(
-          ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
+      // Set the session token but leave the message type unset; the
+      // registration manager will decide the proper message type.
       message->set_session_token(session_token_);
       break;
 
