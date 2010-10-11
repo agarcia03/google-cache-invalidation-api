@@ -315,8 +315,7 @@ void InvalidationClientImpl::HandleInboundMessage(const string& message) {
       break;
     default:
       // Can't happen.
-      TLOG(INFO_LEVEL,
-           "Unknown message action: %d", action);
+      TLOG(INFO_LEVEL, "Unknown message action: %d", action);
       return;  // Don't process the new polling/heartbeat intervals.
   }
 

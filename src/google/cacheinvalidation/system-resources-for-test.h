@@ -32,6 +32,12 @@
 
 namespace invalidation {
 
+static void RunAndDeleteStorageCallback(StorageCallback* callback,
+                                        bool result) {
+  callback->Run(result);
+  delete callback;
+}
+
 // An entry in the work queue.  Ensures that tasks don't run until their
 // scheduled time, and for a given time, they run in the order in which they
 // were enqueued.
@@ -135,7 +141,8 @@ class SystemResourcesForTest : public SystemResources {
   }
 
   virtual void WriteState(const string& state, StorageCallback* callback) {
-    // TODO(ghc): Implement.
+    ScheduleImmediately(
+        NewPermanentCallback(&RunAndDeleteStorageCallback, callback, true));
   }
 
   void SetTime(Time new_time) {
