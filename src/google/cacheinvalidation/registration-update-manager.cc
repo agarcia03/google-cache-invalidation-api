@@ -411,7 +411,7 @@ RegistrationUpdateManager::RegistrationUpdateManager(
       current_op_seqno_(current_op_seqno),
       maximum_op_seqno_inclusive_(current_op_seqno_ - 1),
       config_(config),
-      registration_state_manager_(this) {}
+      registration_info_store_(this) {}
 
 RegistrationUpdateManager::~RegistrationUpdateManager() {
 }
@@ -424,7 +424,7 @@ void RegistrationUpdateManager::EnterState(State new_state) {
       sync_state_.reset();
 
       // Abort all pending operations and clear state.
-      registration_state_manager_.Reset();
+      registration_info_store_.Reset();
       break;
 
     case State_SYNC_NOT_STARTED:
@@ -433,7 +433,7 @@ void RegistrationUpdateManager::EnterState(State new_state) {
 
     case State_SYNC_STARTED:
       CHECK(state_ == State_SYNC_NOT_STARTED);
-      CHECK(!registration_state_manager_.HasServerStateForChecks());
+      CHECK(!registration_info_store_.HasServerStateForChecks());
       sync_state_.reset(new SyncState(this));
       break;
 
@@ -457,19 +457,19 @@ void RegistrationUpdateManager::EnterState(State new_state) {
 }
 
 void RegistrationUpdateManager::CheckRep() {
-  registration_state_manager_.CheckSequenceNumbers();
+  registration_info_store_.CheckSequenceNumbers();
   switch (state_) {
     case State_LIMBO:
-      CHECK(!registration_state_manager_.HasServerStateForChecks());
+      CHECK(!registration_info_store_.HasServerStateForChecks());
       // Fall through.
     case State_SYNC_NOT_STARTED:
       CHECK(sync_state_.get() == NULL);
-      registration_state_manager_.CheckNoPendingOpsSent();
+      registration_info_store_.CheckNoPendingOpsSent();
       break;
 
     case State_SYNC_STARTED:
       CHECK(sync_state_.get() != NULL);
-      registration_state_manager_.CheckNoPendingOpsSent();
+      registration_info_store_.CheckNoPendingOpsSent();
       break;
 
     case State_SYNCED:
@@ -490,8 +490,8 @@ void RegistrationUpdateManager::CheckSequenceNumber(const ObjectId& object_id,
 int RegistrationUpdateManager::GetNumConfirmedRegistrations() {
   int count = 0;
   for (map<string, RegistrationInfo>::iterator iter =
-           registration_state_manager_.registration_state_.begin();
-       iter != registration_state_manager_.registration_state_.end();
+           registration_info_store_.registration_state_.begin();
+       iter != registration_info_store_.registration_state_.end();
        ++iter) {
     if (iter->second.IsLatestKnownServerStateRegistration()) {
       ++count;
@@ -582,7 +582,7 @@ int RegistrationUpdateManager::AddOutboundData(ClientToServerMessage* message) {
       break;
 
     case State_SYNCED:
-      num_registrations_added = registration_state_manager_.TakeData(message);
+      num_registrations_added = registration_info_store_.TakeData(message);
       TLOG(INFO_LEVEL, "Adding %d registrations in from State_SYNCED",
            num_registrations_added);
       // Fall through.
@@ -605,7 +605,7 @@ void RegistrationUpdateManager::ProcessInboundMessage(
         ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   CHECK(state_ != State_LIMBO);
   for (int i = 0; i < message.registration_result_size(); ++i) {
-    registration_state_manager_.ProcessRegistrationUpdateResult(
+    registration_info_store_.ProcessRegistrationUpdateResult(
         message.registration_result(i));
   }
   if (message.has_num_total_registrations()) {
@@ -664,7 +664,7 @@ bool RegistrationUpdateManager::DoPeriodicRegistrationCheck() {
       break;
 
     case State_SYNCED:
-      registration_state_manager_.CheckTimedOutRegistrations();
+      registration_info_store_.CheckTimedOutRegistrations();
       result = SyncedStateHasDataToSend();
       break;
 

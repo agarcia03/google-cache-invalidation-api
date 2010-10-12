@@ -26,6 +26,24 @@ using INVALIDATION_STL_NAMESPACE::string;
 
 const char* InvalidationClientImpl::INVALIDATE_ALL_OBJECT_NAME = "ALL";
 
+// Runs a closure in its destructor.  By declaring it near the beginning of a
+// function, we ensure that the closure will run at exit from the function,
+// regardless of how we exit the function.
+class Finally {
+ public:
+  Finally(Closure* task) : task_(task) {
+    CHECK(IsCallbackRepeatable(task));
+  }
+
+  ~Finally() {
+    task_->Run();
+    delete task_;
+  }
+
+ private:
+  Closure* task_;
+};
+
 InvalidationClientImpl::InvalidationClientImpl(
     SystemResources* resources,
     const ClientType& client_type,
@@ -143,24 +161,6 @@ void InvalidationClientImpl::HandleSeqnoWritebackResult(
 void InvalidationClientImpl::HandleBestEffortWrite(bool result) {
   TLOG(INFO_LEVEL, "Write completed with result: %d", result);
 }
-
-// Runs a closure in its destructor.  By declaring it near the beginning of a
-// function, we ensure that the closure will run at exit from the function,
-// regardless of how we exit the function.
-class Finally {
- public:
-  Finally(Closure* task) : task_(task) {
-    CHECK(IsCallbackRepeatable(task));
-  }
-
-  ~Finally() {
-    task_->Run();
-    delete task_;
-  }
-
- private:
-  Closure* task_;
-};
 
 void InvalidationClientImpl::PeriodicTask() {
   MutexLock m(&lock_);
@@ -393,18 +393,19 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
   session_manager_->AddSessionAction(&message);
 
   // If the session manager didn't set a message type, then we can let the
-  // registration manager add fields.
+  // registration manager add fields and set a message type.
   if (!message.has_message_type()) {
     registration_manager_->AddOutboundData(&message);
   } else {
     TLOG(INFO_LEVEL, "message had type %d, not giving to reg manager",
          message.message_type());
   }
+  // At this point, the message must have a type set.
+  CHECK(message.has_message_type());
 
   // If the registration manager is sending an OBJECT_CONTROL message, we can
   // let the network manager try to attach a heartbeat to it if needed, and we
   // can send invalidation acks.
-  CHECK(message.has_message_type());
   if (message.message_type() ==
       ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL) {
     network_manager_.AddHeartbeat(&message);

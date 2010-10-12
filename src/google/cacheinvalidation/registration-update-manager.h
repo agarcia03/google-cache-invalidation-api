@@ -61,6 +61,9 @@ class RegistrationInfo {
     *this = reg_info;
   }
 
+  // Putting these objects in a hash_map requires an assignment operator.  The
+  // default doesn't work, since there's no assignment operator or copy ctor for
+  // scoped_ptr's (see comment below).
   RegistrationInfo& operator=(const RegistrationInfo& reg_info) {
     reg_manager_ = reg_info.reg_manager_;
     resources_ = reg_info.resources_;
@@ -295,7 +298,7 @@ class RegistrationUpdateManager {
   // Returns the registration state of the given object.
   RegState GetRegistrationState(const ObjectId& object_id) {
     CheckRep();
-    return registration_state_manager_.GetRegistrationState(object_id);
+    return registration_info_store_.GetRegistrationState(object_id);
   }
 
   // For each pending registration update that was not aready sent out recently,
@@ -318,7 +321,7 @@ class RegistrationUpdateManager {
     if (state_ == State_LIMBO) {
       return;
     }
-    registration_state_manager_.ProcessApplicationRequest(object_id, op_type);
+    registration_info_store_.ProcessApplicationRequest(object_id, op_type);
   }
 
   // Initiates registration on the given object_id.
@@ -375,8 +378,8 @@ class RegistrationUpdateManager {
   // Performs checks of invariants on the internal state representation.
   void CheckRep();
 
-  // Checks that sequence_number is at least kFirstSequenceNumber and at most
-  // maximum_op_seqno_inclusive_.
+  // Checks that sequence_number is in [kFirstSequenceNumber,
+  // maximum_op_seqno_inclusive_].
   void CheckSequenceNumber(const ObjectId& object_id, int64 sequence_number);
 
   // Returns the number of objects from which we've received explicit
@@ -393,7 +396,7 @@ class RegistrationUpdateManager {
   // State_SYNCED.
   bool SyncedStateHasDataToSend() {
     CHECK(state_ == State_SYNCED);
-    return registration_state_manager_.HasDataToSend();
+    return registration_info_store_.HasDataToSend();
   }
 
   // The registration manager's current state.
@@ -420,7 +423,7 @@ class RegistrationUpdateManager {
   scoped_ptr<SyncState> sync_state_;
 
   // Registration info store
-  RegistrationInfoStore registration_state_manager_;
+  RegistrationInfoStore registration_info_store_;
 
   // The lowest sequence number allowed.
   static const int64 kFirstSequenceNumber = 1;

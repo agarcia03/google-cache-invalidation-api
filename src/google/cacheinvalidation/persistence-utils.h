@@ -27,8 +27,8 @@ using INVALIDATION_STL_NAMESPACE::string;
 void SerializeState(const TiclState& state, string* out);
 
 // Deserializes serialized, checks the message digest on the envelope, and if it
-// validates, initializes state from it.  Returns whether deserialization was
-// successful.
+// validates, initializes state from it.  (An empty string will fail to
+// validate.)  Returns whether deserialization and validation were successful.
 bool DeserializeState(const string& serialized, TiclState* state);
 
 }  // namespace invalidation

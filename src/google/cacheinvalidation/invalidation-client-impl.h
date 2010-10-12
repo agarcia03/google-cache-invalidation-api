@@ -107,15 +107,18 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
  private:
   // Internal methods:
 
-  /* Persists a state blob that allocates {@code config.seqnoBlockSize}
-   * sequence numbers.  If the write is successful, reinitializes the
-   * registration manager with the new block of sequence numbers.
+  /* Persists a state blob that allocates config_.seqno_block_size sequence
+   * numbers.  If the write is successful, reinitializes the registration
+   * manager with the new block of sequence numbers.  This function manufactures
+   * a callback (to invoke HandleSeqnoWritebackResult), which it passes to the
+   * WriteState() function.
    */
   void AllocateNewSequenceNumbers(const TiclState& persistent_state);
 
   /* Handles the result of write performed on restart to allocate a new block of
    * sequence numbers.  If 'success' is false, the client forgets its persisted
-   * state and starts fresh.
+   * state and starts fresh; if it's true, the client is allowed to begin
+   * sending registration requests with sequence numbers up to the new maximum.
    */
   void HandleSeqnoWritebackResult(int64 maximum_op_seqno, bool success);
 
@@ -178,7 +181,11 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   /* Invalidation acknowledgments waiting to be delivered to the server. */
   vector<Invalidation> pending_invalidation_acks_;
 
-  /* Whether we're waiting for the initial seqno write-back to complete. */
+  /* Whether we're waiting for the initial seqno write-back to complete.  While
+   * this is true, the Ticl will not accept any messages from the server, and it
+   * will not issue any registrations or inform the network listener that it has
+   * data to send.
+   */
   bool awaiting_seqno_writeback_;
 
   /* Random number generator for smearing periodic intervals. */
