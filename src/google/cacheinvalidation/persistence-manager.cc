@@ -19,6 +19,8 @@
 namespace invalidation {
 
 PersistenceManager::~PersistenceManager() {
+  // Run (with 'false', since we never got around to issuing the write) and
+  // delete any queued up callbacks.
   while (!pending_writes_.empty()) {
     PendingRecord pending_record = pending_writes_.front();
     pending_writes_.pop();
@@ -28,11 +30,16 @@ PersistenceManager::~PersistenceManager() {
 }
 
 void PersistenceManager::DoPeriodicCheck() {
+  // Check whether we have any pending writes to perform, and if we don't
+  // already have a write in progress, issue the first one.
   if (!pending_writes_.empty() && !write_in_progress_) {
+    // Take the oldest pending record off the queue.
     PendingRecord pending_record = pending_writes_.front();
     TLOG(INFO_LEVEL, "Issuing write");
     pending_writes_.pop();
+    // Record that there's a write in progress.
     write_in_progress_ = true;
+    // Issue the write.
     resources_->WriteState(
         pending_record.payload,
         NewPermanentCallback(

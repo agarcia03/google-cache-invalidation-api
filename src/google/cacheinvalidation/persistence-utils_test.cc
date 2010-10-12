@@ -21,16 +21,15 @@
 
 namespace invalidation {
 
+// Test class for persistence utilities.
 class PersistenceUtilsTest : public testing::Test {
  public:
   PersistenceUtilsTest() {}
+  void SetUp() {}
+  void TearDown() {}
 
-  void SetUp() {
-  }
-
-  void TearDown() {
-  }
-
+  // Creates a Ticl state object with the given maximum sequence number, for
+  // testing.
   void CreateState(int64 max_seqno, TiclState* state) {
     state->set_uniquifier("bogus-uniquifier");
     state->set_session_token("bogus-session-token");
@@ -39,6 +38,9 @@ class PersistenceUtilsTest : public testing::Test {
 };
 
 TEST_F(PersistenceUtilsTest, RoundTrip) {
+  /* Test plan: create a Ticl state object and serialize it.  Check that we can
+   * deserialize it and that the content is preserved.
+   */
   TiclState state;
   CreateState(47, &state);
 
@@ -47,7 +49,7 @@ TEST_F(PersistenceUtilsTest, RoundTrip) {
   SerializeState(state, &serialized);
   ASSERT_TRUE(!serialized.empty());
 
-  // Deserialize it.
+  // Deserialize it and check the content.
   TiclState roundtrip_state;
   ASSERT_TRUE(DeserializeState(serialized, &roundtrip_state));
   ASSERT_EQ(state.uniquifier(), roundtrip_state.uniquifier());
@@ -57,6 +59,10 @@ TEST_F(PersistenceUtilsTest, RoundTrip) {
 }
 
 TEST_F(PersistenceUtilsTest, InvalidMacDetected) {
+  /* Test plan: create two Ticl state objects with different content.  Serialize
+   * both.  Create a new state blob by tagging one object with the other's
+   * digest, and check that it fails validation.
+   */
   // Make a couple of different state blobs.
   TiclState state1;
   TiclState state2;
@@ -83,6 +89,8 @@ TEST_F(PersistenceUtilsTest, InvalidMacDetected) {
 }
 
 TEST_F(PersistenceUtilsTest, EmptyStringInvalid) {
+  /* Test plan: Check that an empty string cannot be deserialized.
+   */
   string empty_string;
   ASSERT_FALSE(DeserializeState(empty_string, NULL));
 }

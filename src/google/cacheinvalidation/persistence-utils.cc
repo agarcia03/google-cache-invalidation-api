@@ -22,9 +22,12 @@ void SerializeState(const TiclState& state, string* out) {
   string serialized;
   string md5_digest;
 
+  // Serialize the protocol buffer containing the Ticl state.
   state.SerializeToString(&serialized);
+  // Compute an MD5 digest of the serialized state.
   ComputeMd5Digest(serialized, &md5_digest);
 
+  // Create an envelope containing the serialized state and digest.
   StateBlob state_blob;
   state_blob.mutable_ticl_state()->CopyFrom(state);
   state_blob.set_authentication_code(md5_digest);
@@ -34,10 +37,14 @@ void SerializeState(const TiclState& state, string* out) {
 bool DeserializeState(const string& serialized, TiclState* state) {
   StateBlob state_blob;
 
+  // Parse the serialized state.
   state_blob.ParseFromString(serialized);
   if (state_blob.IsInitialized()) {
     string state_serialized;
     string md5_digest;
+
+    // Serialize the Ticl state, compute its digest, and check that it matches
+    // what we expected it to be.
     state_blob.ticl_state().SerializeToString(&state_serialized);
     ComputeMd5Digest(state_serialized, &md5_digest);
     if (md5_digest == state_blob.authentication_code()) {

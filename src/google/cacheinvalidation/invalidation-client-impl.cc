@@ -47,11 +47,12 @@ InvalidationClientImpl::InvalidationClientImpl(
   uint64 initial_seqno;
   string uniquifier;
   string session_token;
-  bool persistent = DeserializeState(serialized_state, &persistent_state);
-  if (!persistent && !serialized_state.empty()) {
+  bool is_restart = DeserializeState(serialized_state, &persistent_state);
+  if (!is_restart && !serialized_state.empty()) {
+    // The persisted state appears to be corrupt.
     TLOG(SEVERE_LEVEL, "Got persisted state but failed to deserialize");
   }
-  if (persistent) {
+  if (is_restart) {
     // The Ticl is being restarted with a uniquifier, session token, and
     // sequence number from persistent storage.  In this case, we initialize a
     // session manager with these persisted values, and we start the
@@ -61,7 +62,7 @@ InvalidationClientImpl::InvalidationClientImpl(
     // to forget the persisted client id and session and do a fresh start.
     uniquifier = persistent_state.uniquifier();
     session_token = persistent_state.session_token();
-    initial_seqno = persistent_state.sequence_number_limit();
+    initial_seqno = persistent_state.sequence_number_limit() + 1;
   } else {
     // Either we had no persisted state, or we couldn't parse it, so we'll start
     // fresh.  When we get a session, we'll attempt to write out our state.  In
@@ -76,7 +77,7 @@ InvalidationClientImpl::InvalidationClientImpl(
   registration_manager_.reset(
       new RegistrationUpdateManager(resources, config, initial_seqno,
                                     listener_));
-  if (persistent) {
+  if (is_restart) {
     // If we started from persisted state, then we "have" a session already, and
     // we need to write back a state blob to claim a new block of sequence
     // numbers.
@@ -102,8 +103,13 @@ InvalidationClientImpl::InvalidationClientImpl(
 
 void InvalidationClientImpl::AllocateNewSequenceNumbers(
     const TiclState& persistent_state) {
+  // The new maximum op sequence number is equal to the previously persisted
+  // maximum plus the block size.
   int64 maximum_op_seqno_inclusive =
       persistent_state.sequence_number_limit() + config_.seqno_block_size;
+  // We've just restarted from persisted state, so we're going to reuse the old
+  // session token and uniquifier.  The only thing that changes is the sequence
+  // number.
   TiclState new_state;
   new_state.CopyFrom(persistent_state);
   new_state.set_sequence_number_limit(maximum_op_seqno_inclusive);
@@ -127,14 +133,9 @@ void InvalidationClientImpl::HandleSeqnoWritebackResult(
   if (success) {
     registration_manager_->UpdateMaximumSeqno(maximum_op_seqno_inclusive);
   } else {
-    // If we can't reserve a new block of sequence numbers, start over with a
-    // new client id.  When we receive the new client id, we'll retry writing
-    // the state blob.  If it succeeds, then we'll become a persistent client
-    // with that id.  If it fails, then we'll be a non-persistent client with
-    // that id.  That's safe, because there can't be any existing operations for
-    // that new id.  In the current case, the write must succeed for us to
-    // proceed, since otherwise we might end up reusing sequence numbers the
-    // next time we restart.
+    // We couldn't reserve a new block of sequence numbers, so we'll forget our
+    // old client id and start fresh, rather than getting blocked indefinitely
+    // retrying the write.
     ForgetClientId();
   }
 }
@@ -143,6 +144,9 @@ void InvalidationClientImpl::HandleBestEffortWrite(bool result) {
   TLOG(INFO_LEVEL, "Write completed with result: %d", result);
 }
 
+// Runs a closure in its destructor.  By declaring it near the beginning of a
+// function, we ensure that the closure will run at exit from the function,
+// regardless of how we exit the function.
 class Finally {
  public:
   Finally(Closure* task) : task_(task) {
@@ -161,9 +165,12 @@ class Finally {
 void InvalidationClientImpl::PeriodicTask() {
   MutexLock m(&lock_);
 
-  // Reschedule the periodic task at the end, however we exit this function.
+  // Compute a random delay that's approximately the periodic task interval.
   TimeDelta smeared_delay = SmearDelay(
       config_.periodic_task_interval, config_.smear_factor, &random_);
+  // When we exit this function, reschedule the periodic task to run after the
+  // randomized delay.  This way the time spent executing this function won't
+  // shorten the delay between when it executes.
   Finally reschedule_periodic_task(
       NewPermanentCallback(
           resources_,
@@ -231,6 +238,11 @@ void InvalidationClientImpl::PermanentShutdown() {
 }
 
 void InvalidationClientImpl::HandleNewSession() {
+  // High-level plan:
+  // - Tell the registration manager we got a new session.
+  // - Tell the network manager that there was an implicit heartbeat.
+  // - Attempt to write back the new session token to persistent storage.
+  // - Inform the application that we have a session.
   string client_uniquifier = session_manager_->client_uniquifier();
 
   TLOG(INFO_LEVEL, "Received new session: %s", client_uniquifier.c_str());
@@ -392,6 +404,7 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
   // If the registration manager is sending an OBJECT_CONTROL message, we can
   // let the network manager try to attach a heartbeat to it if needed, and we
   // can send invalidation acks.
+  CHECK(message.has_message_type());
   if (message.message_type() ==
       ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL) {
     network_manager_.AddHeartbeat(&message);
@@ -425,7 +438,6 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
   // Regardless, we'll let the network manager add a message id and signal data
   // to send.
   network_manager_.FinalizeOutboundMessage(&message);
-  CHECK(message.has_message_type());
   CHECK(message.has_client_type());
   message.SerializeToString(serialized);
 }
@@ -440,6 +452,14 @@ TimeDelta InvalidationClientImpl::SmearDelay(
   return TimeDelta::FromMicroseconds(
       static_cast<int64>(
           base_delay.InMicroseconds() * (applied_smear + 1.0)));
+}
+
+void InvalidationClientImpl::ForgetClientId() {
+  // Lost client id implies lost session, so take actions for lost session.
+  HandleLostSession();
+  // Inform the registration and session managers about the lost client id.
+  registration_manager_->HandleLostClientId();
+  session_manager_->DoLoseClientId();
 }
 
 }  // namespace invalidation

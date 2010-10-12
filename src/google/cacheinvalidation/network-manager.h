@@ -44,8 +44,11 @@ class NetworkManager {
   NetworkManager(NetworkEndpoint* endpoint, SystemResources* resources,
                  const ClientConfig& config);
 
+  // Adds a heartbeat action to the message, if it's time to do so.
   void AddHeartbeat(ClientToServerMessage* message);
 
+  // Adds message id, protocol version, and client version to the message, and
+  // clears the flag indicating it has data to send.
   void FinalizeOutboundMessage(ClientToServerMessage* message);
 
   /* Updates the heartbeat and polling intervals if these are present in the
@@ -53,6 +56,8 @@ class NetworkManager {
    */
   void HandleInboundMessage(const ServerToClientMessage& bundle);
 
+  // Reschedules a heartbeat because it knows the server has performed one
+  // implicitly.
   void RecordImplicitHeartbeat() {
     ScheduleHeartbeat();
   }

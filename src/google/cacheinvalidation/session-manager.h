@@ -109,7 +109,7 @@ class SessionManager {
     return !session_token_.empty();
   }
 
-  // Returns true if the message is intended for this client.  The actual
+  // Returns true iff the message is intended for this client.  The actual
   // verification is message-type dependent. E.g., for an assign-client-id
   // message, a nonce check is involved, whereas for an object control message,
   // the session token is checked.
@@ -142,6 +142,8 @@ class SessionManager {
    */
   MessageAction ProcessInvalidateClientId(const ServerToClientMessage& message);
 
+  // Takes actions and updates internal state in response to the loss of a
+  // client id.
   void DoLoseClientId();
 
   /* Processes an INVALIDATE_SESSION message.

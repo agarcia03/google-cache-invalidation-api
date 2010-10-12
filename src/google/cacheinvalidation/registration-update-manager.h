@@ -66,6 +66,10 @@ class RegistrationInfo {
     resources_ = reg_info.resources_;
     object_id_ = reg_info.object_id_;
     latest_known_server_state_ = reg_info.latest_known_server_state_;
+
+    // We use scoped_ptr in several places to simulate optional / nullable
+    // values.  These values cannot be copied implicitly.  We need to allocate
+    // space for and make copies of their contents.
     if (reg_info.pending_state_.get() != NULL) {
       pending_state_.reset(
           new RegistrationUpdate_Type(*reg_info.pending_state_));
@@ -98,10 +102,11 @@ class RegistrationInfo {
   // retries remain.
   void CheckTimeout(Time now, TimeDelta deadline);
 
-  // Returns whether there is any data to be sent for this object.
+  // Returns whether there is any data to be sent for the object whose
+  // registration state we're tracking.
   bool HasDataToSend();
 
-  // Adds data to be sent for this object and updates the last sent time.
+  // If appropriate, modifies message to include a request to put the object
   void TakeData(ClientToServerMessage* message, Time now);
 
  private:
@@ -180,6 +185,8 @@ class RegistrationInfo {
 // state known to a manager.
 class RegistrationInfoStore {
  public:
+  // Constructs a registration info store associated with the given reg_manager.
+  // The reg manager will own this object.
   RegistrationInfoStore(RegistrationUpdateManager* reg_manager);
 
   // Handles a registration result received from the server.
@@ -218,7 +225,7 @@ class RegistrationInfoStore {
 
  private:
   // Ensures that a record for object_id is present in the registration_state_
-  // map.
+  // map.  If none was previously present, adds a default record.
   void EnsureRecordPresent(const ObjectId& object_id);
 
   // The registration update manager to which this store belongs.
@@ -299,14 +306,15 @@ class RegistrationUpdateManager {
   // Handles a message from the server.
   void ProcessInboundMessage(const ServerToClientMessage& message);
 
-  // Performs the actual work of registering or unregistering for invalidations
-  // on a specific object.
+  // Performs the actual work of registering or unregistering (as indicated by
+  // op_type) for invalidations on the given object id.
   void UpdateRegistration(const ObjectId& object_id,
                           RegistrationUpdate_Type op_type) {
-    // If we're in LIMBO, then we silently ignore registrations, since we know that:
+    // If we're in LIMBO, then we silently ignore registrations, since we know
+    // that:
     // 1) We can't send them now.
-    // 2) We'll issue registrations-removed when we leave LIMBO, which will cause the
-    //    application to re-register everything anyway.
+    // 2) We'll issue registrations-removed when we leave LIMBO, which will
+    //    cause the application to re-register everything anyway.
     if (state_ == State_LIMBO) {
       return;
     }
@@ -364,10 +372,10 @@ class RegistrationUpdateManager {
   // the new state.
   void EnterState(State new_state);
 
-  // Performs sanity checks on internal state.
+  // Performs checks of invariants on the internal state representation.
   void CheckRep();
 
-  // Checks that sequence_number is between kFirstSequenceNumber and
+  // Checks that sequence_number is at least kFirstSequenceNumber and at most
   // maximum_op_seqno_inclusive_.
   void CheckSequenceNumber(const ObjectId& object_id, int64 sequence_number);
 

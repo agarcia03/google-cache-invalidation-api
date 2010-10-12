@@ -92,7 +92,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
     return registration_manager_->GetRegistrationState(object_id);
   }
 
-  State GetRegistrationManagerState() {
+  State GetRegistrationManagerStateForTest() {
     return registration_manager_->GetStateForTest();
   }
 
@@ -113,11 +113,16 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
    */
   void AllocateNewSequenceNumbers(const TiclState& persistent_state);
 
-  /* Handles the result of an initial seqno write-back. */
-  void HandleSeqnoWritebackResult(int64 maximum_op_seqno, bool result);
+  /* Handles the result of write performed on restart to allocate a new block of
+   * sequence numbers.  If 'success' is false, the client forgets its persisted
+   * state and starts fresh.
+   */
+  void HandleSeqnoWritebackResult(int64 maximum_op_seqno, bool success);
 
-  /* Handles a non-initial write result. */
-  void HandleBestEffortWrite(bool result);
+  /* Handles the result of a write performed on receipt of a new session.  This
+   * write is best-effort, so 'success' is only used for logging.
+   */
+  void HandleBestEffortWrite(bool success);
 
   /* Checks for messages that need to be sent, operations to time out, etc. */
   void PeriodicTask();
@@ -146,11 +151,8 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
    */
   void ScheduleAcknowledgeInvalidation(const Invalidation& invalidation);
 
-  void ForgetClientId() {
-    HandleLostSession();
-    registration_manager_->HandleLostClientId();
-    session_manager_->DoLoseClientId();
-  }
+  /* Forgets any client id and session the client may currently have. */
+  void ForgetClientId();
 
   /* Various system resources needed by the Ticl (storage, CPU, logging). */
   SystemResources* resources_;
@@ -170,7 +172,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   /* Manages client ids and session tokens. */
   scoped_ptr<SessionManager> session_manager_;
 
-  /* Ensures that we don't make re-entrant calls to resources_->WriteState(). */
+  /* Wraps resources_->WriteState() to ensure sequential access. */
   PersistenceManager persistence_manager_;
 
   /* Invalidation acknowledgments waiting to be delivered to the server. */

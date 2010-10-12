@@ -60,26 +60,28 @@ void SessionManager::AddSessionAction(ClientToServerMessage* message) {
   message->mutable_client_type()->CopyFrom(client_type_);
   switch (state_) {
     case State_NO_UNIQUIFIER_OR_SESSION:
-      // If we need a client id, make a request that will get a client id.
-      // Sending message TYPE_ASSIGN_CLIENT_ID.
+      // We need a client id, so make a request that will get a client id.
+      // Set message type to TYPE_ASSIGN_CLIENT_ID.
 
       // Generate a nonce if we haven't already done so.
       if (nonce_ == -1) {
         nonce_ = resources_->current_time().ToInternalValue();
       }
       message->mutable_app_client_id()->set_string_value(app_client_id_);
+      // Set the nonce, action, and message type.
       message->set_nonce(nonce_);
       message->set_action(ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
       message->set_message_type(
           ClientToServerMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
+      // Record the time that we're making the request, and increment the count
+      // for the number of session requests.
       last_send_time_ = resources_->current_time();
       ++session_attempt_count_;
       break;
 
     case State_UNIQUIFIER_ONLY:
-      // Else, if we need a session, make a request that will get a session
-      // token.
-      // Sending message TYPE_UPDATE_SESSION.
+      // We need a session, so make a request that will get a session token.
+      // Set message type to TYPE_UPDATE_SESSION.
       message->set_client_uniquifier(uniquifier_);
       message->set_action(ClientToServerMessage_Action_UPDATE_SESSION);
       message->set_message_type(
