@@ -34,6 +34,7 @@ using INVALIDATION_STL_NAMESPACE::vector;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::InvokeArgument;
+using ::testing::MakeMatcher;
 using ::testing::Matcher;
 using ::testing::MatcherInterface;
 using ::testing::MatchResultListener;
