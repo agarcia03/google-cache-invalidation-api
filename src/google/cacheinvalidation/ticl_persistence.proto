@@ -31,6 +31,9 @@ message TiclState {
   optional int64 sequence_number_limit = 3;
 }
 
+// An envelope containing a Ticl's internal state, along with a digest of the
+// serialized representation of this state, to ensure its integrity across
+// reads and writes to persistent storage.
 message StateBlob {
   // The (important parts of the) Ticl's internal state.
   optional TiclState ticl_state = 1;

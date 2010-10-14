@@ -141,10 +141,13 @@ class UnknownHint {
       : is_transient_(is_transient),
         message_(message) {}
 
+  // Indicates whether the problem that led to the unknown state is transient or
+  // not.
   bool is_transient() const {
     return is_transient_;
   }
 
+  // A message describing the condition that led to the unknown state.
   string message() const {
     return message_;
   }
@@ -273,19 +276,31 @@ struct RateLimit {
   size_t count;
 };
 
+// Maximum number of registrations per message, by default.
+static int kDefaultMaxRegistrationsPerMessage = 5;
+// Maximum number of operations per message, by default.
+static int kDefaultMaxOpsPerMessage = 10;
+// Maximum number of attempts to perform a registration, by default.
+static int kDefaultMaxRegistrationAttempts = 3;
+// Number of sequence numbers to reserve when writing state, by default.
+static int kDefaultSeqnoBlockSize = 1024 * 1024;
+// Maximum factor by which to randomly increase or decrease an interval, by
+// default.
+static double kDefaultSmearFactor = 0.2;
+
 // Configuration parameters for the Ticl.
 struct ClientConfig {
   ClientConfig()
       : registration_timeout(TimeDelta::FromMinutes(1)),
         initial_heartbeat_interval(TimeDelta::FromMinutes(20)),
         initial_polling_interval(TimeDelta::FromMinutes(60)),
-        max_registrations_per_message(5),
-        max_ops_per_message(10),
-        max_registration_attempts(3),
+        max_registrations_per_message(kDefaultMaxRegistrationsPerMessage),
+        max_ops_per_message(kDefaultMaxOpsPerMessage),
+        max_registration_attempts(kDefaultMaxRegistrationAttempts),
         periodic_task_interval(TimeDelta::FromMilliseconds(500)),
         registration_sync_timeout(TimeDelta::FromSeconds(20)),
-        seqno_block_size(10000000),  // ten million
-        smear_factor(0.2) {
+        seqno_block_size(kDefaultSeqnoBlockSize),
+        smear_factor(kDefaultSmearFactor) {
     AddDefaultRateLimits();
   }
 
