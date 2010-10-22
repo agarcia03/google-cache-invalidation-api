@@ -447,6 +447,58 @@ class InvalidationClientImplTest : public testing::Test {
     delete storage_callback;
   }
 
+  void TestInvalidateAndReassignClientId() {
+    // Tell the Ticl we don't recognize it.
+    EXPECT_CALL(*listener_, SessionStatusChanged(false));
+    ServerToClientMessage message;
+    message.Clear();
+    message.mutable_status()->set_code(Status_Code_UNKNOWN_CLIENT);
+    message.set_session_token(session_token_);
+    string serialized;
+    message.set_client_uniquifier(client_uniquifier_);
+    message.set_message_type(
+        ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID);
+    message.SerializeToString(&serialized);
+    ticl_->network_endpoint()->HandleInboundMessage(serialized);
+    resources_->RunReadyTasks();
+
+    // Pull a message from it, and check that it's trying to assign a client id.
+    ClientToServerMessage request;
+    ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
+    request.ParseFromString(serialized);
+    ASSERT_TRUE(request.has_action());
+    ASSERT_EQ(request.action(), ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
+    ClientExternalId external_id;
+    CheckAssignClientIdRequest(request, &external_id);
+
+    // Give it a new uniquifier and session.
+    string new_uniquifier_str = "newuniquifierstr";
+
+    session_token_ = "new opaque data";
+    ServerToClientMessage response;
+    response.set_session_token(session_token_);
+    response.mutable_status()->set_code(Status_Code_SUCCESS);
+    response.mutable_client_type()->set_type(external_id.client_type().type());
+    response.mutable_app_client_id()->set_string_value(
+        external_id.app_client_id().string_value());
+    response.set_nonce(request.nonce());
+    response.set_client_uniquifier(new_uniquifier_str);
+    response.set_message_type(
+        ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
+    response.SerializeToString(&serialized);
+
+    Closure* callback = NULL;
+    EXPECT_CALL(*listener_, AllRegistrationsLost(_))
+        .WillOnce(SaveArg<0>(&callback));
+    EXPECT_CALL(*listener_, SessionStatusChanged(true));
+
+    ticl_->network_endpoint()->HandleInboundMessage(serialized);
+    resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
+    callback->Run();
+    delete callback;
+  }
+
   virtual void SetUp() {
     object_id1_.Clear();
     object_id1_.set_source(ObjectId_Source_CHROME_SYNC);
@@ -818,56 +870,40 @@ TEST_F(InvalidationClientImplTest, GarbageCollection) {
    * an invalidateAll once the registrations have completed.
    */
   TestRegistration(true);
+  TestInvalidateAndReassignClientId();
+}
 
-  // Tell the Ticl we don't recognize it.
+TEST_F(InvalidationClientImplTest, LoseSessionThenClientId) {
+  /* Test plan: get a client is and session.  Send a message indicating the
+   * session is invalid.  When it asks to update the session, send another
+   * message indicating the client id is invalid.  Check that it then behaves
+   * like a fresh client (makes an assign-client-id request, etc.).
+   */
+  TestInitialization();
+
+  // Tell the Ticl we don't recognize its session.
   EXPECT_CALL(*listener_, SessionStatusChanged(false));
   ServerToClientMessage message;
   message.Clear();
-  message.mutable_status()->set_code(Status_Code_UNKNOWN_CLIENT);
+  message.mutable_status()->set_code(Status_Code_INVALID_SESSION);
   message.set_session_token(session_token_);
   string serialized;
   message.set_client_uniquifier(client_uniquifier_);
   message.set_message_type(
-      ServerToClientMessage_MessageType_TYPE_INVALIDATE_CLIENT_ID);
+      ServerToClientMessage_MessageType_TYPE_INVALIDATE_SESSION);
   message.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  resources_->RunListenerTasks();
 
-  // Pull a message from it, and check that it's trying to assign a client id.
+  // Pull a message from it, and check that it's trying to update its session.
   ClientToServerMessage request;
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   request.ParseFromString(serialized);
   ASSERT_TRUE(request.has_action());
-  ASSERT_EQ(request.action(), ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
-  ClientExternalId external_id;
-  CheckAssignClientIdRequest(request, &external_id);
+  ASSERT_EQ(request.action(), ClientToServerMessage_Action_UPDATE_SESSION);
 
-  // Give it a new uniquifier and session.
-  string new_uniquifier_str = "newuniquifierstr";
-
-  session_token_ = "new opaque data";
-  ServerToClientMessage response;
-  response.set_session_token(session_token_);
-  response.mutable_status()->set_code(Status_Code_SUCCESS);
-  response.mutable_client_type()->set_type(external_id.client_type().type());
-  response.mutable_app_client_id()->set_string_value(
-      external_id.app_client_id().string_value());
-  response.set_nonce(request.nonce());
-  response.set_client_uniquifier(new_uniquifier_str);
-  response.set_message_type(
-      ServerToClientMessage_MessageType_TYPE_ASSIGN_CLIENT_ID);
-  response.SerializeToString(&serialized);
-
-  Closure* callback = NULL;
-  EXPECT_CALL(*listener_, AllRegistrationsLost(_))
-      .WillOnce(SaveArg<0>(&callback));
-  EXPECT_CALL(*listener_, SessionStatusChanged(true));
-
-  ticl_->network_endpoint()->HandleInboundMessage(serialized);
-  resources_->RunReadyTasks();
-  resources_->RunListenerTasks();
-  callback->Run();
-  delete callback;
+  TestInvalidateAndReassignClientId();
 }
 
 TEST_F(InvalidationClientImplTest, MismatchedUnknownClientIgnored) {

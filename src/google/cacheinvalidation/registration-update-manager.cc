@@ -508,7 +508,6 @@ void RegistrationUpdateManager::HandleLostSession() {
   // session token.  Additionally, clear the confirmed-registrations list, since
   // those registrations are no longer valid in the absence of a session.
   CheckRep();
-  CHECK(state_ != State_LIMBO);
   EnterState(State_LIMBO);
   CheckRep();
 }
