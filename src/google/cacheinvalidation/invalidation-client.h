@@ -293,7 +293,6 @@ struct ClientConfig {
   ClientConfig()
       : registration_timeout(TimeDelta::FromMinutes(1)),
         initial_heartbeat_interval(TimeDelta::FromMinutes(20)),
-        initial_polling_interval(TimeDelta::FromMinutes(60)),
         max_registrations_per_message(kDefaultMaxRegistrationsPerMessage),
         max_ops_per_message(kDefaultMaxOpsPerMessage),
         max_registration_attempts(kDefaultMaxRegistrationAttempts),
@@ -320,10 +319,6 @@ struct ClientConfig {
   // Interval at which heartbeat messages will be sent to the server, until the
   // server specifies a different interval.
   TimeDelta initial_heartbeat_interval;
-
-  // Interval at which the server will be polled for invalidations, until it
-  // specifies a different interval.
-  TimeDelta initial_polling_interval;
 
   // The rate limits for the network manager.
   vector<RateLimit> rate_limits;

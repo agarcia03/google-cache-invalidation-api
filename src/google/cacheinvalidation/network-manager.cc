@@ -42,9 +42,7 @@ NetworkManager::NetworkManager(
       has_outbound_data_(false),
       outbound_listener_(NULL),
       config_(config),
-      next_poll_(Time() - TimeDelta::FromHours(1)),
       next_heartbeat_(Time() - TimeDelta::FromHours(1)),
-      poll_delay_(config.initial_polling_interval),
       heartbeat_delay_(config.initial_heartbeat_interval),
       message_number_(0),
       random_(resources->current_time().ToInternalValue()) {
