@@ -219,7 +219,7 @@ class InvalidationClientImplTest : public testing::Test {
   void TestInitialization() {
     // Start up the Ticl, connect a network listener, and let it do its
     // initialization.
-    ticl_->start("");
+    ticl_->Start("");
     outbound_message_ready_ = false;
     ticl_->network_endpoint()->RegisterOutboundListener(
         network_listener_.get());
@@ -551,7 +551,7 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
 
   // Start up the Ticl, connect a network listener, and let it do its
   // initialization.
-  ticl_->start("");
+  ticl_->Start("");
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
   resources_->RunReadyTasks();
 
@@ -1092,7 +1092,7 @@ TEST_F(InvalidationClientImplTest, Smearing) {
 TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
   // Start up the Ticl, connect a network listener, and let it do its
   // initialization.
-  ticl_->start("");
+  ticl_->Start("");
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
 
   resources_->RunReadyTasks();
@@ -1175,7 +1175,7 @@ TEST_F(InvalidationClientImplTest, Persistence) {
 
   ticl_.reset(new InvalidationClientImpl(
       resources_.get(), client_type, APP_NAME, ticl_config, listener_.get()));
-  ticl_->start(state);
+  ticl_->Start(state);
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
 
   resources_->RunReadyTasks();

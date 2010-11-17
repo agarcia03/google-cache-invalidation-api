@@ -382,7 +382,7 @@ class InvalidationClient {
   // persistent state written by the client the last time it was started.
   // This method must be called before any other method.
   // This method may only be called once.
-  virtual void start(const string& serialized_state) = 0;
+  virtual void Start(const string& serialized_state) = 0;
 
   // Requests that the InvalidationClient register to receive
   // invalidations for the object with id oid.

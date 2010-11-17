@@ -58,7 +58,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
 
   // Inherited from InvalidationClient:
 
-  virtual void start(const string& serialized_state);
+  virtual void Start(const string& serialized_state);
 
   virtual void Register(const ObjectId& oid);
 

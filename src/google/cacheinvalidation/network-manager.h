@@ -30,9 +30,8 @@ class NetworkEndpoint;
 class SystemResources;
 
 /* Keeps track of whether there is outbound data to be sent and informs the
- * application when appropriate.  Handles heartbeats and polling for
- * invalidations, and keeps the intervals for these up-to-date in response to
- * messages from the server.
+ * application when appropriate.  Handles heartbeats and updates the heartbeat
+ * interval when requested by the server.
  *
  * This is an internal helper class for InvalidationClientImpl.
  */
@@ -51,9 +50,7 @@ class NetworkManager {
   // clears the flag indicating it has data to send.
   void FinalizeOutboundMessage(ClientToServerMessage* message);
 
-  /* Updates the heartbeat and polling intervals if these are present in the
-   * bundle.
-   */
+  // Updates the heartbeat interval if this is present in the bundle.
   void HandleInboundMessage(const ServerToClientMessage& bundle);
 
   // Reschedules a heartbeat because it knows the server has performed one
@@ -123,15 +120,9 @@ class NetworkManager {
   /* Ticl configuration parameters. */
   ClientConfig config_;
 
-  /* The next time we should send a poll request to the server. */
-  Time next_poll_;
-
   /* The next time we should send a heartbeat to the server.
    */
   Time next_heartbeat_;
-
-  /* How long we should wait between polling for invalidations. */
-  TimeDelta poll_delay_;
 
   /* How long we should wait before sending a message (assuming no additional
    * message content to send).

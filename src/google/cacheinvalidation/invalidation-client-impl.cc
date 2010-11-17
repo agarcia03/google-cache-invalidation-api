@@ -63,7 +63,7 @@ InvalidationClientImpl::InvalidationClientImpl(
     random_(resources->current_time().ToInternalValue()) {
 }
 
-void InvalidationClientImpl::start(const string& serialized_state) {
+void InvalidationClientImpl::Start(const string& serialized_state) {
   CHECK(!is_started_) << "client already started";
 
   // Initialize the registration and session managers from persisted state if
