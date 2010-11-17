@@ -190,7 +190,7 @@ class RegistrationInfoStore {
  public:
   // Constructs a registration info store associated with the given reg_manager.
   // The reg manager will own this object.
-  RegistrationInfoStore(RegistrationUpdateManager* reg_manager);
+  explicit RegistrationInfoStore(RegistrationUpdateManager* reg_manager);
 
   // Handles a registration result received from the server.
   void ProcessRegistrationUpdateResult(const RegistrationUpdateResult& result);
@@ -246,7 +246,7 @@ class RegistrationInfoStore {
 // Represents the state of an on-going registration synchronization operation.
 class SyncState {
  public:
-  SyncState(RegistrationUpdateManager* reg_manager);
+  explicit SyncState(RegistrationUpdateManager* reg_manager);
 
   // Returns whether the sync process has completed, either due to receipt of
   // all messages or timeout.

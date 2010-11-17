@@ -31,7 +31,7 @@ const char* InvalidationClientImpl::INVALIDATE_ALL_OBJECT_NAME = "ALL";
 // regardless of how we exit the function.
 class Finally {
  public:
-  Finally(Closure* task) : task_(task) {
+  explicit Finally(Closure* task) : task_(task) {
     CHECK(IsCallbackRepeatable(task));
   }
 

@@ -16,6 +16,7 @@
 #define GOOGLE_CACHEINVALIDATION_PERSISTENCE_MANAGER_H_
 
 #include <queue>
+#include <string>
 
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/logging.h"
@@ -41,7 +42,7 @@ struct PendingRecord {
 class PersistenceManager {
  public:
   // Creates a persistence manager that wraps the given resources.
-  PersistenceManager(SystemResources* resources)
+  explicit PersistenceManager(SystemResources* resources)
       : write_in_progress_(false),
         resources_(resources) {}
 
