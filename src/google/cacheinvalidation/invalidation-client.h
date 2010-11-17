@@ -297,7 +297,7 @@ struct ClientConfig {
         max_ops_per_message(kDefaultMaxOpsPerMessage),
         max_registration_attempts(kDefaultMaxRegistrationAttempts),
         periodic_task_interval(TimeDelta::FromMilliseconds(500)),
-        registration_sync_timeout(TimeDelta::FromSeconds(20)),
+        registration_sync_timeout(TimeDelta::FromSeconds(60)),
         seqno_block_size(kDefaultSeqnoBlockSize),
         smear_factor(kDefaultSmearFactor) {
     AddDefaultRateLimits();

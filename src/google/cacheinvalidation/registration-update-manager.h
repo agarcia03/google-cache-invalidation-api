@@ -101,8 +101,7 @@ class RegistrationInfo {
   void ProcessApplicationRequest(RegistrationUpdate_Type op_type);
 
   // Checks to see if an in-progress operation has timed out, if one exists.  If
-  // so, attempts a retry or invokes a callback with TRANSIENT_FAILURE if no
-  // retries remain.
+  // so, invokes a callback with TRANSIENT_FAILURE.
   void CheckTimeout(Time now, TimeDelta deadline);
 
   // Returns whether there is any data to be sent for the object whose
