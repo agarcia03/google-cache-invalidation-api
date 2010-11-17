@@ -48,17 +48,24 @@ InvalidationClientImpl::InvalidationClientImpl(
     SystemResources* resources,
     const ClientType& client_type,
     const string& app_name,
-    const string& serialized_state,
     const ClientConfig& config,
     InvalidationListener* listener)
   : resources_(resources),
+    client_type_(client_type),
+    app_name_(app_name),
     listener_(listener),
     config_(config),
     network_manager_(ALLOW_THIS_IN_INITIALIZER_LIST(this),
                      resources, config),
     persistence_manager_(resources_),
     awaiting_seqno_writeback_(false),
+    is_started_(false),
     random_(resources->current_time().ToInternalValue()) {
+}
+
+void InvalidationClientImpl::start(const string& serialized_state) {
+  CHECK(!is_started_) << "client already started";
+
   // Initialize the registration and session managers from persisted state if
   // present.
   TiclState persistent_state;
@@ -90,10 +97,10 @@ InvalidationClientImpl::InvalidationClientImpl(
     initial_seqno = RegistrationUpdateManager::kFirstSequenceNumber;
   }
   session_manager_.reset(
-      new SessionManager(config, client_type, app_name, resources, uniquifier,
-                         session_token));
+      new SessionManager(config_, client_type_, app_name_, resources_,
+                         uniquifier, session_token));
   registration_manager_.reset(
-      new RegistrationUpdateManager(resources, config, initial_seqno,
+      new RegistrationUpdateManager(resources_, config_, initial_seqno,
                                     listener_));
   if (is_restart) {
     // If we started from persisted state, then we "have" a session already, and
@@ -115,8 +122,9 @@ InvalidationClientImpl::InvalidationClientImpl(
     registration_manager_->UpdateMaximumSeqno(config_.seqno_block_size);
   }
 
-  resources->ScheduleImmediately(
+  resources_->ScheduleImmediately(
       NewPermanentCallback(this, &InvalidationClientImpl::PeriodicTask));
+  is_started_ = true;
 }
 
 void InvalidationClientImpl::AllocateNewSequenceNumbers(
@@ -217,6 +225,7 @@ void InvalidationClientImpl::PeriodicTask() {
 void InvalidationClientImpl::Register(const ObjectId& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
+  EnsureStarted();
   TLOG(INFO_LEVEL, "Received register for %d/%s", oid.source(),
        oid.name().string_value().c_str());
   registration_manager_->Register(oid);
@@ -225,6 +234,7 @@ void InvalidationClientImpl::Register(const ObjectId& oid) {
 void InvalidationClientImpl::Unregister(const ObjectId& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
+  EnsureStarted();
   TLOG(INFO_LEVEL, "Received unregister for %d/%s", oid.source(),
        oid.name().string_value().c_str());
   registration_manager_->Unregister(oid);
@@ -233,6 +243,7 @@ void InvalidationClientImpl::Unregister(const ObjectId& oid) {
 void InvalidationClientImpl::PermanentShutdown() {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
+  EnsureStarted();
   TLOG(INFO_LEVEL, "Doing permanent shutdown by application request");
   session_manager_->Shutdown();
 }
@@ -294,6 +305,7 @@ void InvalidationClientImpl::HandleObjectControl(
 void InvalidationClientImpl::HandleInboundMessage(const string& message) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
+  EnsureStarted();
 
   if (awaiting_seqno_writeback_) {
     // If the initial write back to allocate sequence numbers hasn't returned,
@@ -385,6 +397,7 @@ void InvalidationClientImpl::RegisterOutboundListener(
 void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
+  EnsureStarted();
 
   ClientToServerMessage message;
 
@@ -461,6 +474,10 @@ void InvalidationClientImpl::ForgetClientId() {
   // Inform the registration and session managers about the lost client id.
   registration_manager_->HandleLostClientId();
   session_manager_->DoLoseClientId();
+}
+
+void InvalidationClientImpl::EnsureStarted() {
+  CHECK(is_started_) << "client not started";
 }
 
 }  // namespace invalidation

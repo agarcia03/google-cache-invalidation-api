@@ -43,13 +43,12 @@ using INVALIDATION_STL_NAMESPACE::vector;
 class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
  public:
   /* Constructs an InvalidationClientImpl with the given system resources,
-   * client type, application name, and persisted state.  It will deliver
-   * invalidations to the given listener.
+   * client type, and application name.  It will deliver invalidations to
+   * the given listener.
    */
   InvalidationClientImpl(SystemResources* resources,
                          const ClientType& client_type,
                          const string& app_name,
-                         const string& persisted_state,
                          const ClientConfig& config,
                          InvalidationListener* listener);
 
@@ -58,6 +57,8 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   // Methods called by the application. ////////////////////////////////////////
 
   // Inherited from InvalidationClient:
+
+  virtual void start(const string& serialized_state);
 
   virtual void Register(const ObjectId& oid);
 
@@ -157,8 +158,17 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   /* Forgets any client id and session the client may currently have. */
   void ForgetClientId();
 
+  /* Ensures that the client has been started. */
+  void EnsureStarted();
+
   /* Various system resources needed by the Ticl (storage, CPU, logging). */
   SystemResources* resources_;
+
+  /* Type of the client. */
+  const ClientType client_type_;
+
+  /* Application id of the client. */
+  const string app_name_;
 
   /* The listener that will be notified of changes to objects. */
   InvalidationListener* listener_;
@@ -187,6 +197,9 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
    * data to send.
    */
   bool awaiting_seqno_writeback_;
+
+  /* Whether the client has been started. */
+  bool is_started_;
 
   /* Random number generator for smearing periodic intervals. */
   Random random_;

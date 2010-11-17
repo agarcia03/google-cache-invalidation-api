@@ -379,23 +379,31 @@ class InvalidationClient {
   // the returned ticl.
   static InvalidationClient* Create(
       SystemResources* resources, const ClientType& client_type,
-      const string& client_id, const string& persisted_state,
-      InvalidationListener *listener);
+      const string& client_id, InvalidationListener *listener);
 
   // TODO(ghc): allow Create() to take configuration parameters.
 
+  // Starts the client, using the possibly-empty string state as the last
+  // persistent state written by the client the last time it was started.
+  // This method must be called before any other method.
+  // This method may only be called once.
+  virtual void start(const string& serialized_state) = 0;
+
   // Requests that the InvalidationClient register to receive
   // invalidations for the object with id oid.
+  // REQUIRES: start has been called.
   virtual void Register(const ObjectId& oid) = 0;
 
   // Requests that the InvalidationClient unregister for invalidations
   // for the object with id oid.
+  // REQUIRES: start has been called.
   virtual void Unregister(const ObjectId& oid) = 0;
 
   // Returns the network channel from which the application can get messages to
   // send on its network to the invalidation server and provide messages that
   // have been received from the server. The invalidation client owns the
   // endpoint.
+  // REQUIRES: start has been called.
   virtual NetworkEndpoint* network_endpoint() = 0;
 };
 

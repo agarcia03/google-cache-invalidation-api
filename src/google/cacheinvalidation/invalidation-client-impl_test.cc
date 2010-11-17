@@ -219,6 +219,7 @@ class InvalidationClientImplTest : public testing::Test {
   void TestInitialization() {
     // Start up the Ticl, connect a network listener, and let it do its
     // initialization.
+    ticl_->start("");
     outbound_message_ready_ = false;
     ticl_->network_endpoint()->RegisterOutboundListener(
         network_listener_.get());
@@ -518,7 +519,7 @@ class InvalidationClientImplTest : public testing::Test {
     ClientType client_type;
     client_type.set_type(ClientType_Type_CHROME_SYNC);
     ticl_.reset(new InvalidationClientImpl(
-        resources_.get(), client_type, APP_NAME, "", ticl_config,
+        resources_.get(), client_type, APP_NAME, ticl_config,
         listener_.get()));
     reg_results_.clear();
   }
@@ -550,6 +551,7 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
 
   // Start up the Ticl, connect a network listener, and let it do its
   // initialization.
+  ticl_->start("");
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
   resources_->RunReadyTasks();
 
@@ -1090,6 +1092,7 @@ TEST_F(InvalidationClientImplTest, Smearing) {
 TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
   // Start up the Ticl, connect a network listener, and let it do its
   // initialization.
+  ticl_->start("");
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
 
   resources_->RunReadyTasks();
@@ -1171,8 +1174,8 @@ TEST_F(InvalidationClientImplTest, Persistence) {
                       SaveArg<1>(&storage_callback)));
 
   ticl_.reset(new InvalidationClientImpl(
-      resources_.get(), client_type, APP_NAME, state, ticl_config,
-      listener_.get()));
+      resources_.get(), client_type, APP_NAME, ticl_config, listener_.get()));
+  ticl_->start(state);
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
 
   resources_->RunReadyTasks();
