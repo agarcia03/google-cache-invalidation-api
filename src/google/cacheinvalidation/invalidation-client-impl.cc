@@ -18,6 +18,7 @@
 
 #include "google/cacheinvalidation/log-macro.h"
 #include "google/cacheinvalidation/persistence-utils.h"
+#include "google/cacheinvalidation/proto-converter.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 
 namespace invalidation {
@@ -222,22 +223,24 @@ void InvalidationClientImpl::PeriodicTask() {
   }
 }
 
-void InvalidationClientImpl::Register(const ObjectIdP& oid) {
+void InvalidationClientImpl::Register(const ObjectId& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   EnsureStarted();
   TLOG(INFO_LEVEL, "Received register for %d/%s", oid.source(),
-       oid.name().string_value().c_str());
-  registration_manager_->Register(oid);
+       oid.name().c_str());
+  scoped_ptr<ObjectIdP> object_id(ConvertToObjectIdProto(oid));
+  registration_manager_->Register(*object_id.get());
 }
 
-void InvalidationClientImpl::Unregister(const ObjectIdP& oid) {
+void InvalidationClientImpl::Unregister(const ObjectId& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   EnsureStarted();
   TLOG(INFO_LEVEL, "Received unregister for %d/%s", oid.source(),
-       oid.name().string_value().c_str());
-  registration_manager_->Unregister(oid);
+       oid.name().c_str());
+  scoped_ptr<ObjectIdP> object_id(ConvertToObjectIdProto(oid));
+  registration_manager_->Unregister(*object_id.get());
 }
 
 void InvalidationClientImpl::PermanentShutdown() {
@@ -364,9 +367,10 @@ void InvalidationClientImpl::ProcessInvalidation(
         NewPermanentCallback(listener_, &InvalidationListener::InvalidateAll,
                              callback));
   } else {
+    scoped_ptr<Invalidation> inv(ConvertFromInvalidationProto(invalidation));
     resources_->ScheduleOnListenerThread(
         NewPermanentCallback(listener_, &InvalidationListener::Invalidate,
-                             invalidation, callback));
+                             *inv.get(), callback));
   }
 }
 

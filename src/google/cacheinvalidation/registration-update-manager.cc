@@ -19,6 +19,8 @@
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 #include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/log-macro.h"
+#include "google/cacheinvalidation/proto-converter.h"
+#include "google/cacheinvalidation/scoped_ptr.h"
 
 namespace invalidation {
 
@@ -176,11 +178,12 @@ void RegistrationInfo::TakeData(ClientToServerMessage* message, Time now) {
 
 void RegistrationInfo::InvokeStateChangedCallback(
     RegistrationState new_state, const UnknownHint& unknown_hint) {
+  scoped_ptr<ObjectId> oid(ConvertFromObjectIdProto(object_id_));
   resources_->ScheduleOnListenerThread(
       NewPermanentCallback(
           reg_manager_->listener_,
           &InvalidationListener::RegistrationStateChanged,
-          object_id_,
+          *oid.get(),
           new_state,
           unknown_hint));
 }

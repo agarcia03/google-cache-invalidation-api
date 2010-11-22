@@ -60,9 +60,9 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
 
   virtual void Start(const string& serialized_state);
 
-  virtual void Register(const ObjectIdP& oid);
+  virtual void Register(const ObjectId& oid);
 
-  virtual void Unregister(const ObjectIdP& oid);
+  virtual void Unregister(const ObjectId& oid);
 
   virtual void PermanentShutdown();
 

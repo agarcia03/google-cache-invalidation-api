@@ -17,8 +17,9 @@
 #include "base/scoped_ptr.h"
 #include "google/cacheinvalidation/gmock.h"
 #include "google/cacheinvalidation/googletest.h"
-#include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
+#include "google/cacheinvalidation/logging.h"
+#include "google/cacheinvalidation/proto-converter.h"
 #include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/scoped_ptr.h"
 #include "google/cacheinvalidation/stl-namespace.h"
@@ -50,29 +51,35 @@ class MockSystemResources : public SystemResourcesForTest {
 /* A listener for testing. */
 class MockListener : public InvalidationListener {
  public:
-  MOCK_METHOD2(Invalidate, void(const InvalidationP&, Closure*));
+  MOCK_METHOD2(Invalidate, void(const Invalidation&, Closure*));
   MOCK_METHOD1(InvalidateAll, void(Closure*));
   MOCK_METHOD1(AllRegistrationsLost, void(Closure*));
   MOCK_METHOD3(RegistrationStateChanged,
-               void(const ObjectIdP&, RegistrationState, const UnknownHint&));
+               void(const ObjectId&, RegistrationState, const UnknownHint&));
   MOCK_METHOD1(SessionStatusChanged, void(bool));
 
   /* System resources, for checking that callbacks run on the right thread. */
   SystemResources* resources_;
 };
 
-static bool ObjectIdsEqual(const ObjectIdP& object_id1,
-                           const ObjectIdP& object_id2) {
+static bool ObjectIdPsEqual(const ObjectIdP& object_id1,
+                            const ObjectIdP& object_id2) {
   return (object_id1.source() == object_id2.source()) &&
         (object_id1.name().string_value() == object_id2.name().string_value());
 }
 
-class ObjectIdEqMatcher : public MatcherInterface<const ObjectIdP&> {
+static bool ObjectIdsEqual(const ObjectId& object_id1,
+                           const ObjectId& object_id2) {
+  return (object_id1.source() == object_id2.source()) &&
+        (object_id1.name() == object_id2.name());
+}
+
+class ObjectIdEqMatcher : public MatcherInterface<const ObjectId&> {
  public:
-  explicit ObjectIdEqMatcher(const ObjectIdP& object_id)
+  explicit ObjectIdEqMatcher(const ObjectId& object_id)
       : object_id_(object_id) {}
 
-  virtual bool MatchAndExplain(const ObjectIdP& other_oid,
+  virtual bool MatchAndExplain(const ObjectId& other_oid,
                                MatchResultListener* listener) const {
     return ObjectIdsEqual(object_id_, other_oid);
   }
@@ -82,10 +89,10 @@ class ObjectIdEqMatcher : public MatcherInterface<const ObjectIdP&> {
   }
 
  private:
-  ObjectIdP object_id_;
+  ObjectId object_id_;
 };
 
-inline Matcher<const ObjectIdP&> ObjectIdEq(const ObjectIdP& object_id) {
+inline Matcher<const ObjectId&> ObjectIdEq(const ObjectId& object_id) {
   return MakeMatcher(new ObjectIdEqMatcher(object_id));
 }
 
@@ -288,14 +295,16 @@ class InvalidationClientImplTest : public testing::Test {
    * (un)registrations.
    */
   void MakeAndCheckRegistrations(bool is_register) {
-    void (InvalidationClient::*operation)(const ObjectIdP&) =
+    void (InvalidationClient::*operation)(const ObjectId&) =
         is_register ?
         &InvalidationClient::Register : &InvalidationClient::Unregister;
 
     // Ask the Ticl to register for two objects.
     outbound_message_ready_ = false;
-    (ticl_.get()->*operation)(object_id1_);
-    (ticl_.get()->*operation)(object_id2_);
+    scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
+    scoped_ptr<ObjectId> oid2(ConvertFromObjectIdProto(object_id2_));
+    (ticl_.get()->*operation)(*oid1.get());
+    (ticl_.get()->*operation)(*oid2.get());
     resources_->ModifyTime(fine_throttle_interval_);
     resources_->RunReadyTasks();
     resources_->RunListenerTasks();
@@ -687,7 +696,8 @@ TEST_F(InvalidationClientImplTest, Unegistration) {
    */
   // Start in the REGISTERED state so we actually have something to do.
   TestRegistration(true);
-  ticl_->Unregister(object_id2_);
+  scoped_ptr<ObjectId> oid2(ConvertFromObjectIdProto(object_id2_));
+  ticl_->Unregister(*oid2.get());
   resources_->ModifyTime(
       fine_throttle_interval_ + TimeDelta::FromMilliseconds(500));
   resources_->RunReadyTasks();
@@ -705,7 +715,7 @@ TEST_F(InvalidationClientImplTest, Unegistration) {
             ClientToServerMessage_MessageType_TYPE_OBJECT_CONTROL);
   ASSERT_EQ(message.register_operation_size(), 1);
   const RegistrationUpdate& op = message.register_operation(0);
-  ASSERT_TRUE(ObjectIdsEqual(object_id2_, op.object_id()));
+  ASSERT_TRUE(ObjectIdPsEqual(object_id2_, op.object_id()));
   ASSERT_EQ(RegistrationUpdate_Type_UNREGISTER, op.type());
 
   // Construct a response.
@@ -750,10 +760,11 @@ TEST_F(InvalidationClientImplTest, RegistrationFailure) {
   string serialized;
   response.SerializeToString(&serialized);
 
+  scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
   EXPECT_CALL(
       *listener_,
       RegistrationStateChanged(
-          ObjectIdEq(object_id1_), RegistrationState_UNKNOWN, _));
+          ObjectIdEq(*oid1.get()), RegistrationState_UNKNOWN, _));
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
@@ -781,9 +792,10 @@ TEST_F(InvalidationClientImplTest, InvalidationP) {
   TestRegistration(true);
 
   Closure* callback = NULL;
+  scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
   EXPECT_CALL(*listener_, Invalidate(AllOf(
-      Property(&InvalidationP::version, InvalidationClientImplTest::VERSION),
-      Property(&InvalidationP::object_id, ObjectIdEq(object_id1_))), _))
+      Property(&Invalidation::version, InvalidationClientImplTest::VERSION),
+      Property(&Invalidation::object_id, ObjectIdEq(*oid1.get()))), _))
       .WillOnce(SaveArg<1>(&callback));
 
   // Deliver an invalidation for an object.
@@ -822,7 +834,7 @@ TEST_F(InvalidationClientImplTest, InvalidationP) {
   ASSERT_EQ(InvalidationClientImplTest::VERSION,
             client_message.acked_invalidation(0).version());
   ASSERT_TRUE(
-      ObjectIdsEqual(object_id1_,
+      ObjectIdPsEqual(object_id1_,
 
                      client_message.acked_invalidation(0).object_id()));
 }
@@ -1219,9 +1231,13 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   object_id4.mutable_name()->set_string_value("spontaneous-reg-object");
   object_id4.set_source(ObjectIdP_Source_CHROME_SYNC);
 
-  ticl_->Register(object_id1_);
-  ticl_->Register(object_id2_);
-  ticl_->Register(object_id3);
+  scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
+  scoped_ptr<ObjectId> oid2(ConvertFromObjectIdProto(object_id2_));
+  scoped_ptr<ObjectId> oid3(ConvertFromObjectIdProto(object_id3));
+
+  ticl_->Register(*oid1.get());
+  ticl_->Register(*oid2.get());
+  ticl_->Register(*oid3.get());
 
   // Wait for the next periodic check / message rate limit.
   resources_->ModifyTime(TimeDelta::FromSeconds(1));
@@ -1257,9 +1273,10 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   result->mutable_operation()->set_sequence_number(2);
   result->mutable_status()->set_code(Status_Code_SUCCESS);
 
+  scoped_ptr<ObjectId> oid4(ConvertFromObjectIdProto(object_id4));
   EXPECT_CALL(*listener_,
               RegistrationStateChanged(
-                  ObjectIdEq(object_id4),
+                  ObjectIdEq(*oid4.get()),
                   RegistrationState_REGISTERED,
                   _));
   registration_push_message.SerializeToString(&serialized);
@@ -1279,10 +1296,10 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   ASSERT_EQ(2, message.register_operation_size());
   const RegistrationUpdate& op1 = message.register_operation(0);
   const RegistrationUpdate& op2 = message.register_operation(1);
-  ASSERT_TRUE(ObjectIdsEqual(op1.object_id(), object_id2_) ||
-              ObjectIdsEqual(op1.object_id(), object_id3));
-  ASSERT_TRUE(ObjectIdsEqual(op2.object_id(), object_id2_) ||
-              ObjectIdsEqual(op2.object_id(), object_id3));
+  ASSERT_TRUE(ObjectIdPsEqual(op1.object_id(), object_id2_) ||
+              ObjectIdPsEqual(op1.object_id(), object_id3));
+  ASSERT_TRUE(ObjectIdPsEqual(op2.object_id(), object_id2_) ||
+              ObjectIdPsEqual(op2.object_id(), object_id3));
   ASSERT_GT(op1.sequence_number(), ticl_config.seqno_block_size);
   ASSERT_GT(op2.sequence_number(), ticl_config.seqno_block_size);
 
@@ -1292,7 +1309,7 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   response.set_message_type(
       ServerToClientMessage_MessageType_TYPE_OBJECT_CONTROL);
   result = response.add_registration_result();
-  if (ObjectIdsEqual(op1.object_id(), object_id2_)) {
+  if (ObjectIdPsEqual(op1.object_id(), object_id2_)) {
     result->mutable_operation()->CopyFrom(op1);
   } else {
     result->mutable_operation()->CopyFrom(op2);
@@ -1304,9 +1321,10 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
+  scoped_ptr<ObjectId> object_id2(ConvertFromObjectIdProto(object_id2_));
   EXPECT_CALL(*listener_,
               RegistrationStateChanged(
-                  ObjectIdEq(object_id2_),
+                  ObjectIdEq(*object_id2.get()),
                   RegistrationState_UNKNOWN,
                   Property(&UnknownHint::is_transient, false)));
   resources_->RunListenerTasks();
@@ -1315,9 +1333,10 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   // object_id3.
   resources_->ModifyTime(TimeDelta::FromSeconds(80));
   resources_->RunReadyTasks();
+  scoped_ptr<ObjectId> tmp_object_id3(ConvertFromObjectIdProto(object_id3));
   EXPECT_CALL(*listener_,
               RegistrationStateChanged(
-                  ObjectIdEq(object_id3),
+                  ObjectIdEq(*tmp_object_id3.get()),
                   RegistrationState_UNKNOWN,
                   Property(&UnknownHint::is_transient, true)));
   resources_->RunListenerTasks();
