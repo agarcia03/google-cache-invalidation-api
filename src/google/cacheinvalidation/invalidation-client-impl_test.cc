@@ -50,29 +50,29 @@ class MockSystemResources : public SystemResourcesForTest {
 /* A listener for testing. */
 class MockListener : public InvalidationListener {
  public:
-  MOCK_METHOD2(Invalidate, void(const Invalidation&, Closure*));
+  MOCK_METHOD2(Invalidate, void(const InvalidationP&, Closure*));
   MOCK_METHOD1(InvalidateAll, void(Closure*));
   MOCK_METHOD1(AllRegistrationsLost, void(Closure*));
   MOCK_METHOD3(RegistrationStateChanged,
-               void(const ObjectId&, RegistrationState, const UnknownHint&));
+               void(const ObjectIdP&, RegistrationState, const UnknownHint&));
   MOCK_METHOD1(SessionStatusChanged, void(bool));
 
   /* System resources, for checking that callbacks run on the right thread. */
   SystemResources* resources_;
 };
 
-static bool ObjectIdsEqual(const ObjectId& object_id1,
-                           const ObjectId& object_id2) {
+static bool ObjectIdsEqual(const ObjectIdP& object_id1,
+                           const ObjectIdP& object_id2) {
   return (object_id1.source() == object_id2.source()) &&
         (object_id1.name().string_value() == object_id2.name().string_value());
 }
 
-class ObjectIdEqMatcher : public MatcherInterface<const ObjectId&> {
+class ObjectIdEqMatcher : public MatcherInterface<const ObjectIdP&> {
  public:
-  explicit ObjectIdEqMatcher(const ObjectId& object_id)
+  explicit ObjectIdEqMatcher(const ObjectIdP& object_id)
       : object_id_(object_id) {}
 
-  virtual bool MatchAndExplain(const ObjectId& other_oid,
+  virtual bool MatchAndExplain(const ObjectIdP& other_oid,
                                MatchResultListener* listener) const {
     return ObjectIdsEqual(object_id_, other_oid);
   }
@@ -82,10 +82,10 @@ class ObjectIdEqMatcher : public MatcherInterface<const ObjectId&> {
   }
 
  private:
-  ObjectId object_id_;
+  ObjectIdP object_id_;
 };
 
-inline Matcher<const ObjectId&> ObjectIdEq(const ObjectId& object_id) {
+inline Matcher<const ObjectIdP&> ObjectIdEq(const ObjectIdP& object_id) {
   return MakeMatcher(new ObjectIdEqMatcher(object_id));
 }
 
@@ -108,10 +108,10 @@ class InvalidationClientImplTest : public testing::Test {
   Status success_status_;
 
   /* An object id. */
-  ObjectId object_id1_;
+  ObjectIdP object_id1_;
 
   /* An object id. */
-  ObjectId object_id2_;
+  ObjectIdP object_id2_;
 
   /* A sample version. */
   static const int64 VERSION;
@@ -163,7 +163,7 @@ class InvalidationClientImplTest : public testing::Test {
 
   /* Checks that client's message contains a proper id-assignment request. */
   void CheckAssignClientIdRequest(
-      const ClientToServerMessage& message, ClientExternalId* result) {
+      const ClientToServerMessage& message, ClientExternalIdP* result) {
     // Check that the message contains an "assign client id" action.
     ASSERT_TRUE(message.has_action());
     ASSERT_EQ(message.action(), ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
@@ -235,7 +235,7 @@ class InvalidationClientImplTest : public testing::Test {
     message.ParseFromString(serialized);
 
     // Check that the message is a proper request for client id assignment.
-    ClientExternalId external_id;
+    ClientExternalIdP external_id;
     CheckAssignClientIdRequest(message, &external_id);
 
     // Construct a uniquifier.
@@ -288,7 +288,7 @@ class InvalidationClientImplTest : public testing::Test {
    * (un)registrations.
    */
   void MakeAndCheckRegistrations(bool is_register) {
-    void (InvalidationClient::*operation)(const ObjectId&) =
+    void (InvalidationClient::*operation)(const ObjectIdP&) =
         is_register ?
         &InvalidationClient::Register : &InvalidationClient::Unregister;
 
@@ -469,7 +469,7 @@ class InvalidationClientImplTest : public testing::Test {
     request.ParseFromString(serialized);
     ASSERT_TRUE(request.has_action());
     ASSERT_EQ(request.action(), ClientToServerMessage_Action_ASSIGN_CLIENT_ID);
-    ClientExternalId external_id;
+    ClientExternalIdP external_id;
     CheckAssignClientIdRequest(request, &external_id);
 
     // Give it a new uniquifier and session.
@@ -502,10 +502,10 @@ class InvalidationClientImplTest : public testing::Test {
 
   virtual void SetUp() {
     object_id1_.Clear();
-    object_id1_.set_source(ObjectId_Source_CHROME_SYNC);
+    object_id1_.set_source(ObjectIdP_Source_CHROME_SYNC);
     object_id1_.mutable_name()->set_string_value("BOOKMARKS");
     object_id2_.Clear();
-    object_id2_.set_source(ObjectId_Source_CHROME_SYNC);
+    object_id2_.set_source(ObjectIdP_Source_CHROME_SYNC);
     object_id2_.mutable_name()->set_string_value("HISTORY");
     resources_.reset(new StrictMock<MockSystemResources>());
     resources_->ModifyTime(TimeDelta::FromSeconds(1000000));
@@ -562,7 +562,7 @@ TEST_F(InvalidationClientImplTest, MismatchingClientIdIgnored) {
   message.ParseFromString(serialized);
 
   // Check that the message is a proper request for client id assignment.
-  ClientExternalId external_id;
+  ClientExternalIdP external_id;
   CheckAssignClientIdRequest(message, &external_id);
 
   // Fabricate a uniquifier and initial session token.
@@ -772,7 +772,7 @@ TEST_F(InvalidationClientImplTest, RegistrationFailure) {
   ASSERT_EQ(message.register_operation_size(), 0);
 }
 
-TEST_F(InvalidationClientImplTest, Invalidation) {
+TEST_F(InvalidationClientImplTest, InvalidationP) {
   /* Test plan: get a client id and session token, and register for an object.
    * Deliver an invalidation for that object.  Check that the listener's
    * invalidate() method gets called with the right invalidation.  Check that
@@ -782,13 +782,13 @@ TEST_F(InvalidationClientImplTest, Invalidation) {
 
   Closure* callback = NULL;
   EXPECT_CALL(*listener_, Invalidate(AllOf(
-      Property(&Invalidation::version, InvalidationClientImplTest::VERSION),
-      Property(&Invalidation::object_id, ObjectIdEq(object_id1_))), _))
+      Property(&InvalidationP::version, InvalidationClientImplTest::VERSION),
+      Property(&InvalidationP::object_id, ObjectIdEq(object_id1_))), _))
       .WillOnce(SaveArg<1>(&callback));
 
   // Deliver an invalidation for an object.
   ServerToClientMessage message;
-  Invalidation* invalidation = message.add_invalidation();
+  InvalidationP* invalidation = message.add_invalidation();
   invalidation->mutable_object_id()->CopyFrom(object_id1_);
   invalidation->set_version(InvalidationClientImplTest::VERSION);
   message.set_session_token(session_token_);
@@ -944,8 +944,8 @@ TEST_F(InvalidationClientImplTest, InvalidateAll) {
   ServerToClientMessage message;
   message.mutable_status()->set_code(Status_Code_SUCCESS);
   message.set_session_token(session_token_);
-  Invalidation* inv = message.add_invalidation();
-  inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
+  InvalidationP* inv = message.add_invalidation();
+  inv->mutable_object_id()->set_source(ObjectIdP_Source_INTERNAL);
   inv->mutable_object_id()->mutable_name()->set_string_value("ALL");
   inv->set_version(1);
   message.set_message_type(
@@ -976,8 +976,8 @@ TEST_F(InvalidationClientImplTest, AcceptsProtocolVersion1) {
   message.set_session_token(session_token_);
   message.mutable_protocol_version()->mutable_version()->set_major_version(1);
   message.mutable_protocol_version()->mutable_version()->set_minor_version(0);
-  Invalidation* inv = message.add_invalidation();
-  inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
+  InvalidationP* inv = message.add_invalidation();
+  inv->mutable_object_id()->set_source(ObjectIdP_Source_INTERNAL);
   inv->mutable_object_id()->mutable_name()->set_string_value("ALL");
   inv->set_version(1);
   message.set_message_type(
@@ -1009,8 +1009,8 @@ TEST_F(InvalidationClientImplTest, RejectsProtocolVersion2) {
   message.set_session_token(session_token_);
   message.mutable_protocol_version()->mutable_version()->set_major_version(2);
   message.mutable_protocol_version()->mutable_version()->set_minor_version(0);
-  Invalidation* inv = message.add_invalidation();
-  inv->mutable_object_id()->set_source(ObjectId_Source_INTERNAL);
+  InvalidationP* inv = message.add_invalidation();
+  inv->mutable_object_id()->set_source(ObjectIdP_Source_INTERNAL);
   inv->mutable_object_id()->mutable_name()->set_string_value("ALL");
   inv->set_version(1);
   message.set_message_type(
@@ -1100,7 +1100,7 @@ TEST_F(InvalidationClientImplTest, MaxSessionRequests) {
 
   string serialized;
   ClientToServerMessage message;
-  ClientExternalId external_id;
+  ClientExternalIdP external_id;
   for (int i = 0; i < SessionManager::getMaxSessionAttemptsForTest(); ++i) {
     // Check that it has a message to send, and pull the message.
     ASSERT_TRUE(outbound_message_ready_);
@@ -1212,12 +1212,12 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   ASSERT_FALSE(message.has_action());
 
   // Request to register on some objects.
-  ObjectId object_id3;
+  ObjectIdP object_id3;
   object_id3.mutable_name()->set_string_value("timeout-object");
-  object_id3.set_source(ObjectId_Source_CHROME_SYNC);
-  ObjectId object_id4;
+  object_id3.set_source(ObjectIdP_Source_CHROME_SYNC);
+  ObjectIdP object_id4;
   object_id4.mutable_name()->set_string_value("spontaneous-reg-object");
-  object_id4.set_source(ObjectId_Source_CHROME_SYNC);
+  object_id4.set_source(ObjectIdP_Source_CHROME_SYNC);
 
   ticl_->Register(object_id1_);
   ticl_->Register(object_id2_);

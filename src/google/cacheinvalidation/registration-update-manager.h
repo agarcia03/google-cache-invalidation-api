@@ -55,7 +55,7 @@ class RegistrationInfo {
   RegistrationInfo() {}
 
   RegistrationInfo(RegistrationUpdateManager* reg_manager,
-                   const ObjectId& object_id);
+                   const ObjectIdP& object_id);
 
   RegistrationInfo(const RegistrationInfo& reg_info) {
     *this = reg_info;
@@ -149,7 +149,7 @@ class RegistrationInfo {
   // Verifies that sequence numbers in this record are valid.
   void CheckSequenceNumber();
 
-  const char* GetObjectName(const ObjectId& object_id) {
+  const char* GetObjectName(const ObjectIdP& object_id) {
     return object_id.name().string_value().c_str();
   }
 
@@ -160,7 +160,7 @@ class RegistrationInfo {
   SystemResources* resources_;
 
   // The object id whose registration state we're tracking.
-  ObjectId object_id_;
+  ObjectIdP object_id_;
 
   // Latest state at the server that we know (registered or unregistered).
   RegistrationUpdate_Type latest_known_server_state_;
@@ -196,7 +196,7 @@ class RegistrationInfoStore {
 
   // Handles a request from the client application to put the given object_id
   // into the given registration state (indicated by op_type).
-  void ProcessApplicationRequest(const ObjectId& object_id,
+  void ProcessApplicationRequest(const ObjectIdP& object_id,
                                  RegistrationUpdate_Type op_type);
 
   // Clears the registration state map.
@@ -223,12 +223,12 @@ class RegistrationInfoStore {
   void CheckNoPendingOpsSent();
 
   // Returns the registration state for object_id.
-  RegState GetRegistrationState(const ObjectId& object_id);
+  RegState GetRegistrationState(const ObjectIdP& object_id);
 
  private:
   // Ensures that a record for object_id is present in the registration_state_
   // map.  If none was previously present, adds a default record.
-  void EnsureRecordPresent(const ObjectId& object_id);
+  void EnsureRecordPresent(const ObjectIdP& object_id);
 
   // The registration update manager to which this store belongs.
   RegistrationUpdateManager* reg_manager_;
@@ -295,7 +295,7 @@ class RegistrationUpdateManager {
   void HandleNewSession();
 
   // Returns the registration state of the given object.
-  RegState GetRegistrationState(const ObjectId& object_id) {
+  RegState GetRegistrationState(const ObjectIdP& object_id) {
     CheckRep();
     return registration_info_store_.GetRegistrationState(object_id);
   }
@@ -310,7 +310,7 @@ class RegistrationUpdateManager {
 
   // Performs the actual work of registering or unregistering (as indicated by
   // op_type) for invalidations on the given object id.
-  void UpdateRegistration(const ObjectId& object_id,
+  void UpdateRegistration(const ObjectIdP& object_id,
                           RegistrationUpdate_Type op_type) {
     // If we're in LIMBO, then we silently ignore registrations, since we know
     // that:
@@ -324,14 +324,14 @@ class RegistrationUpdateManager {
   }
 
   // Initiates registration on the given object_id.
-  void Register(const ObjectId& object_id) {
+  void Register(const ObjectIdP& object_id) {
     CheckRep();
     UpdateRegistration(object_id, RegistrationUpdate_Type_REGISTER);
     CheckRep();
   }
 
   // Initiates unregistration on the given object_id.
-  void Unregister(const ObjectId& object_id) {
+  void Unregister(const ObjectIdP& object_id) {
     CheckRep();
     UpdateRegistration(object_id, RegistrationUpdate_Type_UNREGISTER);
     CheckRep();
@@ -379,7 +379,7 @@ class RegistrationUpdateManager {
 
   // Checks that sequence_number is in [kFirstSequenceNumber,
   // maximum_op_seqno_inclusive_].
-  void CheckSequenceNumber(const ObjectId& object_id, int64 sequence_number);
+  void CheckSequenceNumber(const ObjectIdP& object_id, int64 sequence_number);
 
   // Returns the number of objects from which we've received explicit
   // notification from the server about registration state.

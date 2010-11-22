@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "google/cacheinvalidation/callback.h"
+#include "google/cacheinvalidation/internal.pb.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/time.h"
 #include "google/cacheinvalidation/types.pb.h"
@@ -183,7 +184,7 @@ class InvalidationListener {
   //
   // The application owns the "done" callback, which must be repeatable
   // (although it is called at most once).
-  virtual void Invalidate(const Invalidation& invalidation, Closure* done) = 0;
+  virtual void Invalidate(const InvalidationP& invalidation, Closure* done) = 0;
 
   // Indicates that the application should consider all objects to have
   // changed. This callback is generally made when the NCL has been disconnected
@@ -198,7 +199,7 @@ class InvalidationListener {
   // if the new state is UNKNOWN, the unknown_hint provides a hint as to whether
   // or not the UNKNOWN state is transient.  If it is, future calls to
   // (un)register may be able to transition the object out of this state.
-  virtual void RegistrationStateChanged(const ObjectId& object_id,
+  virtual void RegistrationStateChanged(const ObjectIdP& object_id,
                                         RegistrationState new_state,
                                         const UnknownHint& unknown_hint) = 0;
 
@@ -387,12 +388,12 @@ class InvalidationClient {
   // Requests that the InvalidationClient register to receive
   // invalidations for the object with id oid.
   // REQUIRES: start has been called.
-  virtual void Register(const ObjectId& oid) = 0;
+  virtual void Register(const ObjectIdP& oid) = 0;
 
   // Requests that the InvalidationClient unregister for invalidations
   // for the object with id oid.
   // REQUIRES: start has been called.
-  virtual void Unregister(const ObjectId& oid) = 0;
+  virtual void Unregister(const ObjectIdP& oid) = 0;
 
   // Returns the network channel from which the application can get messages to
   // send on its network to the invalidation server and provide messages that

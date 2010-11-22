@@ -25,7 +25,7 @@ namespace invalidation {
 // RegistrationInfo definitions.
 
 RegistrationInfo::RegistrationInfo(RegistrationUpdateManager* reg_manager,
-                                   const ObjectId& object_id)
+                                   const ObjectIdP& object_id)
     : reg_manager_(reg_manager),
       resources_(reg_manager_->resources_),
       object_id_(object_id),
@@ -256,7 +256,7 @@ RegistrationInfoStore::RegistrationInfoStore(
 
 void RegistrationInfoStore::ProcessRegistrationUpdateResult(
     const RegistrationUpdateResult& result) {
-  const ObjectId& object_id = result.operation().object_id();
+  const ObjectIdP& object_id = result.operation().object_id();
   EnsureRecordPresent(object_id);
   string serialized;
   object_id.SerializeToString(&serialized);
@@ -264,7 +264,7 @@ void RegistrationInfoStore::ProcessRegistrationUpdateResult(
 }
 
 void RegistrationInfoStore::ProcessApplicationRequest(
-    const ObjectId& object_id, RegistrationUpdate_Type op_type) {
+    const ObjectIdP& object_id, RegistrationUpdate_Type op_type) {
   EnsureRecordPresent(object_id);
   string serialized;
   object_id.SerializeToString(&serialized);
@@ -360,7 +360,7 @@ void RegistrationInfoStore::CheckNoPendingOpsSent() {
 }
 
 RegState RegistrationInfoStore::GetRegistrationState(
-    const ObjectId& object_id) {
+    const ObjectIdP& object_id) {
   string serialized;
   object_id.SerializeToString(&serialized);
   map<string, RegistrationInfo>::iterator iter =
@@ -371,7 +371,7 @@ RegState RegistrationInfoStore::GetRegistrationState(
   return iter->second.GetRegistrationState();
 }
 
-void RegistrationInfoStore::EnsureRecordPresent(const ObjectId& object_id) {
+void RegistrationInfoStore::EnsureRecordPresent(const ObjectIdP& object_id) {
   string serialized;
   object_id.SerializeToString(&serialized);
   map<string, RegistrationInfo>::iterator iter =
@@ -481,7 +481,7 @@ void RegistrationUpdateManager::CheckRep() {
   }
 }
 
-void RegistrationUpdateManager::CheckSequenceNumber(const ObjectId& object_id,
+void RegistrationUpdateManager::CheckSequenceNumber(const ObjectIdP& object_id,
                                                     int64 sequence_number) {
   CHECK(sequence_number >= kFirstSequenceNumber);
   CHECK(sequence_number < current_op_seqno_);

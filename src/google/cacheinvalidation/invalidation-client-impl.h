@@ -60,9 +60,9 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
 
   virtual void Start(const string& serialized_state);
 
-  virtual void Register(const ObjectId& oid);
+  virtual void Register(const ObjectIdP& oid);
 
-  virtual void Unregister(const ObjectId& oid);
+  virtual void Unregister(const ObjectIdP& oid);
 
   virtual void PermanentShutdown();
 
@@ -89,7 +89,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   virtual void RegisterOutboundListener(
       NetworkCallback* outbound_message_ready);
 
-  RegState GetRegistrationStateForTest(const ObjectId& object_id) {
+  RegState GetRegistrationStateForTest(const ObjectIdP& object_id) {
     return registration_manager_->GetRegistrationState(object_id);
   }
 
@@ -143,17 +143,17 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   // Handlers for server-to-client messages. ///////////////////////////////////
 
   /* Handles an invalidation. */
-  void ProcessInvalidation(const Invalidation& invalidation);
+  void ProcessInvalidation(const InvalidationP& invalidation);
 
   /* Adds the given {@code invalidation} to the list of pending outgoing
    * invalidations.
    */
-  void AcknowledgeInvalidation(const Invalidation& invalidation);
+  void AcknowledgeInvalidation(const InvalidationP& invalidation);
 
   /* Asynchronously adds the given {@code invalidation} to the list of pending
    * outgoing invalidations.
    */
-  void ScheduleAcknowledgeInvalidation(const Invalidation& invalidation);
+  void ScheduleAcknowledgeInvalidation(const InvalidationP& invalidation);
 
   /* Forgets any client id and session the client may currently have. */
   void ForgetClientId();
@@ -189,7 +189,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   PersistenceManager persistence_manager_;
 
   /* Invalidation acknowledgments waiting to be delivered to the server. */
-  vector<Invalidation> pending_invalidation_acks_;
+  vector<InvalidationP> pending_invalidation_acks_;
 
   /* Whether we're waiting for the initial seqno write-back to complete.  While
    * this is true, the Ticl will not accept any messages from the server, and it

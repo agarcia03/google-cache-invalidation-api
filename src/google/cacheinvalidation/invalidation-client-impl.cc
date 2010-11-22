@@ -222,7 +222,7 @@ void InvalidationClientImpl::PeriodicTask() {
   }
 }
 
-void InvalidationClientImpl::Register(const ObjectId& oid) {
+void InvalidationClientImpl::Register(const ObjectIdP& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   EnsureStarted();
@@ -231,7 +231,7 @@ void InvalidationClientImpl::Register(const ObjectId& oid) {
   registration_manager_->Register(oid);
 }
 
-void InvalidationClientImpl::Unregister(const ObjectId& oid) {
+void InvalidationClientImpl::Unregister(const ObjectIdP& oid) {
   CHECK(!resources_->IsRunningOnInternalThread());
   MutexLock m(&lock_);
   EnsureStarted();
@@ -351,14 +351,14 @@ void InvalidationClientImpl::HandleInboundMessage(const string& message) {
 
 /* Handles an invalidation. */
 void InvalidationClientImpl::ProcessInvalidation(
-    const Invalidation& invalidation) {
+    const InvalidationP& invalidation) {
   Closure* callback =
       NewPermanentCallback(
           this, &InvalidationClientImpl::ScheduleAcknowledgeInvalidation,
           invalidation);
 
-  const ObjectId& oid = invalidation.object_id();
-  if ((oid.source() == ObjectId_Source_INTERNAL) &&
+  const ObjectIdP& oid = invalidation.object_id();
+  if ((oid.source() == ObjectIdP_Source_INTERNAL) &&
       (oid.name().string_value() == INVALIDATE_ALL_OBJECT_NAME)) {
     resources_->ScheduleOnListenerThread(
         NewPermanentCallback(listener_, &InvalidationListener::InvalidateAll,
@@ -371,7 +371,7 @@ void InvalidationClientImpl::ProcessInvalidation(
 }
 
 void InvalidationClientImpl::AcknowledgeInvalidation(
-    const Invalidation& invalidation) {
+    const InvalidationP& invalidation) {
 
   MutexLock m(&lock_);
   pending_invalidation_acks_.push_back(invalidation);
@@ -379,7 +379,7 @@ void InvalidationClientImpl::AcknowledgeInvalidation(
 }
 
 void InvalidationClientImpl::ScheduleAcknowledgeInvalidation(
-    const Invalidation& invalidation) {
+    const InvalidationP& invalidation) {
 
   resources_->ScheduleImmediately(
       NewPermanentCallback(this,
@@ -435,7 +435,7 @@ void InvalidationClientImpl::TakeOutboundMessage(string* serialized) {
            (registration_count + invalidation_acks_sent <
             config_.max_ops_per_message)) {
       ++invalidation_acks_sent;
-      Invalidation* inv = message.add_acked_invalidation();
+      InvalidationP* inv = message.add_acked_invalidation();
       inv->CopyFrom(pending_invalidation_acks_.back());
       // If the invalidation contains a component stamp log, add a client stamp.
       if (inv->has_component_stamp_log()) {

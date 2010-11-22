@@ -56,9 +56,9 @@ void GenericRegCallback(RegistrationUpdateResult* box,
  * callback is invoked with SUCCESS.
  */
 TEST_F(RegistrationUpdateManagerTest, NoInfoToRegPending) {
-  ObjectId object_id;
+  ObjectIdP object_id;
   object_id.mutable_name()->set_string_value("testObject");
-  object_id.set_source(ObjectId_Source_CHROME_SYNC);
+  object_id.set_source(ObjectIdP_Source_CHROME_SYNC);
 
   RegistrationUpdateResult result;
   registration_manager_->Register(
