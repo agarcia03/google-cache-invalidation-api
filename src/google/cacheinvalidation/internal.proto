@@ -19,6 +19,8 @@ syntax = "proto2";
 
 option optimize_for = LITE_RUNTIME;
 
+import "google/cacheinvalidation/types.proto";
+
 package invalidation;
 
 // A basic message type used for versioning public proto messages and/or

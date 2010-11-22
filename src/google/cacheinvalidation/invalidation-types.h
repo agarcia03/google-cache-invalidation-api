@@ -23,7 +23,9 @@
 #include <vector>
 
 #include "google/cacheinvalidation/internal.pb.h"
+#include "google/cacheinvalidation/logging.h"
 #include "google/cacheinvalidation/scoped_ptr.h"
+#include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/types.pb.h"
 
 namespace invalidation {
