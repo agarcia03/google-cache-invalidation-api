@@ -178,12 +178,13 @@ void RegistrationInfo::TakeData(ClientToServerMessage* message, Time now) {
 
 void RegistrationInfo::InvokeStateChangedCallback(
     RegistrationState new_state, const UnknownHint& unknown_hint) {
-  scoped_ptr<ObjectId> oid(ConvertFromObjectIdProto(object_id_));
+  ObjectId oid;
+  ConvertFromObjectIdProto(object_id_, &oid);
   resources_->ScheduleOnListenerThread(
       NewPermanentCallback(
           reg_manager_->listener_,
           &InvalidationListener::RegistrationStateChanged,
-          *oid.get(),
+          oid,
           new_state,
           unknown_hint));
 }

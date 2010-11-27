@@ -301,10 +301,12 @@ class InvalidationClientImplTest : public testing::Test {
 
     // Ask the Ticl to register for two objects.
     outbound_message_ready_ = false;
-    scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
-    scoped_ptr<ObjectId> oid2(ConvertFromObjectIdProto(object_id2_));
-    (ticl_.get()->*operation)(*oid1.get());
-    (ticl_.get()->*operation)(*oid2.get());
+    ObjectId oid1;
+    ObjectId oid2;
+    ConvertFromObjectIdProto(object_id1_, &oid1);
+    ConvertFromObjectIdProto(object_id2_, &oid2);
+    (ticl_.get()->*operation)(oid1);
+    (ticl_.get()->*operation)(oid2);
     resources_->ModifyTime(fine_throttle_interval_);
     resources_->RunReadyTasks();
     resources_->RunListenerTasks();
@@ -696,8 +698,9 @@ TEST_F(InvalidationClientImplTest, Unegistration) {
    */
   // Start in the REGISTERED state so we actually have something to do.
   TestRegistration(true);
-  scoped_ptr<ObjectId> oid2(ConvertFromObjectIdProto(object_id2_));
-  ticl_->Unregister(*oid2.get());
+  ObjectId oid2;
+  ConvertFromObjectIdProto(object_id2_, &oid2);
+  ticl_->Unregister(oid2);
   resources_->ModifyTime(
       fine_throttle_interval_ + TimeDelta::FromMilliseconds(500));
   resources_->RunReadyTasks();
@@ -760,11 +763,12 @@ TEST_F(InvalidationClientImplTest, RegistrationFailure) {
   string serialized;
   response.SerializeToString(&serialized);
 
-  scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
+  ObjectId oid1;
+  ConvertFromObjectIdProto(object_id1_, &oid1);
   EXPECT_CALL(
       *listener_,
       RegistrationStateChanged(
-          ObjectIdEq(*oid1.get()), RegistrationState_UNKNOWN, _));
+          ObjectIdEq(oid1), RegistrationState_UNKNOWN, _));
 
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
@@ -792,10 +796,11 @@ TEST_F(InvalidationClientImplTest, InvalidationP) {
   TestRegistration(true);
 
   Closure* callback = NULL;
-  scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
+  ObjectId oid1;
+  ConvertFromObjectIdProto(object_id1_, &oid1);
   EXPECT_CALL(*listener_, Invalidate(AllOf(
       Property(&Invalidation::version, InvalidationClientImplTest::VERSION),
-      Property(&Invalidation::object_id, ObjectIdEq(*oid1.get()))), _))
+      Property(&Invalidation::object_id, ObjectIdEq(oid1))), _))
       .WillOnce(SaveArg<1>(&callback));
 
   // Deliver an invalidation for an object.
@@ -1231,13 +1236,16 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   object_id4.mutable_name()->set_string_value("spontaneous-reg-object");
   object_id4.set_source(ObjectIdP_Source_CHROME_SYNC);
 
-  scoped_ptr<ObjectId> oid1(ConvertFromObjectIdProto(object_id1_));
-  scoped_ptr<ObjectId> oid2(ConvertFromObjectIdProto(object_id2_));
-  scoped_ptr<ObjectId> oid3(ConvertFromObjectIdProto(object_id3));
+  ObjectId oid1;
+  ObjectId oid2;
+  ObjectId oid3;
+  ConvertFromObjectIdProto(object_id1_, &oid1);
+  ConvertFromObjectIdProto(object_id2_, &oid2);
+  ConvertFromObjectIdProto(object_id3, &oid3);
 
-  ticl_->Register(*oid1.get());
-  ticl_->Register(*oid2.get());
-  ticl_->Register(*oid3.get());
+  ticl_->Register(oid1);
+  ticl_->Register(oid2);
+  ticl_->Register(oid3);
 
   // Wait for the next periodic check / message rate limit.
   resources_->ModifyTime(TimeDelta::FromSeconds(1));
@@ -1273,10 +1281,11 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   result->mutable_operation()->set_sequence_number(2);
   result->mutable_status()->set_code(Status_Code_SUCCESS);
 
-  scoped_ptr<ObjectId> oid4(ConvertFromObjectIdProto(object_id4));
+  ObjectId oid4;
+  ConvertFromObjectIdProto(object_id4, &oid4);
   EXPECT_CALL(*listener_,
               RegistrationStateChanged(
-                  ObjectIdEq(*oid4.get()),
+                  ObjectIdEq(oid4),
                   RegistrationState_REGISTERED,
                   _));
   registration_push_message.SerializeToString(&serialized);
@@ -1321,10 +1330,11 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   response.SerializeToString(&serialized);
   ticl_->network_endpoint()->HandleInboundMessage(serialized);
   resources_->RunReadyTasks();
-  scoped_ptr<ObjectId> object_id2(ConvertFromObjectIdProto(object_id2_));
+  ObjectId object_id2;
+  ConvertFromObjectIdProto(object_id2_, &object_id2);
   EXPECT_CALL(*listener_,
               RegistrationStateChanged(
-                  ObjectIdEq(*object_id2.get()),
+                  ObjectIdEq(object_id2),
                   RegistrationState_UNKNOWN,
                   Property(&UnknownHint::is_transient, false)));
   resources_->RunListenerTasks();
@@ -1333,10 +1343,11 @@ TEST_F(InvalidationClientImplTest, Persistence) {
   // object_id3.
   resources_->ModifyTime(TimeDelta::FromSeconds(80));
   resources_->RunReadyTasks();
-  scoped_ptr<ObjectId> tmp_object_id3(ConvertFromObjectIdProto(object_id3));
+  ObjectId tmp_object_id3;
+  ConvertFromObjectIdProto(object_id3, &tmp_object_id3);
   EXPECT_CALL(*listener_,
               RegistrationStateChanged(
-                  ObjectIdEq(*tmp_object_id3.get()),
+                  ObjectIdEq(tmp_object_id3),
                   RegistrationState_UNKNOWN,
                   Property(&UnknownHint::is_transient, true)));
   resources_->RunListenerTasks();

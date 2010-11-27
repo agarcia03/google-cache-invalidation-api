@@ -37,32 +37,45 @@ using INVALIDATION_STL_NAMESPACE::vector;
 // unregister for.
 class ObjectId {
  public:
+  // Constructs a default (uninitialized) ObjectId instance.
+  ObjectId() : is_initialized_(false) {}
+
   // Creates an object id for the given source and id name.
-  ObjectId(ObjectSource_Type source, const string& name) {
+  ObjectId(ObjectSource_Type source, const string& name)
+      : is_initialized_(false) {
     Init(source, name);
   }
 
   // Makes a copy of "from".
-  ObjectId(const ObjectId& from) {
+  ObjectId(const ObjectId& from) : is_initialized_(false) {
+    CHECK(from.is_initialized_);
     Init(from.source(), from.name());
   }
 
+  // Initializes the state of the object with the given source and name.
+  void Init(ObjectSource_Type source, const string& name) {
+    CHECK(!is_initialized_);  // Disallow re-initialization.
+    is_initialized_ = true;
+    source_ = source;
+    name_ = name;
+  }
+
   const ObjectSource_Type source() const {
+    CHECK(is_initialized_);
     return source_;
   }
 
   const string& name() const {
+    CHECK(is_initialized_);
     return name_;
   }
 
  private:
+  // Prevent implicit definition / use of assignment operator.
+  ObjectId& operator=(const ObjectId& other);
 
-  // Initializes the state of the object  with the given
-  // source and name.
-  void Init(ObjectSource_Type source, const string& name) {
-    source_ = source;
-    name_ = name;
-  }
+  // Whether this object has been initialized.
+  bool is_initialized_;
 
   // The property that hosts the object.
   ObjectSource_Type source_;
@@ -76,66 +89,93 @@ class ObjectId {
 // optional payload.
 class Invalidation {
  public:
-  //
+  // Constructs a default (uninitialized) invalidation instance.
+  Invalidation() : is_initialized_(false) {}
+
   // Creates an invalidation for the given object, version} and
   // optional/nullable payload} and optional/nullable component_stamp_log.
   // Ownership of payload and component_stamp_log is retained by the caller.
   Invalidation(const ObjectId& object_id, int64 version,
                const string* payload,
-               const ComponentStampLog* component_stamp_log)  {
+               const ComponentStampLog* component_stamp_log)
+      : is_initialized_(false) {
     Init(object_id, version, payload, component_stamp_log);
   }
 
-  Invalidation(const Invalidation& inv) {
-    Init(*inv.object_id_.get(), inv.version_, inv.payload(),
-         inv.component_stamp_log());
+  Invalidation(const Invalidation& inv) : is_initialized_(false) {
+    CHECK(inv.is_initialized_);
+    Init(inv.object_id_, inv.version_, inv.payload_.get(),
+         inv.component_stamp_log_.get());
   }
 
   const ObjectId& object_id() const {
-    return *object_id_.get();
+    CHECK(is_initialized_);
+    return object_id_;
   }
 
   int64 version() const {
+    CHECK(is_initialized_);
     return version_;
   }
 
-  // Returns the payload contained in this invalidation, if any.
-  // If no payload exists, returns NULL. Ownership of the
-  // returned result is retained by this.
-  const string* payload() const {
-    return payload_.get();
+  bool has_payload() const {
+    CHECK(is_initialized_);
+    return payload_.get() != NULL;
   }
 
-  // Returns the component stamp log contained in this invalidation, if any.
-  // If no component stamp log exists, returns NULL.  Ownership of the returned
-  // result is retained by this.
-  const ComponentStampLog* component_stamp_log() const {
-    return component_stamp_log_.get();
+  // Returns the payload contained in this invalidation.
+  // REQUIRES: has_payload().
+  const string& payload() const {
+    CHECK(is_initialized_);
+    CHECK(has_payload());
+    return *payload_.get();
   }
 
- private:
+  bool has_component_stamp_log() const {
+    CHECK(is_initialized_);
+    return component_stamp_log_.get() != NULL;
+  }
+
+  // Returns the component stamp log contained in this invalidation.
+  // REQUIRES: has_component_stamp_log().
+  const ComponentStampLog& component_stamp_log() const {
+    CHECK(is_initialized_);
+    CHECK(has_component_stamp_log());
+    return *component_stamp_log_.get();
+  }
+
   // Initializes the Invalidation obhect with the given fields.
   void Init(const ObjectId& object_id, int64 version,
             const string* payload,
             const ComponentStampLog* component_stamp_log) {
+    CHECK(!is_initialized_);  // Disallow re-initialization.
+    is_initialized_ = true;
+    object_id_.Init(object_id.source(), object_id.name());
     version_ = version;
-    object_id_.reset(new ObjectId(object_id));
 
     // Set the payload field only if any payload is present. Else leave it as
     // NULL (in the scoped_ptr).
     if (payload != NULL) {
       payload_.reset(new string(*payload));
     }
+
     // Set the component_stamp_log field only if any stamp log is present. Else
     // leave it as NULL (in the scoped_ptr).
-
     if (component_stamp_log != NULL) {
-      component_stamp_log_.reset(new ComponentStampLog(*component_stamp_log));
+      component_stamp_log_.reset(new ComponentStampLog);
+      component_stamp_log_->CopyFrom(*component_stamp_log);
     }
   }
 
+ private:
+  // Prevent implicit definition / use of assignment operator.
+  Invalidation& operator=(const Invalidation& inv);
+
+  // Whether this invalidation is initialized.
+  bool is_initialized_;
+
   // The object being invalidated/updated.
-  scoped_ptr<ObjectId> object_id_;
+  ObjectId object_id_;
 
   // The new version of the object.
   int64 version_;

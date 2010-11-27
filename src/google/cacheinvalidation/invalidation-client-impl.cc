@@ -229,8 +229,9 @@ void InvalidationClientImpl::Register(const ObjectId& oid) {
   EnsureStarted();
   TLOG(INFO_LEVEL, "Received register for %d/%s", oid.source(),
        oid.name().c_str());
-  scoped_ptr<ObjectIdP> object_id(ConvertToObjectIdProto(oid));
-  registration_manager_->Register(*object_id.get());
+  ObjectIdP object_id;
+  ConvertToObjectIdProto(oid, &object_id);
+  registration_manager_->Register(object_id);
 }
 
 void InvalidationClientImpl::Unregister(const ObjectId& oid) {
@@ -239,8 +240,9 @@ void InvalidationClientImpl::Unregister(const ObjectId& oid) {
   EnsureStarted();
   TLOG(INFO_LEVEL, "Received unregister for %d/%s", oid.source(),
        oid.name().c_str());
-  scoped_ptr<ObjectIdP> object_id(ConvertToObjectIdProto(oid));
-  registration_manager_->Unregister(*object_id.get());
+  ObjectIdP object_id;
+  ConvertToObjectIdProto(oid, &object_id);
+  registration_manager_->Unregister(object_id);
 }
 
 void InvalidationClientImpl::PermanentShutdown() {
@@ -367,10 +369,11 @@ void InvalidationClientImpl::ProcessInvalidation(
         NewPermanentCallback(listener_, &InvalidationListener::InvalidateAll,
                              callback));
   } else {
-    scoped_ptr<Invalidation> inv(ConvertFromInvalidationProto(invalidation));
+    Invalidation inv;
+    ConvertFromInvalidationProto(invalidation, &inv);
     resources_->ScheduleOnListenerThread(
-        NewPermanentCallback(listener_, &InvalidationListener::Invalidate,
-                             *inv.get(), callback));
+        NewPermanentCallback(listener_, &InvalidationListener::Invalidate, inv,
+                             callback));
   }
 }
 

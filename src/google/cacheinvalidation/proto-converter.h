@@ -24,33 +24,31 @@ namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
 
-// Converts an object id protocol buffer object_id to the corresponding
-// external type and returns it. Note that even if the object_id.source() is
-// not convertible (due to enum value in ObjectIdP_Source missing in
-// ObjectSource_Type's enum, an ObjectId is still returned (with an enum value
-// corresponding to no enum in ObjectSource_Type).
-// Caller owns returned object.
-ObjectId* ConvertFromObjectIdProto(const ObjectIdP& object_id);
+// Initializes an ObjectId from a raw protocol buffer representation.  Note that
+// even if the object_id.source() is not convertible (due to enum value in
+// ObjectIdP_Source missing in ObjectSource_Type's enum, result is still
+// initialized (with an enum value corresponding to no enum in
+// ObjectSource_Type).
+void ConvertFromObjectIdProto(const ObjectIdP& object_id, ObjectId* result);
 
-// Converts an object id object_id to the corresponding protocol buffer
-// and returns it. Note that even if the object_id.source() is
-// not convertible (due to enum value in ObjectSource_Type missing in
-// ObjectId_Source's enum, an ObjectIdP is still returned (with an enum value
-// corresponding to no enum in ObjectIdP_Source);
-// Caller owns returned object.
-ObjectIdP* ConvertToObjectIdProto(const ObjectId& object_id);
+// Initializes an object id protocol buffer from an ObjectId.  Note that even if
+// the object_id.source() is not convertible (due to enum value in
+// ObjectSource_Type missing in ObjectId_Source's enum, result is still
+// initialized (with an enum value corresponding to no enum in
+// ObjectIdP_Source).
+void ConvertToObjectIdProto(const ObjectId& object_id, ObjectIdP* result);
 
-// Converts an invalidation protocol buffer "invalidation" to the corresponding
-// external object and returns it. See discussion in ConvertFromObjectIdProto
-// for cases where the object id in "invalidation" has the wrong enum value.
-// Caller owns returned object.
-Invalidation* ConvertFromInvalidationProto(const InvalidationP& invalidation);
+// Initializes an Invalidation from a raw protocol buffer representation.  See
+// discussion in ConvertFromObjectIdProto for cases where the object id in
+// "invalidation" has the wrong enum value.
+void ConvertFromInvalidationProto(
+    const InvalidationP& invalidation, Invalidation* result);
 
-// Converts an invalidation "invalidation" to the corresponding protocol
-// buffer and returns it. See discussion in ConvertToObjectIdProto
-// for cases where the object id in "invalidation" has the wrong enum value)
-// Caller owns returned object.
-InvalidationP* ConvertToInvalidationProto(const Invalidation& invalidation);
+// Initializes an invalidation protocol buffer from an Invalidation. See
+// discussion in ConvertToObjectIdProto for cases where the object id in
+// "invalidation" has the wrong enum value).
+void ConvertToInvalidationProto(
+    const Invalidation& invalidation, InvalidationP* result);
 
 }  // namespace invalidation
 

@@ -20,27 +20,25 @@
 
 namespace invalidation {
 
-ObjectId* ConvertFromObjectIdProto(const ObjectIdP& object_id) {
+void ConvertFromObjectIdProto(const ObjectIdP& object_id, ObjectId* result) {
   // Just extract the components and call the constructor while
   // casting the enum.
-  ObjectId* result = new ObjectId((ObjectSource_Type) object_id.source(),
-                                  object_id.name().string_value());
-  return result;
+  result->Init((ObjectSource_Type) object_id.source(),
+               object_id.name().string_value());
 }
 
-ObjectIdP* ConvertToObjectIdProto(const ObjectId& object_id) {
+void ConvertToObjectIdProto(const ObjectId& object_id, ObjectIdP* result) {
   // Just extract the components and call the constructor while
   // casting the enum.
-  ObjectIdP* result = new ObjectIdP();
   result->mutable_name()->set_string_value(object_id.name());
   ObjectIdP_Source proto_source = (ObjectIdP_Source) object_id.source();
   result->set_source(proto_source);
-  return result;
 }
 
-Invalidation* ConvertFromInvalidationProto(const InvalidationP& invalidation) {
-  scoped_ptr<ObjectId> object_id(
-      ConvertFromObjectIdProto(invalidation.object_id()));
+void ConvertFromInvalidationProto(
+    const InvalidationP& invalidation, Invalidation* result) {
+  ObjectId object_id;
+  ConvertFromObjectIdProto(invalidation.object_id(), &object_id);
 
   // Initialize the optional payload and component stamp
   // log fields if they are present. Else set them to NULL.
@@ -49,34 +47,30 @@ Invalidation* ConvertFromInvalidationProto(const InvalidationP& invalidation) {
   const ComponentStampLog* component_stamp_log =
       invalidation.has_component_stamp_log() ?
           &invalidation.component_stamp_log() : NULL;
-  Invalidation* result = new Invalidation(*object_id.get(),
-                                          invalidation.version(),
-                                          payload,
-                                          component_stamp_log);
-  return result;
+
+  result->Init(object_id, invalidation.version(), payload, component_stamp_log);
 }
 
-InvalidationP* ConvertToInvalidationProto(const Invalidation& invalidation) {
-  InvalidationP *result = new InvalidationP();
-  scoped_ptr<ObjectIdP> object_id_proto(
-      ConvertToObjectIdProto(invalidation.object_id()));
+void ConvertToInvalidationProto(
+    const Invalidation& invalidation, InvalidationP* result) {
+  ObjectIdP object_id_proto;
+  ConvertToObjectIdProto(invalidation.object_id(), &object_id_proto);
 
   result->set_version(invalidation.version());
-  result->mutable_object_id()->CopyFrom(*object_id_proto.get());
+  result->mutable_object_id()->CopyFrom(object_id_proto);
 
   // Initialize the optional payload and component stamp
   // log fields if they are present. Else let them be unset in the proto.
-  if (invalidation.payload() != NULL) {
+  if (invalidation.has_payload()) {
     StringOrBytesP payload_proto;
-    payload_proto.set_string_value(*invalidation.payload());
+    payload_proto.set_string_value(invalidation.payload());
     result->mutable_payload()->CopyFrom(payload_proto);
   }
 
-  if (invalidation.component_stamp_log() != NULL) {
+  if (invalidation.has_component_stamp_log()) {
     result->mutable_component_stamp_log()->CopyFrom(
-        *invalidation.component_stamp_log());
+        invalidation.component_stamp_log());
   }
-  return result;
 }
 
 }  // namespace invalidation
