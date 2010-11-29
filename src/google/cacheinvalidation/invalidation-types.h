@@ -60,7 +60,7 @@ class ObjectId {
     name_ = name;
   }
 
-  const ObjectSource_Type source() const {
+  const ObjectSource_Type& source() const {
     CHECK(is_initialized_);
     return source_;
   }
