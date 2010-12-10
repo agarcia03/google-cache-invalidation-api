@@ -14,6 +14,7 @@
 
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 
+#include <sstream>
 #include <string>
 
 #include "google/cacheinvalidation/log-macro.h"
@@ -22,6 +23,20 @@
 #include "google/cacheinvalidation/stl-namespace.h"
 
 namespace invalidation {
+
+namespace {
+
+// Used by HandleNewSession().
+string EscapeChars(const string& str) {
+  ostringstream oss;
+  for (int i = 0; i < str.size(); ++i) {
+    int x = str[i];
+    oss << "\\x" << hex << x;
+  }
+  return oss.str();
+}
+
+}  // namespace
 
 using INVALIDATION_STL_NAMESPACE::string;
 
@@ -259,14 +274,13 @@ void InvalidationClientImpl::HandleNewSession() {
   // - Tell the network manager that there was an implicit heartbeat.
   // - Attempt to write back the new session token to persistent storage.
   // - Inform the application that we have a session.
-  string client_uniquifier = session_manager_->client_uniquifier();
-
-  TLOG(INFO_LEVEL, "Received new session: %s", client_uniquifier.c_str());
+  const string& uniquifier = session_manager_->client_uniquifier();
+  const string& uniquifier_escaped = EscapeChars(uniquifier);
+  TLOG(INFO_LEVEL, "Received new session: %s", uniquifier_escaped.c_str());
 
   registration_manager_->HandleNewSession();
   network_manager_.RecordImplicitHeartbeat();
   TiclState state;
-  string uniquifier = session_manager_->client_uniquifier();
   state.set_uniquifier(uniquifier);
   state.set_session_token(session_manager_->session_token());
   state.set_sequence_number_limit(
