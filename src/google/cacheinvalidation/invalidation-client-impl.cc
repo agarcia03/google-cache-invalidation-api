@@ -26,6 +26,8 @@ namespace invalidation {
 
 namespace {
 
+using INVALIDATION_STL_NAMESPACE::ostringstream;
+
 // Used by HandleNewSession().
 string EscapeChars(const string& str) {
   ostringstream oss;
