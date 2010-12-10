@@ -26,6 +26,7 @@ namespace invalidation {
 
 namespace {
 
+using INVALIDATION_STL_NAMESPACE::hex;
 using INVALIDATION_STL_NAMESPACE::ostringstream;
 
 // Used by HandleNewSession().
