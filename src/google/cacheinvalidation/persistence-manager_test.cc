@@ -3,12 +3,12 @@
 //
 // Tests the PersistenceManager.
 
-#include "google/cacheinvalidation/include/callback.h"
-#include "google/cacheinvalidation/include/gmock.h"
-#include "google/cacheinvalidation/include/googletest.h"
-#include "google/cacheinvalidation/include/scoped_ptr.h"
+#include "google/cacheinvalidation/callback.h"
+#include "google/cacheinvalidation/gmock.h"
+#include "google/cacheinvalidation/googletest.h"
+#include "google/cacheinvalidation/scoped_ptr.h"
 #include "google/cacheinvalidation/persistence-manager.h"
-#include "google/cacheinvalidation/test/system-resources-for-test.h"
+#include "google/cacheinvalidation/system-resources-for-test.h"
 
 namespace invalidation {
 
