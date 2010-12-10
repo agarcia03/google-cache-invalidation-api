@@ -14,7 +14,6 @@
 
 #include <queue>
 
-#include "base/scoped_ptr.h"
 #include "google/cacheinvalidation/gmock.h"
 #include "google/cacheinvalidation/googletest.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"

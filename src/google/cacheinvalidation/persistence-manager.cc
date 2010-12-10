@@ -19,12 +19,10 @@
 namespace invalidation {
 
 PersistenceManager::~PersistenceManager() {
-  // Run (with 'false', since we never got around to issuing the write) and
-  // delete any queued up callbacks.
+  // Delete any queued up callbacks.
   while (!pending_writes_.empty()) {
     PendingRecord pending_record = pending_writes_.front();
     pending_writes_.pop();
-    pending_record.callback->Run(false);
     delete pending_record.callback;
   }
 }

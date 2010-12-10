@@ -49,7 +49,9 @@ class PersistenceManager {
   // Frees callbacks from queued writes.
   ~PersistenceManager();
 
-  // Enqueues a write.
+  // Enqueues a write.  Takes ownership of callback.  callback is not
+  // guaranteed to be called (e.g., if the PersistenceManager is
+  // destroyed before the write completes).
   void WriteState(const string& state, StorageCallback* callback) {
     CHECK(IsCallbackRepeatable(callback));
     pending_writes_.push(PendingRecord(state, callback));
