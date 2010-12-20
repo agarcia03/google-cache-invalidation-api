@@ -19,6 +19,7 @@
 #define GOOGLE_CACHEINVALIDATION_VERSION_MANAGER_H_
 
 #include <set>
+#include <string>
 
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/stl-namespace.h"
@@ -26,12 +27,14 @@
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::set;
+using INVALIDATION_STL_NAMESPACE::string;
 
 class VersionManager {
  public:
   // Constructs a version manager: client_info contains additional details about
   // the client platform, which will be included in the client version.
-  VersionManager(const string& client_info) : client_info_(client_info) {}
+  explicit VersionManager(const string& client_info) :
+      client_info_(client_info) {}
 
   // Indicates to the manager that it supports the given major protocol version
   // number.

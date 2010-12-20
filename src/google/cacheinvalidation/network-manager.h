@@ -15,6 +15,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_NETWORK_MANAGER_H_
 #define GOOGLE_CACHEINVALIDATION_NETWORK_MANAGER_H_
 
+#include <string>
+
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/random.h"
@@ -29,6 +31,8 @@ struct ClientConfig;
 class InvalidationClientImpl;
 class NetworkEndpoint;
 class SystemResources;
+
+using INVALIDATION_STL_NAMESPACE::string;
 
 /* Keeps track of whether there is outbound data to be sent and informs the
  * application when appropriate.  Handles heartbeats and updates the heartbeat
