@@ -21,6 +21,7 @@
 #include "google/cacheinvalidation/throttle.h"
 #include "google/cacheinvalidation/time.h"
 #include "google/cacheinvalidation/types.pb.h"
+#include "google/cacheinvalidation/version-manager.h"
 
 namespace invalidation {
 
@@ -41,7 +42,7 @@ class NetworkManager {
    * configuration parameters.
    */
   NetworkManager(NetworkEndpoint* endpoint, SystemResources* resources,
-                 const ClientConfig& config);
+                 const string& client_info, const ClientConfig& config);
 
   // Adds a heartbeat action to the message, if it's time to do so.
   void AddHeartbeat(ClientToServerMessage* message);
@@ -136,6 +137,9 @@ class NetworkManager {
 
   /* Random number generator for smearing. */
   Random random_;
+
+  /* Keeps track of supported protocol and client versions. */
+  VersionManager version_manager_;
 
   /* The maximum delay for the timer that checks whether to send a heartbeat.
    */

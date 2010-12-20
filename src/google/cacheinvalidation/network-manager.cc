@@ -31,7 +31,7 @@ using INVALIDATION_STL_NAMESPACE::min;
 
 NetworkManager::NetworkManager(
     NetworkEndpoint* endpoint, SystemResources* resources,
-    const ClientConfig& config)
+    const string& client_info, const ClientConfig& config)
     : endpoint_(endpoint),
       resources_(resources),
       // Set the throttler up with rate limits defined by the config.
@@ -45,7 +45,8 @@ NetworkManager::NetworkManager(
       next_heartbeat_(Time() - TimeDelta::FromHours(1)),
       heartbeat_delay_(config.initial_heartbeat_interval),
       message_number_(0),
-      random_(resources->current_time().ToInternalValue()) {
+      random_(resources->current_time().ToInternalValue()),
+      version_manager_(client_info) {
 }
 
 void NetworkManager::OutboundDataReady() {
@@ -110,7 +111,7 @@ void NetworkManager::FinalizeOutboundMessage(ClientToServerMessage* message) {
   // Set the protocol version that we want to use.
   VersionManager::GetLatestProtocolVersion(message->mutable_protocol_version());
   // Set the client version.
-  VersionManager::GetClientVersion(message->mutable_client_version());
+  version_manager_.GetClientVersion(message->mutable_client_version());
   // Set a timestamp on the message.  Internal time is in microseconds, so
   // divide to get milliseconds.
   message->set_timestamp(resources_->current_time().ToInternalValue() /

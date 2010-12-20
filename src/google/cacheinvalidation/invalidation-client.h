@@ -358,12 +358,16 @@ class InvalidationClient {
 
   // Constructs an invalidation client:
   //
+  // resources - the system resources for logging, scheduling, etc.
+  //
   // client_type - the type of the application (e.g., CHROME)
   //
-  // client_id - a name that the application assigns to identify the client
+  // app_client_id - a name that the application assigns to identify the client
   //     (e.g, user@gmail.com/some-random-string)
   //
-  // resources - the system resources for logging, scheduling, etc.
+  // client_info - additional information about the client platform, flowed to
+  //     the server (e.g., application and operating system versions) for
+  //     diagnostics and debugging
   //
   // persisted_state - previously persisted state for this client, or an empty
   //     string if the client is starting fresh
@@ -376,7 +380,8 @@ class InvalidationClient {
   // the returned ticl.
   static InvalidationClient* Create(
       SystemResources* resources, const ClientType& client_type,
-      const string& client_id, InvalidationListener *listener);
+      const string& app_client_id, const string& client_info,
+      InvalidationListener *listener);
 
   // TODO(ghc): allow Create() to take configuration parameters.
 

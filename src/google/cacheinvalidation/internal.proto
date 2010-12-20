@@ -107,6 +107,10 @@ message ClientVersion {
 
   // Flavor-specific version number.
   optional Version version = 2;
+
+  // Additional information about the client (e.g., operating system and
+  // application version).
+  optional string client_info = 3;
 }
 
 // Possible statuses of operations.

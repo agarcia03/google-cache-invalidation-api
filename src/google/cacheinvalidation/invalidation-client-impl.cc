@@ -67,6 +67,7 @@ InvalidationClientImpl::InvalidationClientImpl(
     SystemResources* resources,
     const ClientType& client_type,
     const string& app_name,
+    const string& client_info,
     const ClientConfig& config,
     InvalidationListener* listener)
   : resources_(resources),
@@ -75,7 +76,7 @@ InvalidationClientImpl::InvalidationClientImpl(
     listener_(listener),
     config_(config),
     network_manager_(ALLOW_THIS_IN_INITIALIZER_LIST(this),
-                     resources, config),
+                     resources, client_info, config),
     persistence_manager_(resources_),
     awaiting_seqno_writeback_(false),
     is_started_(false),

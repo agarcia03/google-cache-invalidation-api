@@ -29,7 +29,9 @@ using INVALIDATION_STL_NAMESPACE::set;
 
 class VersionManager {
  public:
-  VersionManager() {}
+  // Constructs a version manager: client_info contains additional details about
+  // the client platform, which will be included in the client version.
+  VersionManager(const string& client_info) : client_info_(client_info) {}
 
   // Indicates to the manager that it supports the given major protocol version
   // number.
@@ -40,13 +42,16 @@ class VersionManager {
   bool ProtocolVersionSupported(const ServerToClientMessage& message);
 
   // Stores the version of this client implementation in client_version.
-  static void GetClientVersion(ClientVersion* client_version);
+  void GetClientVersion(ClientVersion* client_version);
 
   // Stores the latest protocol version that this client understands in
   // protocol_version.
   static void GetLatestProtocolVersion(ProtocolVersion* protocol_version);
 
  private:
+  // Details about the client platform to be included in the client version.
+  string client_info_;
+
   // The set of major versions supported by this client.
   set<int32> supported_major_versions_;
 };

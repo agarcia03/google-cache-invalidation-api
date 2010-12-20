@@ -49,6 +49,7 @@ class InvalidationClientImpl : public InvalidationClient, NetworkEndpoint {
   InvalidationClientImpl(SystemResources* resources,
                          const ClientType& client_type,
                          const string& app_name,
+                         const string& client_info,
                          const ClientConfig& config,
                          InvalidationListener* listener);
 

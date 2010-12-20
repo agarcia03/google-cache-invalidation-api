@@ -78,25 +78,9 @@ class SessionManager {
         resources_(resources),
         uniquifier_(uniquifier),
         session_token_(session_token),
-        shutdown_(false) {
-    AddSupportedProtocolVersions();
-    UpdateState();
-  }
-
-  /* Constructs a session manager with a specified client id. */
-  SessionManager(const ClientConfig& config, ClientType client_type,
-                 const string& app_client_id, SystemResources* resources,
-                 const string& client_internal_id)
-      : config_(config),
-        client_type_(client_type),
-        app_client_id_(app_client_id),
-        nonce_(-1),
-        last_send_time_(Time() - TimeDelta::FromHours(1)),
-        session_attempt_count_(0),
-        resources_(resources),
-        uniquifier_(client_internal_id),
-        session_token_(""),
-        shutdown_(false) {
+        shutdown_(false),
+        // Version manager doesn't need client info for session manager.
+        version_manager_("") {
     AddSupportedProtocolVersions();
     UpdateState();
   }

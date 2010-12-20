@@ -107,6 +107,9 @@ class InvalidationClientImplTest : public testing::Test {
   /* A name for the application. */
   static const char* APP_NAME;
 
+  /* Fake client information for testing. */
+  static const char* CLIENT_INFO;
+
   /* Fake data for a session token. */
   static const char* OPAQUE_DATA;
 
@@ -184,13 +187,16 @@ class InvalidationClientImplTest : public testing::Test {
 
     // Check that the message specifies the client's version.
     ClientVersion expected_client_version;
-    VersionManager::GetClientVersion(&expected_client_version);
+    VersionManager version_manager(CLIENT_INFO);
+
+    version_manager.GetClientVersion(&expected_client_version);
     ASSERT_EQ(message.client_version().version().major_version(),
               expected_client_version.version().major_version());
     ASSERT_EQ(message.client_version().version().minor_version(),
               expected_client_version.version().minor_version());
     ASSERT_EQ(message.client_version().flavor(),
               expected_client_version.flavor());
+    ASSERT_EQ(message.client_version().client_info(), CLIENT_INFO);
 
     // Check that the message supplied a timestamp.
     ASSERT_EQ(message.timestamp(),
@@ -529,7 +535,7 @@ class InvalidationClientImplTest : public testing::Test {
     ClientType client_type;
     client_type.set_type(ClientType_Type_CHROME_SYNC);
     ticl_.reset(new InvalidationClientImpl(
-        resources_.get(), client_type, APP_NAME, ticl_config,
+        resources_.get(), client_type, APP_NAME, CLIENT_INFO, ticl_config,
         listener_.get()));
     reg_results_.clear();
   }
@@ -540,6 +546,7 @@ class InvalidationClientImplTest : public testing::Test {
 };
 
 const char* InvalidationClientImplTest::APP_NAME = "app_name";
+const char* InvalidationClientImplTest::CLIENT_INFO = "unit test client";
 const char* InvalidationClientImplTest::OPAQUE_DATA = "opaque_data";
 const int64 InvalidationClientImplTest::VERSION = 5;
 
@@ -1190,7 +1197,8 @@ TEST_F(InvalidationClientImplTest, Persistence) {
                       SaveArg<1>(&storage_callback)));
 
   ticl_.reset(new InvalidationClientImpl(
-      resources_.get(), client_type, APP_NAME, ticl_config, listener_.get()));
+      resources_.get(), client_type, APP_NAME, CLIENT_INFO, ticl_config,
+      listener_.get()));
   ticl_->Start(state);
   ticl_->network_endpoint()->RegisterOutboundListener(network_listener_.get());
 
