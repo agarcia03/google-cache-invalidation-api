@@ -361,6 +361,13 @@ class InvalidationClientImplTest : public testing::Test {
     outbound_message_ready_ = false;
     MakeAndCheckRegistrations(is_register);
 
+    // Let some time pass to allow the periodic task to run before the responses
+    // are received.  This catches a bug where the Ticl was issuing a timeout
+    // too early.
+    resources_->ModifyTime(TimeDelta::FromSeconds(1));
+    resources_->RunReadyTasks();
+    resources_->RunListenerTasks();
+
     // Construct responses and let the Ticl process them.
     ServerToClientMessage response;
     RegistrationUpdateResult* result1 = response.add_registration_result();

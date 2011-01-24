@@ -145,6 +145,7 @@ void RegistrationInfo::CheckTimeout(Time now, TimeDelta deadline) {
   if (now < *send_time_ + deadline) {
     TLOG(INFO_LEVEL, "%s not timed out since deadline not exceeded",
          GetObjectName(object_id_));
+    return;
   }
 
   // We've timed out.
