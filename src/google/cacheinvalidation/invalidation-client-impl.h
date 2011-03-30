@@ -1,4 +1,4 @@
-// Copyright 2010 Google Inc.
+// Copyright 2011 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include <map>
 #include <vector>
 
-#include "base/scoped_ptr.h"
 #include "google/cacheinvalidation/compiler-specific.h"
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/mutex.h"
@@ -29,6 +28,7 @@
 #include "google/cacheinvalidation/persistence-utils.h"
 #include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/registration-update-manager.h"
+#include "google/cacheinvalidation/scoped_ptr.h"
 #include "google/cacheinvalidation/session-manager.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 
