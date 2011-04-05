@@ -854,8 +854,7 @@ TEST_F(InvalidationClientImplTest, InvalidationP) {
             client_message.acked_invalidation(0).version());
   ASSERT_TRUE(
       ObjectIdPsEqual(object_id1_,
-
-                     client_message.acked_invalidation(0).object_id()));
+                      client_message.acked_invalidation(0).object_id()));
 }
 
 TEST_F(InvalidationClientImplTest, SessionSwitch) {
