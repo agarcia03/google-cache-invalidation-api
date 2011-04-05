@@ -32,7 +32,7 @@ using INVALIDATION_STL_NAMESPACE::ostringstream;
 // Used by HandleNewSession().
 string EscapeChars(const string& str) {
   ostringstream oss;
-  for (int i = 0; i < str.size(); ++i) {
+  for (string::size_type i = 0; i < str.size(); ++i) {
     int x = str[i];
     oss << "\\x" << hex << x;
   }

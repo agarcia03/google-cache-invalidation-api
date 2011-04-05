@@ -172,7 +172,7 @@ MessageAction SessionManager::ProcessAssignClientId(
   }
 
   // Ignore the message if its nonce does not match our nonce.
-  if (nonce_ != message.nonce()) {
+  if (nonce_ != static_cast<int64>(message.nonce())) {
     TLOG(INFO_LEVEL,
          "Ignoring assign-client-id message with non-matching nonce: "
          "%lld vs %lld", nonce_, message.nonce());

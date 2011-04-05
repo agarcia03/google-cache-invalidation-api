@@ -15,6 +15,7 @@
 #include "google/cacheinvalidation/registration-update-manager.h"
 
 #include "google/cacheinvalidation/callback.h"
+#include "google/cacheinvalidation/compiler-specific.h"
 #include "google/cacheinvalidation/invalidation-client.h"
 #include "google/cacheinvalidation/invalidation-client-impl.h"
 #include "google/cacheinvalidation/logging.h"
@@ -416,7 +417,7 @@ RegistrationUpdateManager::RegistrationUpdateManager(
       current_op_seqno_(current_op_seqno),
       maximum_op_seqno_inclusive_(current_op_seqno_ - 1),
       config_(config),
-      registration_info_store_(this) {}
+      registration_info_store_(ALLOW_THIS_IN_INITIALIZER_LIST(this)) {}
 
 RegistrationUpdateManager::~RegistrationUpdateManager() {
 }
