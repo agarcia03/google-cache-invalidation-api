@@ -200,8 +200,9 @@ class InvalidationClientImplTest : public testing::Test {
 
     // Check that the message supplied a timestamp.
     ASSERT_EQ(message.timestamp(),
-              resources_->current_time().ToInternalValue() /
-              Time::kMicrosecondsPerMillisecond);
+              static_cast<uint64>(
+                  resources_->current_time().ToInternalValue() /
+                  Time::kMicrosecondsPerMillisecond));
 
     // Check that the message contains an "assign client id" type.
     ASSERT_TRUE(message.has_message_type());
@@ -848,8 +849,8 @@ TEST_F(InvalidationClientImplTest, InvalidationP) {
   ASSERT_TRUE(outbound_message_ready_);
   ticl_->network_endpoint()->TakeOutboundMessage(&serialized);
   client_message.ParseFromString(serialized);
-  ASSERT_EQ(client_message.acked_invalidation_size(), 1);
-  ASSERT_EQ(InvalidationClientImplTest::VERSION,
+  ASSERT_EQ(1, client_message.acked_invalidation_size());
+  ASSERT_EQ(static_cast<uint64>(InvalidationClientImplTest::VERSION),
             client_message.acked_invalidation(0).version());
   ASSERT_TRUE(
       ObjectIdPsEqual(object_id1_,
