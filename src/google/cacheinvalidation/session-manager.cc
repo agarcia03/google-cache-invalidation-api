@@ -51,6 +51,7 @@ bool SessionManager::IsMessageIntendedForClient(
 
     default:
       CHECK(false);
+      return false;
   }
 }
 
