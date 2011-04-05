@@ -676,6 +676,7 @@ bool RegistrationUpdateManager::DoPeriodicRegistrationCheck() {
 
     default:
       CHECK(false);
+      result = false;
   }
   CheckRep();
   return result;
