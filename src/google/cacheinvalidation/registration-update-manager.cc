@@ -240,6 +240,7 @@ RegState RegistrationInfo::GetRegistrationState() {
       return RegState_UNREGISTERED;
     default:
       CHECK(false);  // Unknown state -- crash.
+      return RegState_UNREGISTERED;
   }
 }
 
