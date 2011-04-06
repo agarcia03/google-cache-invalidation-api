@@ -46,3 +46,12 @@ message ObjectSource {
   }
   optional Type type = 1;
 }
+
+// A dummy message to enclose various enum constant declarations.
+message Constants {
+  // Constants related to object versions.
+  enum ObjectVersion {
+    // Version number used to indicate that an object's version is unknown.
+    UNKNOWN = 0;
+  }
+}

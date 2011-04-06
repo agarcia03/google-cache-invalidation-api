@@ -215,6 +215,9 @@ class InvalidationListener {
   // session, depending on the value of has_session.  This is purely for
   // informational purposes and may safely be ignored.
   virtual void SessionStatusChanged(bool has_session) {}
+
+  // Number used to indicate that an object's version is unknown.
+  static const int UNKNOWN_OBJECT_VERSION = Constants_ObjectVersion_UNKNOWN;
 };
 
 // -----------------------------------------------------------------------------

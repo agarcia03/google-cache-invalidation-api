@@ -399,8 +399,10 @@ void InvalidationClientImpl::AcknowledgeInvalidation(
     const InvalidationP& invalidation) {
 
   MutexLock m(&lock_);
-  pending_invalidation_acks_.push_back(invalidation);
-  network_manager_.OutboundDataReady();
+  if (invalidation.version() != InvalidationListener::UNKNOWN_OBJECT_VERSION) {
+    pending_invalidation_acks_.push_back(invalidation);
+    network_manager_.OutboundDataReady();
+  }
 }
 
 void InvalidationClientImpl::ScheduleAcknowledgeInvalidation(
