@@ -399,7 +399,8 @@ void InvalidationClientImpl::AcknowledgeInvalidation(
     const InvalidationP& invalidation) {
 
   MutexLock m(&lock_);
-  if (invalidation.version() != InvalidationListener::UNKNOWN_OBJECT_VERSION) {
+  if (invalidation.version() !=
+      static_cast<uint64>(InvalidationListener::UNKNOWN_OBJECT_VERSION)) {
     pending_invalidation_acks_.push_back(invalidation);
     network_manager_.OutboundDataReady();
   }
