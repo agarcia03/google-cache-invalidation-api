@@ -19,7 +19,7 @@ package com.google.ipc.invalidation.external.android;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.createServiceIntent;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.putAccount;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.putAckToken;
-import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.putClientId;
+import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.putClientKey;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.putObjectId;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.putSender;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.putSource;
@@ -33,10 +33,10 @@ import com.google.ipc.invalidation.external.android.intents.InvalidationIntents.
 
 import android.accounts.Account;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-
-import javax.annotation.Nullable;
+import android.util.Log;
 
 /**
  * Implementation of the {@link InvalidationClient} interface for Android.
@@ -50,15 +50,18 @@ import javax.annotation.Nullable;
  */
 final class AndroidInvalidationClient implements InvalidationClient {
 
+  /** Logging tag */
+  private static final String TAG = "AndroidInvalidationClient";
+
   /**
    * The application context associated with the client.
    */
   public final Context context;
 
   /**
-   * Contains the application identifier associated with this client.
+   * Contains the device-unique client key associated with this client.
    */
-  private final String appId;
+  private final String clientKey;
 
   /**
    * The Account associated with this client. May be {@code null} for resumed
@@ -79,65 +82,86 @@ final class AndroidInvalidationClient implements InvalidationClient {
   private final boolean isResumed;
 
   /**
-   * Creates a new invalidation client with the provided application id and
+   * Creates a new invalidation client with the provided client key and
    * account that sends invalidation events to the specified component.
    *
    * @param context the execution context for the client.
-   * @param clientId a unique id that identifies the created client within the
-   *        scope of the application.   May be {@code null} if there is only a
-   *        single invalidation client/listener for the application.
+   * @param clientKey a unique id that identifies the created client within the
+   *        scope of the application.
    * @param account the user account associated with the client.
    * @param listenerClass the {@link AndroidInvalidationListener} subclass that
    *        will handle invalidation events.
    */
-  AndroidInvalidationClient(Context context, @Nullable String clientId, Account account,
+  AndroidInvalidationClient(Context context, String clientKey, Account account,
       Class<? extends AndroidInvalidationListener> listenerClass) {
     this.context = context;
-    this.appId = computeAppId(context, clientId);
+    this.clientKey = clientKey;
     this.account = account;
     this.listenerClass = listenerClass;
     this.isResumed = false;
   }
 
   /**
-   * Constructs a resumed invalidation client with the provided application id
+   * Constructs a resumed invalidation client with the provided client key
    * and context.
    *
    * @param context the application context for the client.
-   * @param clientId a unique id that identifies the resumed client within the
-   *        scope of the application.   May be {@code null} if there is only a
-   *        single invalidation client/listener for the application.
+   * @param clientKey a unique id that identifies the resumed client within the
+   *        scope of the device.
    */
-  AndroidInvalidationClient(Context context, String clientId) {
-    this.appId = computeAppId(context, clientId);
+  AndroidInvalidationClient(Context context, String clientKey) {
+    this.clientKey = clientKey;
     this.context = context;
     this.account = null;
     this.listenerClass = null;
     this.isResumed = true;
   }
 
+  /**
+   * Returns the {@link Context} within which the client was created or resumed.
+   */
+  Context getContext() {
+    return context;
+  }
+
+  /**
+   * Returns the {@link Account} associated with the client or {@code null} if
+   * unknown (when resumed).
+   */
+  Account getAccount() {
+    return account;
+  }
+
+  /**
+   * Returns the event listener class associated with the client or {@code null}
+   * if unknown (when resumed).
+   */
+  Class<? extends AndroidInvalidationListener> getListenerClass() {
+    return listenerClass;
+  }
+
   @Override
   public void start() {
     if (!isResumed) {
       Intent intent = createServiceIntent(Actions.CREATE);
-      putClientId(intent, appId);
+      putClientKey(intent, clientKey);
       putAccount(intent, account);
 
       // Create an event intent that targets the requested listener and use it
-      // to derive and intent sender that can be passed to the service.
+      // to derive an intent sender that can be passed to the service.
       Intent eventIntent = new Intent(context, listenerClass);
       eventIntent.addCategory(InvalidationIntents.EVENT_CATEGORY);
       PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, eventIntent, 0);
       putSender(intent, pendingIntent.getIntentSender());
-      context.startService(intent);
+      startService(intent);
     }
   }
 
   /**
-   * Returns the application id for this client.
+   * Returns the client key for this client.
    */
-  public String getAppId() {
-    return appId;
+  public String getClientKey() {
+    return clientKey;
   }
 
   /**
@@ -151,12 +175,12 @@ final class AndroidInvalidationClient implements InvalidationClient {
   public void setAuthToken(int source, String authToken) {
     Preconditions.checkNotNull(source);
     Intent intent = createServiceIntent(Actions.SET_AUTH);
-    putClientId(intent, appId);
+    putClientKey(intent, clientKey);
     putSource(intent, source);
     if (authToken != null) {
       intent.putExtra(Extras.AUTH_TOKEN, authToken);
     }
-    context.startService(intent);
+    startService(intent);
   }
 
   /**
@@ -167,9 +191,9 @@ final class AndroidInvalidationClient implements InvalidationClient {
   public void register(ObjectId objectId) {
     Preconditions.checkNotNull(objectId);
     Intent intent = createServiceIntent(Actions.REGISTER);
-    putClientId(intent, appId);
+    putClientKey(intent, clientKey);
     putObjectId(intent, objectId);
-    context.startService(intent);
+    startService(intent);
   }
 
   /**
@@ -180,26 +204,25 @@ final class AndroidInvalidationClient implements InvalidationClient {
   public void unregister(ObjectId objectId) {
     Preconditions.checkNotNull(objectId);
     Intent intent = createServiceIntent(Actions.UNREGISTER);
-    putClientId(intent, appId);
+    putClientKey(intent, clientKey);
     putObjectId(intent, objectId);
-    context.startService(intent);
+    startService(intent);
   }
 
   @Override
   public void acknowledge(AckToken ackToken) {
     Preconditions.checkNotNull(ackToken, "ackToken");
     Intent intent = createServiceIntent(Actions.ACKNOWLEDGE);
-    putClientId(intent, appId);
+    putClientKey(intent, clientKey);
     putAckToken(intent, ackToken);
-    context.startService(intent);
+    startService(intent);
   }
 
-  private static final String computeAppId(Context context, String clientId) {
-    StringBuilder builder = new StringBuilder(context.getApplicationInfo().packageName);
-    if (clientId != null) {
-      builder.append("-");
-      builder.append(clientId);
+  private void startService(Intent intent) {
+    ComponentName component = context.startService(intent);
+    if (component == null) {
+      Log.e(TAG, "Invalidation service cannot be started");
+      throw new IllegalStateException("Cannot start invalidation service");
     }
-    return builder.toString();
   }
 }

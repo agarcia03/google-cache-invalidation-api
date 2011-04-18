@@ -52,8 +52,8 @@ public class InvalidationIntents {
 
     /**
      * Requests a new invalidation client be started by the invalidation
-     * service.   This action is idempotent if there is already an existing
-     * client with the same id, account, sender combination.l
+     * service. This action is idempotent if there is already an existing client
+     * with the same id, account, sender combination.l
      * <p>
      * This intent will contain the following extras:
      * <ul>
@@ -116,7 +116,7 @@ public class InvalidationIntents {
      * acknowledged event.</li.
      * </ul>.
      */
-    public static final String ACKNOWLEDGE = BASE + "action.ACCEPT";
+    public static final String ACKNOWLEDGE = BASE + "action.ACKNOWLEDGE";
   }
 
   /**
@@ -152,7 +152,7 @@ public class InvalidationIntents {
      * <p>
      * This intent will contain the following extras:
      * <ul>
-     * <li>{@link Extras#CLIENT}: identifies the target application.</li>
+     * <li>{@link Extras#CLIENT}: identifies the target client.</li>
      * <li>{@link Extras#INVALIDATION}: the object invalidation.</li>
      * <li>{@link Extras#ACK_TOKEN}: ack token for the event.</li>
      * </ul>.
@@ -346,7 +346,7 @@ public class InvalidationIntents {
    */
   public static AckToken getAckToken(Intent intent) {
     Preconditions.checkNotNull(intent, "intent");
-    byte [] tokenData = intent.getByteArrayExtra(Extras.ACK_TOKEN);
+    byte[] tokenData = intent.getByteArrayExtra(Extras.ACK_TOKEN);
     return (tokenData == null) ? null : InvalidationTypes.newAckToken(tokenData);
   }
 
@@ -377,23 +377,25 @@ public class InvalidationIntents {
    * Sets a client id into the {@link Extras#CLIENT} extra for an intent.
    *
    * @param intent the target intent.
-   * @param clientId the client id to set.
+   * @param key the client key to set.
    */
-  public static void putClientId(Intent intent, String clientId) {
+  public static void putClientKey(Intent intent, String key) {
     Preconditions.checkNotNull(intent, "intent");
-    intent.putExtra(Extras.CLIENT, clientId);
+    intent.putExtra(Extras.CLIENT, key);
   }
 
   /**
    * Returns the {@link Extras#CLIENT} extra for the provided intent.
    *
    * @param intent source intent
-   * @return application id extra value or {@code null} if not set.
+   * @return device-unique key that identifies the invalidation client or {@code
+   *         null} if not set.
    */
-  public static String getClientId(Intent intent) {
+  public static String getClientKey(Intent intent) {
     Preconditions.checkNotNull(intent, "intent");
     return intent.getStringExtra(Extras.CLIENT);
   }
+
   /**
    * Wraps an {link Invalidation}value to enable writing to and reading from a
    * {@link Parcel}.

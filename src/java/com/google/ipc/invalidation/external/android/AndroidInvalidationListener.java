@@ -17,7 +17,7 @@
 package com.google.ipc.invalidation.external.android;
 
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.getAckToken;
-import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.getClientId;
+import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.getClientKey;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.getInvalidation;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.getObjectId;
 import static com.google.ipc.invalidation.external.android.intents.InvalidationIntents.getRegistrationState;
@@ -35,6 +35,7 @@ import com.google.ipc.invalidation.external.android.intents.InvalidationIntents.
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.util.Log;
 
 /**
  * An abstract base class for implementing a {@link BroadcastReceiver} component
@@ -68,38 +69,53 @@ import android.content.Intent;
 public abstract class AndroidInvalidationListener extends BroadcastReceiver
     implements InvalidationListener {
 
+  /** Logging tag */
+  private static final String TAG = "AndroidInvalidationListener";
+
   @Override
   public final void onReceive(Context context, Intent intent) {
 
     // Ensure that it's possible to unmarshall parcelable invalidation types
     intent.setExtrasClassLoader(InvalidationIntents.class.getClassLoader());
 
+    String action = intent.getAction();
+
     // All events should contain a client id
-    String clientId = getClientId(intent);
-    if (clientId == null) {
-      // TODO: log error
+    String clientKey = getClientKey(intent);
+    Log.i(TAG, "Received " + action + " event for " + clientKey);
+    if (clientKey == null) {
+      Log.e(TAG, "Missing client id:" + intent);
       return;
     }
-    String action = intent.getAction();
-    InvalidationClient client = AndroidClientFactory.resume(context, clientId);
+
+    // Obtain a client instance for the client receiving the event
+    InvalidationClient client = AndroidClientFactory.resume(context, clientKey);
     AckToken ackToken = getAckToken(intent);
+
+    // Determine the event type based upon the intent action, extract parameters
+    // from extras, and invoke the listener event handler method.
     if (Events.INVALIDATE.equals(action)) {
+      Log.i(TAG, "INVALIDATE event for " + clientKey);
       Invalidation invalidation = getInvalidation(intent);
       invalidate(client, invalidation, ackToken);
     } else if (Events.INVALIDATE_ALL.equals(action)) {
+      Log.i(TAG, "INVALIDATE_ALL event for " + clientKey);
       invalidateAll(client, ackToken);
     } else if (Events.REGISTRATION_CHANGED.equals(action)) {
+      Log.i(TAG, "REGISTRATION_CHANGED event for " + clientKey);
       ObjectId objectId = getObjectId(intent);
       RegistrationState state = getRegistrationState(intent);
       UnknownHint hint = getUnknownHint(intent);
       registrationStateChanged(client, objectId, state, hint, ackToken);
     } else if (Events.REGISTRATIONS_REMOVED.equals(action)) {
+      Log.i(TAG, "REGISTRATIONS_REMOVED event for " + clientKey);
       registrationsRemoved(client, ackToken);
     } else if (Events.INVALID_AUTH_TOKEN.equals(action)) {
+      Log.i(TAG, "INVALID_AUTH_TOKEN event for " + clientKey);
       int source = getSource(intent);
       invalidAuthToken(client, source, ackToken);
     } else {
-      // TODO: Log receipt of unrecognized intents
+      Log.e(TAG, "Urecognized event: " + intent);
     }
   }
 }

@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.external.android;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import android.accounts.Account;
@@ -30,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * The {@link #create} method will create a invalidation client associated with a
  * particular application and user account.
  * <p>
- * Applications should persist the application identifier for the new client so
+ * Applications should persist the unique client key for the new client so
  * invalidation activity can restart later if the application is removed from
  * memory. An application can obtain an invalidation client instance to resume
  * activity by calling the {@link #resume} method with the same application id
@@ -44,8 +45,8 @@ public class AndroidClientFactory {
    * used to resume/reassociate an existing invalidation client.   Client
    * instances are not guaranteed (nor required) to be reused.
    */
-  private static Map<String, WeakReference<InvalidationClient>> clientMap =
-      new ConcurrentHashMap<String, WeakReference<InvalidationClient>>();
+  private static Map<String, WeakReference<AndroidInvalidationClient>> clientMap =
+      new ConcurrentHashMap<String, WeakReference<AndroidInvalidationClient>>();
 
   /**
    * Starts a new invalidation client for the provided application and account
@@ -58,7 +59,7 @@ public class AndroidClientFactory {
    * calling {@link #resume} with the same application id.
    *
    * @param context the context for the client.
-   * @param clientId a unique id that identifies the created client within the
+   * @param clientKey a unique id that identifies the created client within the
    *        scope of the application.   May be {@code null} if there is only a
    *        single invalidation client/listener for the application.
    * @param account user account that is registering the invalidations.
@@ -67,17 +68,20 @@ public class AndroidClientFactory {
    *        events.
    */
   public static InvalidationClient create(
-      Context context, String clientId, Account account,
+      Context context, String clientKey, Account account,
       Class<? extends AndroidInvalidationListener> listenerClass) {
     Preconditions.checkNotNull(context, "context");
     Preconditions.checkNotNull(account, "account");
     Preconditions.checkNotNull(listenerClass, "listenerClass");
 
-    // TODO: Handle idempotentcy semantics by looking in the cache and matching
-    // an existing instance of available.
-    InvalidationClient client =
-        new AndroidInvalidationClient(context, clientId, account, listenerClass);
-    clientMap.put(clientId, new WeakReference<InvalidationClient>(client));
+    AndroidInvalidationClient client = null;
+    if (clientMap.containsKey(clientKey)) {
+      client = (AndroidInvalidationClient) resume(context, clientKey);
+    }
+    if (client == null) {
+      client = new AndroidInvalidationClient(context, clientKey, account, listenerClass);
+      clientMap.put(clientKey, new WeakReference<AndroidInvalidationClient>(client));
+    }
     return client;
   }
 
@@ -86,15 +90,15 @@ public class AndroidClientFactory {
    * processing for an existing application id.
    *
    * @param context the context for the client.
-   * @param clientId a unique id that identifies the created client within the
-   *        scope of the application.   May be {@code null} if there is only a
+   * @param clientKey a unique key that identifies the created client within the
+   *        scope of the device.   May be {@code null} if there is only a
    *        single invalidation client/listener for the application.
    */
-  public static InvalidationClient resume(Context context, String clientId) {
+  public static InvalidationClient resume(Context context, String clientKey) {
     Preconditions.checkNotNull(context, "context");
 
     // See if a cached entry is available with a matching application id
-    WeakReference<InvalidationClient> cachedClientReference = clientMap.get(clientId);
+    WeakReference<AndroidInvalidationClient> cachedClientReference = clientMap.get(clientKey);
     if (cachedClientReference != null) {
       InvalidationClient client = cachedClientReference.get();
       if (client != null) {
@@ -103,6 +107,14 @@ public class AndroidClientFactory {
     }
 
     // Create and return a new instance to represent the resumed client
-    return new AndroidInvalidationClient(context, clientId);
+    return new AndroidInvalidationClient(context, clientKey);
+  }
+
+  /**
+   * Resets the state of the factory by dropping all cached client references.
+   */
+  @VisibleForTesting
+  static void reset() {
+    clientMap.clear();
   }
 }

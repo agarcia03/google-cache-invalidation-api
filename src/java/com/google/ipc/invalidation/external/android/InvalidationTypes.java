@@ -70,12 +70,12 @@ public class InvalidationTypes {
       }
 
       final ClientExternalId other = (ClientExternalId) object;
-      return clientType == other.clientType && appClientId.equals(other.appClientId);
+      return clientType == other.clientType && Arrays.equals(appClientId, other.appClientId);
     }
 
     @Override
     public int hashCode() {
-      return clientType ^ appClientId.hashCode();
+      return clientType ^ Arrays.hashCode(appClientId);
     }
 
     @Override
@@ -130,7 +130,7 @@ public class InvalidationTypes {
 
     @Override
     public int hashCode() {
-      return source ^ name.hashCode();
+      return source ^ Arrays.hashCode(name);
     }
 
     @Override
@@ -164,7 +164,7 @@ public class InvalidationTypes {
     private Invalidation(ObjectId objectId, long version, @Nullable byte [] payload,
         @Nullable Object componentStampLog) {
       this.objectId = Preconditions.checkNotNull(objectId, "objectId");
-      this.version = Preconditions.checkNotNull(version, "version");
+      this.version = version;
       this.payload = payload;
       this.componentStampLog = componentStampLog;
     }
@@ -221,7 +221,7 @@ public class InvalidationTypes {
       result = 31 * result + objectId.hashCode();
       result = 31 * result + (int) (version ^ (version >>> 32));
       if (payload != null) {
-        result = 31 * result + payload.hashCode();
+        result = 31 * result + Arrays.hashCode(payload);
       }
       return result;
     }
@@ -341,7 +341,7 @@ public class InvalidationTypes {
 
     @Override
     public int hashCode() {
-      return tokenData.hashCode();
+      return Arrays.hashCode(tokenData);
     }
   }
 
