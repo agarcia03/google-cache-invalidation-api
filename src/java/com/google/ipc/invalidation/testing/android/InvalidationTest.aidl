@@ -16,6 +16,8 @@
 
 package com.google.ipc.invalidation.testing.android;
 
+import android.content.Intent;
+
 interface InvalidationTest {
 
   /**
@@ -25,7 +27,7 @@ interface InvalidationTest {
    * and forgotten.
    */
   void setCapture(boolean captureActions, boolean captureEvents);
-  
+
   /**
    * Returns an array of intents containing the set of invalidation action
    * intents received by the test service since the last call to this method.
