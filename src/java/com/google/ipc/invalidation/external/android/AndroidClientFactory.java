@@ -79,7 +79,7 @@ public class AndroidClientFactory {
       client = (AndroidInvalidationClient) resume(context, clientKey);
     }
     if (client == null) {
-      client = new AndroidInvalidationClient(context, clientKey, account, listenerClass);
+      client = new AndroidInvalidationClientImpl(context, clientKey, account, listenerClass);
       clientMap.put(clientKey, new WeakReference<AndroidInvalidationClient>(client));
     }
     return client;
@@ -107,7 +107,7 @@ public class AndroidClientFactory {
     }
 
     // Create and return a new instance to represent the resumed client
-    return new AndroidInvalidationClient(context, clientKey);
+    return new AndroidInvalidationClientImpl(context, clientKey);
   }
 
   /**
