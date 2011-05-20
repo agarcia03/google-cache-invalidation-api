@@ -21,9 +21,8 @@ import android.accounts.Account;
 /**
  * Extends the {@link InvalidationClient} interface to add Android-specific
  * client functionality.
- *
  */
-interface AndroidInvalidationClient extends InvalidationClient {
+public interface AndroidInvalidationClient extends InvalidationClient {
 
   /**
    * Returns the {@link Account} associated with the client or {@code null} if
