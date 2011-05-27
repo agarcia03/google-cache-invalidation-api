@@ -225,17 +225,17 @@ public abstract class AbstractInvalidationService extends Service {
   }
 
   /**
-   * Sends a request registrations event back to the application client.
+   * Sends a reissue registrations event back to the application client.
    *
    * @param clientKey receiving client key
    * @param listenerIntent intent used to bind to the listener service.
    * @param prefix prefix of registrations requestioned
    * @param prefixLength length of prefix in bits
    */
-  protected void sendRequestRegistrationsEvent(
+  protected void sendReissueRegistrationsEvent(
       String clientKey, Intent listenerIntent, byte[] prefix, int prefixLength) {
     Event event = Event
-        .newBuilder(Event.Action.REQUEST_REGISTRATIONS)
+        .newBuilder(Event.Action.REISSUE_REGISTRATIONS)
         .setClientKey(clientKey)
         .setPrefix(prefix, prefixLength)
         .build();

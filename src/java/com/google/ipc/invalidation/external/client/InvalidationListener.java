@@ -120,10 +120,11 @@ public interface InvalidationListener {
       boolean isTransient, String errorMessage);
 
   /**
-   * Indicates that the application MUST inform the {@code InvalidationClient} of its registrations
-   * once it receives this event. The requested objects are those for which the digest of their
-   * serialized object ids matches a particular prefix bit-pattern. The digest for an object id is
-   * computed as following (the digest chosen for this method is SHA-1):
+   * Indicates that the all registrations for the client are in an unknown state (e.g., they could
+   * have been removed). The application MUST inform the {@code InvalidationClient} of its
+   * registrations once it receives this event.  The requested objects are those for which the
+   * digest of their serialized object ids matches a particular prefix bit-pattern. The digest for
+   * an object id is computed as following (the digest chosen for this method is SHA-1):
    * <p>
    *   digest = new Digest();
    *   digest.update(Little endian encoding of object source type)
@@ -147,7 +148,7 @@ public interface InvalidationListener {
    * @param prefix prefix of the object ids as described above.
    * @param prefixLength number of bits in {@code prefix} to consider.
    */
-  void requestRegistrations(InvalidationClient client, byte[] prefix, int prefixLength);
+  void reissueRegistrations(InvalidationClient client, byte[] prefix, int prefixLength);
 
   /**
    * Informs the listener about errors that have occurred in the backend, e.g., authentication,

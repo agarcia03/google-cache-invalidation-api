@@ -137,11 +137,11 @@ public abstract class AndroidInvalidationListener extends Service
         String errorMsg = event.getError();
         boolean isTransient = event.getIsTransient();
         informRegistrationFailure(client, objectId, isTransient, errorMsg);
-      } else if (Action.REQUEST_REGISTRATIONS.equals(action)) {
-        Log.i(TAG, "REQUEST_REGISTRATIONS event for " + clientKey);
+      } else if (Action.REISSUE_REGISTRATIONS.equals(action)) {
+        Log.i(TAG, "REISSUE_REGISTRATIONS event for " + clientKey);
         byte[] prefix = event.getPrefix();
         int prefixLength = event.getPrefixLength();
-        requestRegistrations(client, prefix, prefixLength);
+        reissueRegistrations(client, prefix, prefixLength);
       } else if (Action.INFORM_ERROR.equals(action)) {
         Log.i(TAG, "INFORM_ERROR event for " + clientKey);
         ErrorInfo errorInfo = event.getErrorInfo();

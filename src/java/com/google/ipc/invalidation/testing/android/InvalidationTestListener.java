@@ -95,9 +95,9 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
   }
 
   @Override
-  public void requestRegistrations(InvalidationClient client, byte[] prefix, int prefixLength) {
+  public void reissueRegistrations(InvalidationClient client, byte[] prefix, int prefixLength) {
     if (listener != null) {
-      listener.requestRegistrations(client, prefix, prefixLength);
+      listener.reissueRegistrations(client, prefix, prefixLength);
     }
   }
 

@@ -52,7 +52,7 @@ public class Event extends Message {
 
     public static final String INFORM_REGISTRATION_FAILURE = "informRegistrationFailure";
 
-    public static final String REQUEST_REGISTRATIONS = "requestRegistrations";
+    public static final String REISSUE_REGISTRATIONS = "reissueRegistrations";
 
     public static final String INFORM_ERROR = "informError";
   }
