@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package com.google.ipc.invalidation.external.android;
+package com.google.ipc.invalidation.external.client.android;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import android.accounts.Account;
@@ -67,19 +66,20 @@ public class AndroidClientFactory {
    *        is registered to receive the broadcast intents for invalidation
    *        events.
    */
-  public static InvalidationClient create(
+  public static AndroidInvalidationClient create(
       Context context, String clientKey, Account account,
       Class<? extends AndroidInvalidationListener> listenerClass) {
     Preconditions.checkNotNull(context, "context");
     Preconditions.checkNotNull(account, "account");
     Preconditions.checkNotNull(listenerClass, "listenerClass");
 
-    AndroidInvalidationClient client = null;
+    AndroidInvalidationClientImpl client = null;
     if (clientMap.containsKey(clientKey)) {
-      client = (AndroidInvalidationClient) resume(context, clientKey);
+      return resume(context, clientKey);
     }
     if (client == null) {
       client = new AndroidInvalidationClientImpl(context, clientKey, account, listenerClass);
+      client.initialize();
       clientMap.put(clientKey, new WeakReference<AndroidInvalidationClient>(client));
     }
     return client;
@@ -94,26 +94,28 @@ public class AndroidClientFactory {
    *        scope of the device.   May be {@code null} if there is only a
    *        single invalidation client/listener for the application.
    */
-  public static InvalidationClient resume(Context context, String clientKey) {
+  public static AndroidInvalidationClient resume(Context context, String clientKey) {
     Preconditions.checkNotNull(context, "context");
 
     // See if a cached entry is available with a matching application id
     WeakReference<AndroidInvalidationClient> cachedClientReference = clientMap.get(clientKey);
     if (cachedClientReference != null) {
-      InvalidationClient client = cachedClientReference.get();
+      AndroidInvalidationClient client = cachedClientReference.get();
       if (client != null) {
         return client;
       }
     }
 
     // Create and return a new instance to represent the resumed client
-    return new AndroidInvalidationClientImpl(context, clientKey);
+    AndroidInvalidationClientImpl client = new AndroidInvalidationClientImpl(context, clientKey);
+    client.initResumed();
+    return client;
   }
 
   /**
    * Resets the state of the factory by dropping all cached client references.
    */
-  @VisibleForTesting
+  
   static void reset() {
     clientMap.clear();
   }

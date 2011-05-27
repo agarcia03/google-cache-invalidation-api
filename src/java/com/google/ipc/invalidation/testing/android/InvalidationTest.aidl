@@ -16,7 +16,7 @@
 
 package com.google.ipc.invalidation.testing.android;
 
-import android.content.Intent;
+import android.os.Bundle;
 
 interface InvalidationTest {
 
@@ -29,26 +29,26 @@ interface InvalidationTest {
   void setCapture(boolean captureActions, boolean captureEvents);
 
   /**
-   * Returns an array of intents containing the set of invalidation action
-   * intents received by the test service since the last call to this method.
+   * Returns an array of bundle containing the set of invalidation requests
+   * received by the test service since the last call to this method.
    */
-  Intent [] getActionIntents();
+  Bundle [] getRequests();
 
   /**
    * Returns an array of intents containing the set of invalidation event
-   * intents received by the test service since the last call to this method.
+   * bundles sent by the test service since the last call to this method.
    */
-  Intent [] getEventIntents();
+  Bundle [] getEvents();
 
   /**
    * Instructs the test service to send an event back to the client to support
    * testing of listener functionality.
    */
-  void sendEventIntent(String clientKey, in Intent event);
+  void sendEvent(in Bundle eventBundle);
   
   /**
    * Reset all state for the invalidation test service.  This will clear all
-   * current clients and drop and disable any captured action or event intents.
+   * current clients and drop and disable any captured action or event bundles.
    */
   void reset();
 }

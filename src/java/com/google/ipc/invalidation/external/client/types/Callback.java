@@ -14,24 +14,20 @@
  * limitations under the License.
  */
 
-package com.google.ipc.invalidation.external.android;
+package com.google.ipc.invalidation.external.client.types;
 
-import android.accounts.Account;
 
 /**
- * Extends the {@link InvalidationClient} interface to add Android-specific
- * client functionality.
+ * An interface to receive objects of a single type.
+ *
+ * @param <T> type of object received in the callback
+ *
  */
-public interface AndroidInvalidationClient extends InvalidationClient {
-
+public interface Callback<T> {
   /**
-   * Returns the {@link Account} associated with the client or {@code null} if
-   * unknown (when resumed).
+   * Accepts the object provided by the caller.
+   *
+   * @param object received object
    */
-  Account getAccount();
-
-  /*
-   * Returns the client key for this client.
-   */
-  public String getClientKey();
+  void accept(T object);
 }

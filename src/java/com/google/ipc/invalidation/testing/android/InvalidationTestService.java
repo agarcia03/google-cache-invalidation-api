@@ -16,24 +16,20 @@
 
 package com.google.ipc.invalidation.testing.android;
 
-
-import com.google.ipc.invalidation.external.android.InvalidationTypes.AckToken;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.Invalidation;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.ObjectId;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.RegistrationState;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.UnknownHint;
-import com.google.ipc.invalidation.external.android.intents.InvalidationIntents;
-import com.google.ipc.invalidation.external.android.intents.InvalidationIntents.Actions;
-import com.google.ipc.invalidation.external.android.intents.InvalidationIntents.Extras;
-import com.google.ipc.invalidation.external.android.intents.InvalidationIntents.ParcelableObjectId;
+import com.google.ipc.invalidation.external.client.android.service.Event;
+import com.google.ipc.invalidation.external.client.android.service.Message;
+import com.google.ipc.invalidation.external.client.android.service.Request;
+import com.google.ipc.invalidation.external.client.android.service.Response;
+import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
 import com.google.ipc.invalidation.ticl.android.AbstractInvalidationService;
 
 import android.accounts.Account;
 import android.content.Intent;
-import android.content.IntentSender;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+
+import junit.framework.Assert;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,78 +50,46 @@ import java.util.Map;
  */
 public class InvalidationTestService extends AbstractInvalidationService {
 
+  private static class ClientState {
+    final Account account;
+    final Intent eventIntent;
+
+    private ClientState(Account account, Intent eventIntent) {
+      this.account = account;
+      this.eventIntent = eventIntent;
+    }
+  }
+
+  /**
+   * Intent that can be used to bind to the InvalidationTest service.
+   */
+  public static final Intent TEST_INTENT = new Intent("com.google.ipc.invalidation.TEST");
+
   /** Logging tag */
   private static final String TAG = "InvalidationTestService";
 
-  /** Map of currently active clients from id to {@link IntentSender} */
-  static Map<String, IntentSender> clientMap = new HashMap<String, IntentSender>();
+  /** Map of currently active clients from key to {@link ClientState} */
+  private static Map<String, ClientState> clientMap = new HashMap<String, ClientState>();
 
   /** {@code true} the test service should capture actions */
-  static boolean captureActions;
+  private static boolean captureActions;
 
   /** The stored actions that are available for retrieval */
-  static List<Intent> actions = new ArrayList<Intent>();
+  private static List<Bundle> actions = new ArrayList<Bundle>();
 
   /** {@code true} if the client should capture events */
-  static boolean captureEvents;
+  private static boolean captureEvents;
 
   /** The stored events that are available for retrieval */
-  static List<Intent> events = new ArrayList<Intent>();
+  private static List<Bundle> events = new ArrayList<Bundle>();
 
-  /**
-   * Contains a map from {@link Actions} name to the set of {@link Extras} names that are
-   * may be set.
-   */
-  private static final Map<String, List<String>> actionExtrasMap =
-      new HashMap<String, List<String>>();
-
-  static {
-    actionExtrasMap.put(Actions.ACKNOWLEDGE,
-        Arrays.asList(new String [] {Extras.CLIENT, Extras.ACK_TOKEN, Extras.INVALIDATION}));
-    actionExtrasMap.put(Actions.REGISTER,
-        Arrays.asList(new String [] {Extras.CLIENT, Extras.OBJECT_ID}));
-    actionExtrasMap.put(Actions.SET_AUTH,
-        Arrays.asList(new String [] {Extras.CLIENT, Extras.SOURCE, Extras.AUTH_TOKEN}));
-    actionExtrasMap.put(Actions.CREATE,
-        Arrays.asList(new String [] {Extras.CLIENT, Extras.ACCOUNT, Extras.SENDER}));
-    actionExtrasMap.put(Actions.UNREGISTER,
-        Arrays.asList(new String [] {Extras.CLIENT, Extras.OBJECT_ID}));
+  public InvalidationTestService() {
   }
 
   /**
-   * Contains a map from {@link Actions} name to the set of {@link Extras} names that are
-   * optional.   Any valid extras not found in this list are considered to be required.
+   * InvalidationTest stub to handle calls from clients.
    */
-  private static final Map<String, List<String>> actionOptionalExtrasMap =
-      new HashMap<String, List<String>>();
-
-  static {
-    actionOptionalExtrasMap.put(Actions.ACKNOWLEDGE,
-        Arrays.asList(new String [] {Extras.INVALIDATION}));
-  }
-
-  /**
-   * Maps from an {@link Extras} name to the expected type of the extra's value.
-   * Used to validate that a passed extra has the appropriate type.
-   */
-  private static final Map<String, Class<?>> extraTypeMap = new HashMap<String, Class<?>>();
-
-  static {
-    extraTypeMap.put(Extras.ACCOUNT, Account.class);
-    extraTypeMap.put(Extras.CLIENT, String.class);
-    extraTypeMap.put(Extras.AUTH_TOKEN, String.class);
-    extraTypeMap.put(Extras.INVALIDATION, Invalidation.class);
-    extraTypeMap.put(Extras.OBJECT_ID, ParcelableObjectId.class);
-    extraTypeMap.put(Extras.SENDER, IntentSender.class);
-    extraTypeMap.put(Extras.SOURCE, Integer.class);
-    extraTypeMap.put(Extras.STATE, RegistrationState.class);
-    extraTypeMap.put(Extras.UNKNOWN_HINT, UnknownHint.class);
-  }
-
-
-  public InvalidationTestService() {}
-
-  private final InvalidationTest.Stub mBinder = new InvalidationTest.Stub() {
+  private final InvalidationTest.Stub testBinder = new InvalidationTest.Stub() {
 
     @Override
     public void setCapture(boolean captureActions, boolean captureEvents) {
@@ -134,33 +98,33 @@ public class InvalidationTestService extends AbstractInvalidationService {
     }
 
     @Override
-    public Intent [] getActionIntents() {
+    public Bundle[] getRequests() {
       Log.d(TAG, "Reading actions from " + actions + ":" + actions.size());
-      Intent [] value = new Intent[actions.size()];
+      Bundle[] value = new Bundle[actions.size()];
       actions.toArray(value);
       actions.clear();
       return value;
     }
 
     @Override
-    public Intent [] getEventIntents() {
-      Intent [] value = new Intent[events.size()];
+    public Bundle[] getEvents() {
+      Bundle[] value = new Bundle[events.size()];
       events.toArray(value);
       events.clear();
       return value;
     }
 
     @Override
-    public void sendEventIntent(String clientKey, Intent event) {
-      IntentSender sender = clientMap.get(clientKey);
-      if (sender == null) {
-        throw new IllegalStateException("Invalid clientId:" + clientKey);
-      }
-      sendEvent(sender, event);
+    public void sendEvent(Bundle eventBundle) {
+      String clientKey = eventBundle.getString(Request.Parameter.CLIENT);
+      ClientState state = clientMap.get(clientKey);
+      Assert.assertNotNull(state);
+      InvalidationTestService.this.sendEvent(state.eventIntent, new Event(eventBundle));
     }
 
     @Override
     public void reset() {
+      Log.i(TAG, "Resetting test service");
       captureActions = false;
       captureEvents = false;
       clientMap.clear();
@@ -176,107 +140,190 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  public int onStartCommand(Intent intent, int flags, int startId) {
-    try {
-      /*
-       * Log the intent (for test debugging) and do basic validation, then
-       * delegate to the base class.
-       */
-      Log.i(TAG, "onStartCommand:" + intent.getAction());
-      validateIntent(intent);
-      Log.d(TAG, "Added intent to " + actions + ":" + actions.size());
-      int result = super.onStartCommand(intent, flags, startId);
-      return result;
-    } catch (Exception e) {
-      Log.e(TAG, e.getClass().getSimpleName() + " on " + intent.getAction() + ":" + e.getMessage());
-      // TODO: Make this available to test clients!
-      return START_NOT_STICKY;
-    } finally {
-      // Add this only after all processing is complete, so clients can poll on
-      // the getActionIntents API to wait for completion.
-      actions.add(intent);
-    }
+  public void onDestroy() {
+    Log.i(TAG, "onDestroy");
+    super.onDestroy();
+  }
+
+  @Override
+  public void onStart(Intent intent, int startId) {
+    Log.i(TAG, "onStart");
+    super.onStart(intent, startId);
   }
 
   @Override
   public IBinder onBind(Intent intent) {
     Log.i(TAG, "onBind");
-    return mBinder;
+
+    // For InvalidationService binding, delegate to the superclass
+    if (Request.SERVICE_INTENT.getAction().equals(intent.getAction())) {
+      return super.onBind(intent);
+    }
+
+    // Otherwise, return the test interface binder
+    return testBinder;
   }
 
   @Override
-  protected void doCreate(String clientKey, Account account, IntentSender sender) {
-    Log.i(TAG, "onCreate");
-    clientMap.put(clientKey, sender);
+  public boolean onUnbind(Intent intent) {
+    Log.i(TAG, "onUnbind");
+    return super.onUnbind(intent);
   }
 
   @Override
-  protected void doSetAuth(String clientKey, int source, String authToken) {
-    Log.i(TAG, "doSetAuth");
+  protected void handleRequest(Bundle input, Bundle output) {
+    if (captureActions) {
+      actions.add(input);
+    }
+    super.handleRequest(input, output);
+    validateResponse(output);
   }
 
   @Override
-  protected void doRegister(String clientKey, ObjectId objectId) {
-    Log.i(TAG, "doRegister");
+  protected void sendEvent(Intent eventIntent, Event event) {
+    if (captureEvents) {
+      events.add(event.getBundle());
+    }
+    super.sendEvent(eventIntent, event);
+  }
+
+
+  @Override
+  protected void create(Request request, Builder response) {
+    validateRequest(request,
+        Request.Action.CREATE,
+        Request.Parameter.ACTION,
+        Request.Parameter.CLIENT,
+        Request.Parameter.ACCOUNT,
+        Request.Parameter.INTENT);
+    Log.i(TAG, "Creating client " + request.getClientKey() + ":" + clientMap.keySet());
+    clientMap.put(
+        request.getClientKey(), new ClientState(request.getAccount(), request.getIntent()));
+    response.setStatus(Response.Status.SUCCESS);
   }
 
   @Override
-  protected void doUnregister(String clientKey, ObjectId objectId) {
-    Log.i(TAG, "doUnregister");
+  protected void resume(Request request, Builder response) {
+    validateRequest(
+        request, Request.Action.RESUME, Request.Parameter.ACTION, Request.Parameter.CLIENT);
+    ClientState state = clientMap.get(request.getClientKey());
+    if (state != null) {
+      Log.i(TAG, "Resuming client " + request.getClientKey() + ":" + clientMap.keySet());
+      response.setStatus(Response.Status.SUCCESS);
+      response.setAccount(state.account);
+    } else {
+      Log.w(TAG, "Cannot resume client " + request.getClientKey() + ":" + clientMap.keySet());
+      response.setStatus(Response.Status.INVALID_CLIENT);
+    }
   }
 
   @Override
-  protected void doAcknowledge(String clientKey, AckToken ackToken) {
-    Log.i(TAG, "doAcknowledge");
+  protected void register(Request request, Builder response) {
+    // Ensure that one (and only one) of the variant object id forms is used
+    String objectParam =
+      request.getBundle().containsKey(Request.Parameter.OBJECT_ID) ?
+          Request.Parameter.OBJECT_ID :
+          Request.Parameter.OBJECT_ID_LIST;
+    validateRequest(request, Request.Action.REGISTER, Message.Parameter.ACTION,
+        Message.Parameter.CLIENT, objectParam);
+    if (!validateClient(request)) {
+      response.setStatus(Response.Status.INVALID_CLIENT);
+      return;
+    }
+    response.setStatus(Response.Status.SUCCESS);
+  }
+
+  @Override
+  protected void unregister(Request request, Builder response) {
+    // Ensure that one (and only one) of the variant object id forms is used
+    String objectParam =
+      request.getBundle().containsKey(Request.Parameter.OBJECT_ID) ?
+          Request.Parameter.OBJECT_ID :
+          Request.Parameter.OBJECT_ID_LIST;
+    validateRequest(request, Request.Action.UNREGISTER, Request.Parameter.ACTION,
+        Request.Parameter.CLIENT, objectParam);
+    if (!validateClient(request)) {
+      response.setStatus(Response.Status.INVALID_CLIENT);
+      return;
+    }
+    response.setStatus(Response.Status.SUCCESS);
+  }
+
+  @Override
+  protected void start(Request request, Builder response) {
+    validateRequest(
+        request, Request.Action.START, Request.Parameter.ACTION, Request.Parameter.CLIENT);
+    if (!validateClient(request)) {
+      response.setStatus(Response.Status.INVALID_CLIENT);
+      return;
+    }
+    response.setStatus(Response.Status.SUCCESS);
+  }
+
+  @Override
+  protected void stop(Request request, Builder response) {
+    validateRequest(
+        request, Request.Action.STOP, Message.Parameter.ACTION, Message.Parameter.CLIENT);
+    if (!validateClient(request)) {
+      response.setStatus(Response.Status.INVALID_CLIENT);
+      return;
+    }
+    response.setStatus(Response.Status.SUCCESS);
+  }
+
+  @Override
+  protected void acknowledge(Request request, Builder response) {
+    validateRequest(request, Request.Action.ACKNOWLEDGE, Request.Parameter.ACTION,
+        Request.Parameter.CLIENT, Request.Parameter.ACK_TOKEN);
+    if (!validateClient(request)) {
+      response.setStatus(Response.Status.INVALID_CLIENT);
+      return;
+    }
+    response.setStatus(Response.Status.SUCCESS);
   }
 
   /**
-   * Validates that an intent contains all of the expected extra values for the
-   * given action type and where possible will validate the extra values
-   * themselves.
-   *
-   * @param intent intent to validate
-   * @throws Exception if the intent is invalid in any way
+   * Validates that the client associated with the request is one that has
+   * previously been created or resumed on the test service.
    */
-  protected void validateIntent(Intent intent) throws Exception {
-    // Validate the action and category
-    String action = intent.getAction();
-    if (action == null) {
-      throw new NullPointerException("action");
+  private boolean validateClient(Request request) {
+    if (!clientMap.containsKey(request.getClientKey())) {
+      Log.w(TAG,
+          "Client " + request.getClientKey() + " is not an active client: " + clientMap.keySet());
+      return false;
     }
-    List<String> actionExtras = actionExtrasMap.get(action);
-    if (actionExtras == null) {
-      throw new IllegalStateException("Invalid action:" + action);
-    }
-    if (!intent.getCategories().contains(InvalidationIntents.ACTION_CATEGORY)){
-      throw new IllegalStateException("Missing action category");
-    }
+    return true;
+  }
 
-    // Validate extras
-    Bundle extras = intent.getExtras();
-    List<String> expectedExtras = new ArrayList<String>(actionExtras);
-    for (String extraName : extras.keySet()) {
-      if (!expectedExtras.remove(extraName)) {
-        throw new IllegalStateException("Unexpected extra:" + extraName);
-      }
+  /**
+   * Validates that the request contains exactly the set of parameters expected.
+   *
+   * @param request request to validate
+   * @param action expected action
+   * @param parameters expected parameters
+   */
+  private void validateRequest(Request request, String action, String... parameters) {
+    Assert.assertEquals(action, request.getAction());
+    List<String> expectedParameters = new ArrayList<String>(Arrays.asList(parameters));
+    Bundle requestBundle = request.getBundle();
+    for (String parameter : requestBundle.keySet()) {
+      Assert.assertTrue("Unexpected parameter: " + parameter, expectedParameters.remove(parameter));
 
-      // Validate the value type
-      Object value = extras.get(extraName);
-      if (value == null) {
-        throw new NullPointerException("Null value for " + extraName + " extra");
-      }
-      Class<?> extraType = extraTypeMap.get(extraName);
-      if (!extraType.isAssignableFrom(value.getClass())) {
-        throw new IllegalStateException("Illegal type for " + extraName + "extra," +
-            "Expected: " + extraType + ", found: " + value.getClass());
-      }
+      // Validate the value
+      Object value = requestBundle.get(parameter);
+      Assert.assertNotNull(value);
     }
-    List<String> optionalExtras = actionOptionalExtrasMap.get(action);
-    if (optionalExtras != null) {
-      expectedExtras.removeAll(optionalExtras);
-    }
-    if (!expectedExtras.isEmpty()) {
-      throw new IllegalStateException("Missing extras:" + expectedExtras.toArray());
-    }
+    Assert.assertTrue("Missing parameter:" + expectedParameters, expectedParameters.isEmpty());
+  }
+
+  /**
+   * Validates a response bundle being returned to a client contains valid
+   * success response.
+   */
+  protected void validateResponse(Bundle output) {
+    int status = output.getInt(Response.Parameter.STATUS, Response.Status.UNKNOWN);
+    Assert.assertEquals("Unexpected failure: " + output, Response.Status.SUCCESS, status);
+    String error = output.getString(Response.Parameter.ERROR);
+    Assert.assertNull(error);
   }
 }

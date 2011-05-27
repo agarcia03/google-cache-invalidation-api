@@ -16,68 +16,95 @@
 
 package com.google.ipc.invalidation.testing.android;
 
-import com.google.ipc.invalidation.external.android.AndroidInvalidationListener;
-import com.google.ipc.invalidation.external.android.InvalidationClient;
-import com.google.ipc.invalidation.external.android.InvalidationListener;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.AckToken;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.Invalidation;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.ObjectId;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.RegistrationState;
-import com.google.ipc.invalidation.external.android.InvalidationTypes.UnknownHint;
+import com.google.ipc.invalidation.external.client.InvalidationClient;
+import com.google.ipc.invalidation.external.client.InvalidationListener;
+import com.google.ipc.invalidation.external.client.android.AndroidInvalidationListener;
+import com.google.ipc.invalidation.external.client.types.AckHandle;
+import com.google.ipc.invalidation.external.client.types.ErrorInfo;
+import com.google.ipc.invalidation.external.client.types.Invalidation;
+import com.google.ipc.invalidation.external.client.types.ObjectId;
 
 import android.util.Log;
 
 /**
- * TestListener that forwards received events to an InvalidationListener
+ * TestListener service that forwards received events to an InvalidationListener
  * instance set on a static field.
  *
  */
 public class InvalidationTestListener extends AndroidInvalidationListener {
 
-  /** Loggging tag */
+  /** Logging tag */
   private static final String TAG = "InvalidationTestListener";
 
+  /** Listener delegate to forward events to */
   private static InvalidationListener listener = null;
 
+  /**
+   * Sets the invalidation listener delegate to receive events or disables
+   * event forwarding if {@code null}.
+   */
   public static void setInvalidationListener(InvalidationListener listener) {
     Log.i(TAG, "setListener: " + listener);
     InvalidationTestListener.listener = listener;
   }
 
   @Override
-  public void invalidAuthToken(InvalidationClient client, int source, AckToken ackToken) {
+  public void ready(InvalidationClient client) {
     if (listener != null) {
-      listener.invalidAuthToken(client, source, ackToken);
+      listener.ready(client);
     }
   }
 
   @Override
-  public void invalidate(InvalidationClient client, Invalidation invalidation, AckToken ackToken) {
+  public void invalidate(
+      InvalidationClient client, Invalidation invalidation, AckHandle ackHandle) {
     if (listener != null) {
-      listener.invalidate(client, invalidation, ackToken);
+      listener.invalidate(client, invalidation, ackHandle);
     }
   }
 
   @Override
-  public void invalidateAll(InvalidationClient client, AckToken ackToken) {
+  public void invalidateUnknownVersion(
+      InvalidationClient client, ObjectId objectId, AckHandle ackHandle) {
     if (listener != null) {
-      listener.invalidateAll(client, ackToken);
+      listener.invalidateUnknownVersion(client, objectId, ackHandle);
     }
   }
 
   @Override
-  public void registrationStateChanged(InvalidationClient client, ObjectId objectId,
-      RegistrationState newState, UnknownHint unknownHint, AckToken ackToken) {
+  public void invalidateAll(InvalidationClient client, AckHandle ackHandle) {
     if (listener != null) {
-      listener.registrationStateChanged(client, objectId, newState, unknownHint, ackToken);
+      listener.invalidateAll(client, ackHandle);
     }
-
   }
 
   @Override
-  public void registrationsRemoved(InvalidationClient client, AckToken ackToken) {
+  public void informRegistrationStatus(InvalidationClient client, ObjectId objectId,
+      RegistrationState regState) {
     if (listener != null) {
-      listener.registrationsRemoved(client, ackToken);
+      listener.informRegistrationStatus(client, objectId, regState);
+    }
+  }
+
+  @Override
+  public void informRegistrationFailure(InvalidationClient client, ObjectId objectId,
+      boolean isTransient, String errorMessage) {
+    if (listener != null) {
+      listener.informRegistrationFailure(client, objectId, isTransient, errorMessage);
+    }
+  }
+
+  @Override
+  public void requestRegistrations(InvalidationClient client, byte[] prefix, int prefixLength) {
+    if (listener != null) {
+      listener.requestRegistrations(client, prefix, prefixLength);
+    }
+  }
+
+  @Override
+  public void informError(InvalidationClient client, ErrorInfo errorInfo) {
+    if (listener != null) {
+      listener.informError(client, errorInfo);
     }
   }
 }
