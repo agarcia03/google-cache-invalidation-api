@@ -252,7 +252,7 @@ void InvalidationClientImpl::AcknowledgeInternal(
   }
 
   // 2. Validate ack handle - it should have a valid invalidation.
-  // TODO(dsmyers): [bug #4902682] remove the explicit checks on
+  // TODO: remove the explicit checks on
   // ack_handle.invalidation() once the message validator is ported
   // to C++.
   if (!ack_handle.has_invalidation()
