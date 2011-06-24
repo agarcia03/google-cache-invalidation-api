@@ -16,14 +16,17 @@
 
 #include "google/cacheinvalidation/v2/invalidation-client-impl.h"
 
-#include "google/cacheinvalidation/v2/client_test_internal.pb.h"
 #include "google/cacheinvalidation/callback.h"
-#include "google/cacheinvalidation/v2/string_util.h"
-#include "google/cacheinvalidation/v2/sha1-digest-function.h"
+#include "google/cacheinvalidation/random.h"
+#include "google/cacheinvalidation/v2/client_test_internal.pb.h"
+#include "google/cacheinvalidation/v2/invalidation-client-util.h"
 #include "google/cacheinvalidation/v2/log-macro.h"
 #include "google/cacheinvalidation/v2/persistence-utils.h"
 #include "google/cacheinvalidation/v2/proto-converter.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
+#include "google/cacheinvalidation/v2/sha1-digest-function.h"
+#include "google/cacheinvalidation/v2/smearer.h"
+#include "google/cacheinvalidation/v2/string_util.h"
 
 namespace invalidation {
 
@@ -36,22 +39,22 @@ void InvalidationClientImpl::Config::GetConfigParams(
     vector<pair<string, int> >* config_params) {
   config_params->push_back(
       make_pair("network_timeout_delay",
-                network_timeout_delay.ToInternalValue()));
+                network_timeout_delay.InMilliseconds()));
   config_params->push_back(
-      make_pair("write_retry_delay", write_retry_delay.ToInternalValue()));
+      make_pair("write_retry_delay", write_retry_delay.InMilliseconds()));
   config_params->push_back(
-      make_pair("heartbeat_interval", heartbeat_interval.ToInternalValue()));
+      make_pair("heartbeat_interval", heartbeat_interval.InMilliseconds()));
   config_params->push_back(
-      make_pair("perf_counter_delay", perf_counter_delay.ToInternalValue()));
+      make_pair("perf_counter_delay", perf_counter_delay.InMilliseconds()));
   protocol_handler_config.GetConfigParams(config_params);
 }
 
 string InvalidationClientImpl::Config::ToString() {
   return StringPrintf(
       "network delay: %ld, write retry delay: %ld, heartbeat: %ld",
-      network_timeout_delay.ToInternalValue(),
-      write_retry_delay.ToInternalValue(),
-      heartbeat_interval.ToInternalValue());
+      network_timeout_delay.InMilliseconds(),
+      write_retry_delay.InMilliseconds(),
+      heartbeat_interval.InMilliseconds());
 }
 
 InvalidationClientImpl::InvalidationClientImpl(
@@ -74,6 +77,20 @@ InvalidationClientImpl::InvalidationClientImpl(
                         statistics_.get(), application_name, this,
                         msg_validator_.get()),
       operation_scheduler_(logger_, internal_scheduler_),
+      network_exponential_backoff_(
+          new Random(InvalidationClientUtil::GetCurrentTimeMs(
+              resources->internal_scheduler())),
+          config.max_exponential_backoff_factor *
+              config.network_timeout_delay,
+          config.network_timeout_delay),
+      persistence_exponential_backoff_(
+          new Random(InvalidationClientUtil::GetCurrentTimeMs(
+              resources->internal_scheduler())),
+          config.max_exponential_backoff_factor *
+              config.write_retry_delay,
+          config.write_retry_delay),
+      smearer_(new Random(InvalidationClientUtil::GetCurrentTimeMs(
+          resources->internal_scheduler()))),
       heartbeat_task_(
           NewPermanentCallback(this, &InvalidationClientImpl::HeartbeatTask)),
       timeout_task_(
@@ -348,12 +365,15 @@ void InvalidationClientImpl::HandleTokenChanged(
          header.ToString().c_str(), ProtoHelpers::ToString(status).c_str());
 
     // Retry after a timeout (with exponential backoff).
-    internal_scheduler_->Schedule(
-        config_.network_timeout_delay,
+    internal_scheduler_->Schedule(network_exponential_backoff_.GetNextDelay(),
         NewPermanentCallback(
             this,
             &InvalidationClientImpl::LoseToken));
   }
+
+  // Token control message succeeded - reset the network delay so that the next
+  // time we acquire a token, the delay starts from the original value.
+  network_exponential_backoff_.Reset(config_.network_timeout_delay);
 
   // The message is correct - process it.
   ProcessServerHeader(header);
@@ -598,12 +618,15 @@ void InvalidationClientImpl::set_client_token(const string& new_client_token) {
 void InvalidationClientImpl::WriteCallback(Status status) {
   TLOG(logger_, INFO, "Write state completed: %s", status.message().c_str());
   if (!status.IsSuccess()) {
-    // Exponential backoff should be done
+    // Retry with exponential backoff.
     statistics_->RecordError(
         Statistics::ClientErrorType_PERSISTENT_WRITE_FAILURE);
     internal_scheduler_->Schedule(
-        config_.write_retry_delay,
+        persistence_exponential_backoff_.GetNextDelay(),
         NewPermanentCallback(this, &InvalidationClientImpl::WriteStateBlob));
+  } else {
+    // Write succeeded - reset the backoff delay.
+    persistence_exponential_backoff_.Reset(config_.write_retry_delay);
   }
 }
 

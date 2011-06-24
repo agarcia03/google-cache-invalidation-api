@@ -26,9 +26,11 @@
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/v2/digest-function.h"
 #include "google/cacheinvalidation/v2/digest-store.h"
+#include "google/cacheinvalidation/v2/exponential-backoff-delay-generator.h"
 #include "google/cacheinvalidation/v2/protocol-handler.h"
 #include "google/cacheinvalidation/v2/registration-manager.h"
 #include "google/cacheinvalidation/v2/run-state.h"
+#include "google/cacheinvalidation/v2/smearer.h"
 
 namespace invalidation {
 
@@ -39,7 +41,8 @@ class InvalidationClientImpl : public InvalidationClient,
     Config() : network_timeout_delay(TimeDelta::FromMinutes(1)),
                write_retry_delay(TimeDelta::FromSeconds(10)),
                heartbeat_interval(TimeDelta::FromMinutes(20)),
-               perf_counter_delay(TimeDelta::FromHours(6)) {}
+               perf_counter_delay(TimeDelta::FromHours(6)),
+               max_exponential_backoff_factor(500) {}
 
     /* The delay after which a network message sent to the server is considered
      * timed out.
@@ -54,6 +57,11 @@ class InvalidationClientImpl : public InvalidationClient,
 
     /* Delay after which performance counters are sent to the server. */
     TimeDelta perf_counter_delay;
+
+    /* The maximum exponential backoff factor used for network and persistence
+     * timeouts.
+     */
+    int max_exponential_backoff_factor;
 
     /* Configuration for the protocol client to control batching etc. */
     ProtocolHandler::Config protocol_handler_config;
@@ -347,6 +355,15 @@ class InvalidationClientImpl : public InvalidationClient,
 
   /* Last time performance counters were sent to the server. */
   Time last_performance_send_time_;
+
+  /* Exponential backoff generator for network timeouts. */
+  ExponentialBackoffDelayGenerator network_exponential_backoff_;
+
+  /* Exponential backoff generator for persistence timeouts. */
+  ExponentialBackoffDelayGenerator persistence_exponential_backoff_;
+
+  /* A smearer to make sure that delays are randomized a little bit. */
+  Smearer smearer_;
 
   /* Current client token known from the server. */
   string client_token_;

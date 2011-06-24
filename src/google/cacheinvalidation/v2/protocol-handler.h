@@ -24,6 +24,7 @@
 #include "google/cacheinvalidation/v2/hash_set.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
+#include "google/cacheinvalidation/v2/invalidation-client-util.h"
 #include "google/cacheinvalidation/v2/operation-scheduler.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
 #include "google/cacheinvalidation/v2/scoped_ptr.h"
@@ -133,7 +134,7 @@ class ProtocolHandler {
 
     void GetConfigParams(vector<pair<string, int> >* config_params) {
       config_params->push_back(
-          make_pair("batching_delay", batching_delay.ToInternalValue()));
+          make_pair("batching_delay", batching_delay.InMilliseconds()));
     }
   };
 
@@ -231,7 +232,7 @@ class ProtocolHandler {
 
   // Returns the current time in milliseconds.
   int64 GetCurrentTimeMs() {
-    return internal_scheduler_->GetCurrentTime().ToInternalValue() / 1000;
+    return InvalidationClientUtil::GetCurrentTimeMs(internal_scheduler_);
   }
 
 

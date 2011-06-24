@@ -19,6 +19,8 @@
 #define GOOGLE_CACHEINVALIDATION_V2_OPERATION_SCHEDULER_H_
 
 #include "google/cacheinvalidation/v2/hash_map.h"
+#include "google/cacheinvalidation/v2/invalidation-client-util.h"
+#include "google/cacheinvalidation/v2/smearer.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 
 namespace invalidation {
@@ -51,7 +53,9 @@ struct OperationScheduleInfo {
 class OperationScheduler {
  public:
   OperationScheduler(Logger* logger, Scheduler* scheduler)
-      : logger_(logger), scheduler_(scheduler) {}
+      : logger_(logger), scheduler_(scheduler),
+        smearer_(
+            new Random(InvalidationClientUtil::GetCurrentTimeMs(scheduler))) {}
 
   /* Informs the scheduler about a new operation that can be scheduled.
    *
@@ -81,9 +85,15 @@ class OperationScheduler {
   static void RunAndClearScheduled(
       Closure* closure, OperationScheduleInfo* info);
 
+  /* Operations that can be scheduled - key is the actual closure being
+   * scheduled.
+   */
   hash_map<Closure*, OperationScheduleInfo, ClosureHashFunction> operations_;
   Logger* logger_;
   Scheduler* scheduler_;
+
+  /* A smearer to make sure that delays are randomized a little bit. */
+  Smearer smearer_;
 };
 
 }  // namespace invalidation

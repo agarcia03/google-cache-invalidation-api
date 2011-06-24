@@ -26,10 +26,10 @@ void OperationScheduler::SetOperation(TimeDelta delay, Closure* operation) {
   CHECK(operations_.find(operation) == operations_.end()) << "operation " <<
       operation << " already set";
   CHECK(delay > TimeDelta::FromMilliseconds(0)) <<
-      "delay_ms must be positive: given " << delay.ToInternalValue();
+      "delay_ms must be positive: given " << delay.InMilliseconds();
   CHECK(operation != NULL);
   TLOG(logger_, FINE, "Set %llx with delay %d", operation,
-       delay.ToInternalValue());
+       delay.InMilliseconds());
   operations_[operation] = OperationScheduleInfo(delay);
 }
 
@@ -40,7 +40,7 @@ void OperationScheduler::ChangeDelayForTest(
   CHECK(it != operations_.end());
   OperationScheduleInfo& op_info = it->second;
   TLOG(logger_, FINE, "Changing delay for %llx to be %d us", operation,
-       delay.ToInternalValue());
+       delay.InMilliseconds());
   op_info.delay = delay;
 }
 
@@ -52,12 +52,13 @@ void OperationScheduler::Schedule(Closure* operation) {
 
   // Schedule an event if one has not been already scheduled.
   if (!op_info->has_been_scheduled) {
+    TimeDelta delay = smearer_.GetSmearedDelay(op_info->delay);
     TLOG(logger_, FINE, "Scheduling %llx with a delay %d, Now = %d", operation,
-         op_info->delay.ToInternalValue(),
-         scheduler_->GetCurrentTime().ToInternalValue());
+         delay.InMilliseconds(),
+         InvalidationClientUtil::GetCurrentTimeMs(scheduler_));
     op_info->has_been_scheduled = true;
     scheduler_->Schedule(
-        op_info->delay,
+        delay,
         NewPermanentCallback(
             &OperationScheduler::RunAndClearScheduled, operation, op_info));
   }
