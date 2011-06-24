@@ -18,17 +18,6 @@
 
 namespace invalidation {
 
-template<typename T>
-string ObjectIdDigestUtils::GetDigest(
-    map<string, T> registrations, DigestFunction* digest_fn) {
-  digest_fn->Reset();
-  for (map<string, ObjectIdP>::iterator iter = registrations.begin();
-       iter != registrations.end(); ++iter) {
-    digest_fn->Update(iter->first);
-  }
-  return digest_fn->GetDigest();
-}
-
 string ObjectIdDigestUtils::GetDigest(
     const ObjectIdP& object_id, DigestFunction* digest_fn) {
   digest_fn->Reset();

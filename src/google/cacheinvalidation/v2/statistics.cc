@@ -33,7 +33,7 @@ const char* Statistics::ReceivedMessageType_names[] = {
   "invalidation",
   "registration_status",
   "registration_sync_request",
-  "invalidation_token_control",
+  "token_control",
   "total",
 };
 
@@ -69,32 +69,32 @@ const char* Statistics::ClientErrorType_names[] = {
 };
 
 Statistics::Statistics() {
-  InitializeMap(sent_message_types_, SentMessageType_MAX);
-  InitializeMap(received_message_types_, ReceivedMessageType_MAX);
-  InitializeMap(incoming_operation_types_, IncomingOperationType_MAX);
-  InitializeMap(listener_event_types_, ListenerEventType_MAX);
-  InitializeMap(client_error_types_, ClientErrorType_MAX);
+  InitializeMap(sent_message_types_, SentMessageType_MAX + 1);
+  InitializeMap(received_message_types_, ReceivedMessageType_MAX + 1);
+  InitializeMap(incoming_operation_types_, IncomingOperationType_MAX + 1);
+  InitializeMap(listener_event_types_, ListenerEventType_MAX + 1);
+  InitializeMap(client_error_types_, ClientErrorType_MAX + 1);
 }
 
 void Statistics::GetNonZeroStatistics(
     vector<pair<string, int> >* performance_counters) {
   // Add the non-zero values from the different maps to performance_counters.
   FillWithNonZeroStatistics(
-      sent_message_types_, SentMessageType_MAX, SentMessageType_names,
+      sent_message_types_, SentMessageType_MAX + 1, SentMessageType_names,
       "sent_message_type.", performance_counters);
   FillWithNonZeroStatistics(
-      received_message_types_, ReceivedMessageType_MAX,
+      received_message_types_, ReceivedMessageType_MAX + 1,
       ReceivedMessageType_names, "received_message_type.",
       performance_counters);
   FillWithNonZeroStatistics(
-      incoming_operation_types_, IncomingOperationType_MAX,
+      incoming_operation_types_, IncomingOperationType_MAX + 1,
       IncomingOperationType_names, "incoming_operation_type.",
       performance_counters);
   FillWithNonZeroStatistics(
-      listener_event_types_, ListenerEventType_MAX, ListenerEventType_names,
+      listener_event_types_, ListenerEventType_MAX + 1, ListenerEventType_names,
       "listener_event_type.", performance_counters);
   FillWithNonZeroStatistics(
-      client_error_types_, ClientErrorType_MAX, ClientErrorType_names,
+      client_error_types_, ClientErrorType_MAX + 1, ClientErrorType_names,
       "client_error_type.", performance_counters);
 }
 

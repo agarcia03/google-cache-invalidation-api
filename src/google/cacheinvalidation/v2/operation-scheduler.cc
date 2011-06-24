@@ -23,7 +23,7 @@
 namespace invalidation {
 
 void OperationScheduler::SetOperation(TimeDelta delay, Closure* operation) {
-  CHECK(operations_.find(operation) != operations_.end()) << "operation " <<
+  CHECK(operations_.find(operation) == operations_.end()) << "operation " <<
       operation << " already set";
   CHECK(delay > TimeDelta::FromMilliseconds(0)) <<
       "delay_ms must be positive: given " << delay.ToInternalValue();
@@ -39,7 +39,7 @@ void OperationScheduler::ChangeDelayForTest(
       operations_.find(operation);
   CHECK(it != operations_.end());
   OperationScheduleInfo& op_info = it->second;
-  TLOG(logger_, FINE, "Changing delay for %llx to be %d ms", operation,
+  TLOG(logger_, FINE, "Changing delay for %llx to be %d us", operation,
        delay.ToInternalValue());
   op_info.delay = delay;
 }
@@ -47,12 +47,12 @@ void OperationScheduler::ChangeDelayForTest(
 void OperationScheduler::Schedule(Closure* operation) {
   hash_map<Closure*, OperationScheduleInfo, ClosureHashFunction>::iterator it =
       operations_.find(operation);
-  CHECK(it != operations_.end());
+  CHECK(it != operations_.end()) << "cannot schedule operation: not set";
   OperationScheduleInfo* op_info = &it->second;
 
   // Schedule an event if one has not been already scheduled.
   if (!op_info->has_been_scheduled) {
-    TLOG(logger_, FINE, "Scheduling %llx with a delay %d, Now = %s", operation,
+    TLOG(logger_, FINE, "Scheduling %llx with a delay %d, Now = %d", operation,
          op_info->delay.ToInternalValue(),
          scheduler_->GetCurrentTime().ToInternalValue());
     op_info->has_been_scheduled = true;
@@ -65,8 +65,8 @@ void OperationScheduler::Schedule(Closure* operation) {
 
 void OperationScheduler::RunAndClearScheduled(
     Closure* closure, OperationScheduleInfo* info) {
-  closure->Run();
   info->has_been_scheduled = false;
+  closure->Run();
 }
 
 }  // namespace invalidation

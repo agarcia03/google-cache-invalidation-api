@@ -108,7 +108,7 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
 
   // Initialize the session manager using the persisted client token.
   PersistentTiclState persistent_state;
-  bool deserialized;
+  bool deserialized = false;
   if (!serialized_state.empty()) {
     deserialized = PersistenceUtils::DeserializeState(
         logger_, serialized_state, digest_fn_.get(), &persistent_state);
@@ -252,7 +252,13 @@ void InvalidationClientImpl::AcknowledgeInternal(
   }
 
   // 2. Validate ack handle - it should have a valid invalidation.
+  // TODO(dsmyers): [bug #4902682] remove the explicit checks on
+  // ack_handle.invalidation() once the message validator is ported
+  // to C++.
   if (!ack_handle.has_invalidation()
+      || !ack_handle.invalidation().has_object_id()
+      || !ack_handle.invalidation().object_id().has_name()
+      || !ack_handle.invalidation().object_id().has_source()
       || !msg_validator_->IsValid(ack_handle.invalidation())) {
     TLOG(logger_, WARNING, "Incorrect ack handle: %s",
          ProtoHelpers::ToString(ack_handle).c_str());
@@ -629,8 +635,7 @@ void InvalidationClientImpl::HeartbeatTask() {
   // Send info message.
   TLOG(logger_, INFO, "Sending heartbeat to server: %s", ToString().c_str());
   SendInfoMessageToServer(false);
-  operation_scheduler_.Schedule(
-      NewPermanentCallback(this, &InvalidationClientImpl::HeartbeatTask));
+  operation_scheduler_.Schedule(heartbeat_task_.get());
 }
 
 InvalidationListener::RegistrationState

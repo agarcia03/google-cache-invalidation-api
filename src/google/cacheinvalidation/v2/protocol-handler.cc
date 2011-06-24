@@ -144,6 +144,18 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
     listener_->HandleTokenChanged(
         header, token_msg.new_token(), token_msg.status());
   }
+
+  // We explicitly check to see if we have a valid token after we pass the token
+  // control message to the listener. This is because we can't determine whether
+  // we have a valid token until after the upcall:
+  // 1) The listener might have acquired a token.
+  // 2) The listener might have lost its token.
+  // Note that checking for the presence of a TokenControlMessage is *not*
+  // sufficient: it might be a token-assign with the wrong nonce or a
+  // token-destroy message, for example.
+  if (listener_->GetClientToken().empty()) {
+    return;
+  }
   if (message.has_invalidation_message()) {
     statistics_->RecordReceivedMessage(
         Statistics::ReceivedMessageType_INVALIDATION);
@@ -176,11 +188,16 @@ bool ProtocolHandler::CheckServerToken(const string& server_token) {
   // If we do not have a client token yet, there is nothing to compare. The
   // message must have an initialize message and the upper layer will do the
   // appropriate checks. Hence, we return true for clientToken == null.
+  if (client_token.empty()) {
+    // No token. Return true so that we'll attempt to deliver a token control
+    // message (if any) to the listener in handleIncomingMessage.
+    return true;
+  }
 
   if (client_token != server_token) {
     // Bad token - reject whole message
     TLOG(logger_, WARNING, "Incoming message has bad token: %s, %s",
-         server_token.c_str(), client_token.c_str());
+         client_token.c_str(), server_token.c_str());
     statistics_->RecordError(Statistics::ClientErrorType_TOKEN_MISMATCH);
     return false;
   }
@@ -364,6 +381,20 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
          client_token.c_str());
     builder->set_client_token(client_token);
   }
+}
+
+void ProtocolHandler::BatchingTask() {
+  ClientToServerMessage message;
+  SendMessageToServer(&message, "BatchingTask");
+}
+
+void ProtocolHandler::MessageReceiver(string message) {
+  internal_scheduler_->Schedule(Scheduler::kNoDelay, NewPermanentCallback(this,
+      &ProtocolHandler::HandleIncomingMessage, message));
+}
+
+void ProtocolHandler::NetworkStatusReceiver(bool status) {
+  // Do nothing for now.
 }
 
 }  // namespace invalidation

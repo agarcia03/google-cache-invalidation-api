@@ -31,13 +31,19 @@ class ObjectIdDigestUtils {
   /* Returns the digest of the set of keys in the given map. */
   template<typename T>
   static string GetDigest(
-      map<string, T> registrations, DigestFunction* digest_fn);
+      map<string, T> registrations, DigestFunction* digest_fn) {
+    digest_fn->Reset();
+    for (map<string, ObjectIdP>::iterator iter = registrations.begin();
+         iter != registrations.end(); ++iter) {
+      digest_fn->Update(iter->first);
+    }
+    return digest_fn->GetDigest();
+  }
 
   /* Returns the digest of object_id using digest_fn. */
   static string GetDigest(
       const ObjectIdP& object_id, DigestFunction* digest_fn);
 };
-
 }  // namespace invalidation
 
 #endif  // GOOGLE_CACHEINVALIDATION_V2_OBJECT_ID_DIGEST_UTILS_H_
