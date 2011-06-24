@@ -23,6 +23,7 @@
 
 namespace invalidation {
 
+using ::ipc::invalidation::ConfigChangeMessage;
 using ::ipc::invalidation::InfoMessage;
 using ::ipc::invalidation::InitializeMessage;
 using ::ipc::invalidation::InitializeMessage_DigestSerializationType_BYTE_BASED;
@@ -47,6 +48,7 @@ ProtocolHandler::ProtocolHandler(
       msg_validator_(msg_validator),
       message_id_(1),
       last_known_server_time_ms_(0),
+      next_message_send_time_ms_(0),
       statistics_(statistics),
       batching_task_(NewPermanentCallback(
           this, &ProtocolHandler::BatchingTask)) {
@@ -109,6 +111,20 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
     TLOG(logger_, SEVERE, "Dropping message with incompatible version: %s",
          ProtoHelpers::ToString(message).c_str());
     return;
+  }
+
+  // Check if it is a ConfigChangeMessage which indicates that messages should
+  // no longer be sent for a certain duration. Perform this check before the
+  // token is even checked.
+  if (message.has_config_change_message()) {
+    const ConfigChangeMessage& config_change_msg =
+        message.config_change_message();
+    if (config_change_msg.has_next_message_delay_ms()) {
+      // Validator has ensured that it is positive.
+      next_message_send_time_ms_ = GetCurrentTimeMs() +
+          config_change_msg.next_message_delay_ms();
+    }
+    return;  // Ignore all other messages in the envelope.
   }
 
   // Check token if possible.
@@ -245,6 +261,12 @@ void ProtocolHandler::SendMessageToServer(
     ClientToServerMessage* builder, const string& debug_string) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
+  if (next_message_send_time_ms_ > GetCurrentTimeMs()) {
+    TLOG(logger_, WARNING, "In quiet period: not sending message to server: "
+         "%lld > %lld", next_message_send_time_ms_, GetCurrentTimeMs());
+    return;
+  }
+
   // Note: Even if an initialize message is being sent, we can send additional
   // messages such as regisration messages, etc to the server. But if there is
   // no token and an initialize message is not being sent, we cannot send any
@@ -332,8 +354,7 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
       Constants::kProtocolMajorVersion);
   builder->mutable_protocol_version()->mutable_version()->set_minor_version(
       Constants::kProtocolMinorVersion);
-  builder->set_client_time_ms(
-      internal_scheduler_->GetCurrentTime().ToInternalValue() / 1000);
+  builder->set_client_time_ms(GetCurrentTimeMs());
   builder->set_message_id(StringPrintf("%d", message_id_++));
   builder->set_max_known_server_time_ms(last_known_server_time_ms_);
   listener_->GetRegistrationSummary(builder->mutable_registration_summary());

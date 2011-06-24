@@ -152,6 +152,14 @@ class ProtocolHandler {
                   ProtocolListener* listener,
                   TiclMessageValidator* msg_validator);
 
+
+  /* Returns the next time a message is allowed to be sent to the server (could
+   *   be in the past).
+   */
+  int64 GetNextMessageSendTimeMsForTest() {
+    return next_message_send_time_ms_;
+  }
+
   /* Sends a message to the server to request a client token.
    *
    * Arguments:
@@ -221,6 +229,12 @@ class ProtocolHandler {
   /* Responds to changes in network connectivity. */
   void NetworkStatusReceiver(bool status);
 
+  // Returns the current time in milliseconds.
+  int64 GetCurrentTimeMs() {
+    return internal_scheduler_->GetCurrentTime().ToInternalValue() / 1000;
+  }
+
+
   ClientVersion client_version_;
   SystemResources* resources_;  // who owns this?
 
@@ -240,6 +254,11 @@ class ProtocolHandler {
 
   /* The last known time from the server. */
   int64 last_known_server_time_ms_;
+
+  /* The next time before which a message cannot be sent to the server. If
+   * this is less than current time, a message can be sent at any time.
+   */
+  int64 next_message_send_time_ms_;
 
   /* Set of pending registrations stored as a map for overriding later
    * operations.

@@ -130,6 +130,13 @@ class InvalidationClientImpl : public InvalidationClient,
     operation_scheduler_.ChangeDelayForTest(heartbeat_task_.get(), delay);
   }
 
+  /* Returns the next time a message is allowed to be sent to the server (could
+   * be in the past).
+   */
+  int64 GetNextMessageSendTimeMsForTest() {
+    return protocol_handler_.GetNextMessageSendTimeMsForTest();
+  }
+
   /* Sets the digest store to be digest_store for testing purposes.
    *
    * REQUIRES: This method is called before the Ticl has been started.
