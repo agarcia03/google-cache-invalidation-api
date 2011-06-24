@@ -22,6 +22,8 @@
 
 namespace invalidation {
 
+class InvalidationClient;
+
 class InvalidationListener {
  public:
   /* Possible registration states for an object. */
