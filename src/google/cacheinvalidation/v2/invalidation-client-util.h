@@ -17,6 +17,9 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_INVALIDATION_CLIENT_UTIL_H_
 #define GOOGLE_CACHEINVALIDATION_V2_INVALIDATION_CLIENT_UTIL_H_
 
+#include "google/cacheinvalidation/v2/system-resources.h"
+#include "google/cacheinvalidation/v2/time.h"
+
 namespace invalidation {
 
 class InvalidationClientUtil {
