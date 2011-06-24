@@ -61,7 +61,6 @@ struct ServerMessageHeader {
   RegistrationSummary registration_summary;
 };
 
-
 class ProtocolListener {
  public:
   virtual ~ProtocolListener() {}
@@ -93,7 +92,7 @@ class ProtocolListener {
    */
   virtual void HandleRegistrationStatus(
       const ServerMessageHeader& header,
-      const RepeatedPtrField<RegistrationStatus>& reg_status);
+      const RepeatedPtrField<RegistrationStatus>& reg_status) = 0;
 
   /* Handles a registration sync request from the server.
    *
