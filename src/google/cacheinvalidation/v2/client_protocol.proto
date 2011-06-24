@@ -396,8 +396,11 @@ message ServerToClientMessage {
   // Request for client registration state.
   optional RegistrationSyncRequestMessage registration_sync_request_message = 5;
 
+  // Request to change config from the server.
+  optional ConfigChangeMessage config_change_message = 6;
+
   // Request for client information.
-  optional InfoRequestMessage info_request_message = 6;
+  optional InfoRequestMessage info_request_message = 7;
 }
 
 // Message used to supply a new client token or invalidate an existing one.
@@ -436,4 +439,16 @@ message InfoRequestMessage {
     GET_PERFORMANCE_COUNTERS = 1;
   }
   repeated InfoType info_type = 1;
+}
+
+// A message asking the client to change its configuration parameters
+message ConfigChangeMessage {
+
+  // On receipt of this value, do not send any new message to the server
+  // for the specified delay (this message needs to be accepted without
+  // any token check). A zero value is ignored by the client. So the lowest
+  // value for this field is 1. This concept exists to allow the server
+  // to tell the clients that they should not come back to the server
+  // for some period of time.
+  optional int64 next_message_delay_ms = 1;
 }
