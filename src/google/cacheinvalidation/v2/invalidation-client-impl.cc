@@ -48,7 +48,7 @@ void InvalidationClientImpl::Config::GetConfigParams(
 
 string InvalidationClientImpl::Config::ToString() {
   return StringPrintf(
-      "network delay: %lld, write retry delay: %lld, heartbeat: %lld",
+      "network delay: %ld, write retry delay: %ld, heartbeat: %ld",
       network_timeout_delay.ToInternalValue(),
       write_retry_delay.ToInternalValue(),
       heartbeat_interval.ToInternalValue());
@@ -201,7 +201,7 @@ void InvalidationClientImpl::PerformRegisterOperations(
 void InvalidationClientImpl::PerformRegisterOperationsInternal(
     const vector<ObjectId>& object_ids, RegistrationP::OpType reg_op_type) {
   vector<ObjectIdP> object_id_protos;
-  for (int i = 0; i < object_ids.size(); ++i) {
+  for (size_t i = 0; i < object_ids.size(); ++i) {
     const ObjectId& object_id = object_ids[i];
     ObjectIdP object_id_proto;
     ProtoConverter::ConvertToObjectIdProto(object_id, &object_id_proto);
@@ -319,7 +319,7 @@ void InvalidationClientImpl::HandleTokenChanged(
     registration_manager_.RemoveRegisteredObjects(&desired_registrations);
     TLOG(logger_, WARNING, "Issuing failure for %d objects",
          desired_registrations.size());
-    for (int i = 0; i < desired_registrations.size(); ++i) {
+    for (size_t i = 0; i < desired_registrations.size(); ++i) {
       ObjectId object_id;
       ProtoConverter::ConvertFromObjectIdProto(
           desired_registrations[i], &object_id);
@@ -374,7 +374,7 @@ void InvalidationClientImpl::LoseToken() {
 
 void InvalidationClientImpl::HandleInvalidations(
     const ServerMessageHeader& header,
-    const proto2::RepeatedPtrField<InvalidationP>& invalidations) {
+    const RepeatedPtrField<InvalidationP>& invalidations) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   ProcessServerHeader(header);
 
@@ -406,14 +406,15 @@ void InvalidationClientImpl::HandleInvalidations(
 
 void InvalidationClientImpl::HandleRegistrationStatus(
     const ServerMessageHeader& header,
-    const proto2::RepeatedPtrField<RegistrationStatus>& reg_status_list) {
+    const RepeatedPtrField<RegistrationStatus>& reg_status_list) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   ProcessServerHeader(header);
 
   vector<bool> local_processing_statuses;
   registration_manager_.HandleRegistrationStatus(
       reg_status_list, &local_processing_statuses);
-  CHECK(local_processing_statuses.size() == reg_status_list.size()) <<
+  CHECK(local_processing_statuses.size() ==
+        static_cast<size_t>(reg_status_list.size())) <<
       "Not all registration statuses were processed";
 
   // Inform app about the success or failure of each registration based
@@ -454,7 +455,7 @@ void InvalidationClientImpl::HandleRegistrationSyncRequest(
 
 void InvalidationClientImpl::HandleInfoMessage(
     const ServerMessageHeader& header,
-    const proto2::RepeatedField<int>& info_types) {
+    const RepeatedField<int>& info_types) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   ProcessServerHeader(header);
   bool must_send_performance_counters = false;
@@ -475,7 +476,7 @@ void InvalidationClientImpl::GetRegistrationManagerStateAsSerializedProto(
   registration_manager_.GetRegistrationSummary(reg_state.mutable_reg_summary());
   vector<ObjectIdP> registered_objects;
   registration_manager_.GetRegisteredObjectsForTest(&registered_objects);
-  for (int i = 0; i < registered_objects.size(); ++i) {
+  for (size_t i = 0; i < registered_objects.size(); ++i) {
     reg_state.add_registered_objects()->CopyFrom(registered_objects[i]);
   }
   reg_state.SerializeToString(result);
@@ -486,7 +487,7 @@ void InvalidationClientImpl::GetStatisticsAsSerializedProto(
   vector<pair<string, int> > properties;
   statistics_->GetNonZeroStatistics(&properties);
   InfoMessage info_message;
-  for (int i = 0; i < properties.size(); ++i) {
+  for (size_t i = 0; i < properties.size(); ++i) {
     PropertyRecord* record = info_message.add_performance_counter();
     record->set_name(properties[i].first);
     record->set_value(properties[i].second);
@@ -625,11 +626,11 @@ void InvalidationClientImpl::ReadCallback(
 }
 
 void InvalidationClientImpl::HeartbeatTask() {
-  // Send info message
+  // Send info message.
   TLOG(logger_, INFO, "Sending heartbeat to server: %s", ToString().c_str());
   SendInfoMessageToServer(false);
   operation_scheduler_.Schedule(
-      NewPermanentCallback(heartbeat_task_.get(), &Closure::Run));
+      NewPermanentCallback(this, &InvalidationClientImpl::HeartbeatTask));
 }
 
 InvalidationListener::RegistrationState

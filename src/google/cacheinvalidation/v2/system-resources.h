@@ -23,11 +23,24 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_SYSTEM_RESOURCES_H_
 #define GOOGLE_CACHEINVALIDATION_V2_SYSTEM_RESOURCES_H_
 
+#include <utility>
+
 #include "google/cacheinvalidation/callback.h"
+#include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/v2/time.h"
 #include "google/cacheinvalidation/v2/types.h"
 
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::pair;
+
+typedef pair<Status, string> StatusStringPair;
+typedef INVALIDATION_CALLBACK1_TYPE(string) MessageCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(bool) NetworkStatusCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(StatusStringPair) ReadKeyCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(Status) WriteKeyCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(bool) DeleteKeyCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(StatusStringPair) ReadAllKeysCallback;
 
 class SystemResources;  // Declared below.
 
@@ -102,7 +115,7 @@ class NetworkChannel {
   // Implementation note: this is currently a serialized ServerToClientMessage
   // protocol buffer.  Implementors MAY NOT rely on this fact.
   virtual void SetMessageReceiver(
-      Callback1<string>* incoming_receiver) = 0;
+      MessageCallback* incoming_receiver) = 0;
 
   /* Informs the network channel that network_status_receiver be informed about
    * changes to network status changes. If the network is connected, the channel
@@ -118,7 +131,7 @@ class NetworkChannel {
    * result in messages not being sent by the client library.
    */
   virtual void AddNetworkStatusReceiver(
-      Callback1<bool>* network_status_receiver) = 0;
+      NetworkStatusCallback* network_status_receiver) = 0;
 };
 
 /* Interface specifying the storage functionality provided by
@@ -138,15 +151,13 @@ class Storage {
    * REQUIRES: Neither key nor value is null.
    */
   virtual void WriteKey(const string& key, const string& value,
-                        Callback1<Status>* done) = 0;
+                        WriteKeyCallback* done) = 0;
 
   /* Reads the value corresponding to key and calls done with the result.  If it
    * finds the key, passes a success status and the value. Else passes a failure
    * status and a null value.
    */
-  virtual void ReadKey(
-      const string& key,
-      Callback1<pair<Status, string> >* done) = 0;
+  virtual void ReadKey(const string& key, ReadKeyCallback* done) = 0;
 
   /* Deletes the key, value pair corresponding to key. If the deletion succeeds,
    * calls done with true; else calls it with false.

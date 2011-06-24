@@ -26,7 +26,7 @@ void SimpleRegistrationStore::Add(const ObjectIdP& oid) {
 }
 
 void SimpleRegistrationStore::Add(const vector<ObjectIdP>& oids) {
-  for (int i = 0; i < oids.size(); ++i) {
+  for (size_t i = 0; i < oids.size(); ++i) {
     const ObjectIdP& oid = oids[i];
     registrations_[ObjectIdDigestUtils::GetDigest(oid, digest_function_)] = oid;
   }
@@ -39,7 +39,7 @@ void SimpleRegistrationStore::Remove(const ObjectIdP& oid) {
 }
 
 void SimpleRegistrationStore::Remove(const vector<ObjectIdP>& oids) {
-  for (int i = 0; i < oids.size(); ++i) {
+  for (size_t i = 0; i < oids.size(); ++i) {
     const ObjectIdP& oid = oids[i];
     registrations_.erase(ObjectIdDigestUtils::GetDigest(oid, digest_function_));
   }

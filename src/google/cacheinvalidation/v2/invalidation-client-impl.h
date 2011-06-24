@@ -184,18 +184,18 @@ class InvalidationClientImpl : public InvalidationClient,
 
   virtual void HandleInvalidations(
       const ServerMessageHeader& header,
-      const proto2::RepeatedPtrField<InvalidationP>& invalidations);
+      const RepeatedPtrField<InvalidationP>& invalidations);
 
   virtual void HandleRegistrationStatus(
       const ServerMessageHeader& header,
-      const proto2::RepeatedPtrField<RegistrationStatus>& reg_status_list);
+      const RepeatedPtrField<RegistrationStatus>& reg_status_list);
 
   virtual void HandleRegistrationSyncRequest(
       const ServerMessageHeader& header);
 
   virtual void HandleInfoMessage(
       const ServerMessageHeader& header,
-      const proto2::RepeatedField<int>& info_types);
+      const RepeatedField<int>& info_types);
 
   virtual void GetRegistrationSummary(RegistrationSummary* summary) {
     registration_manager_.GetRegistrationSummary(summary);

@@ -116,8 +116,9 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
     return;
   }
 
-  last_known_server_time_ms_ =
-      max(last_known_server_time_ms_, message_header.server_time_ms());
+  if (message_header.server_time_ms() > last_known_server_time_ms_) {
+    last_known_server_time_ms_ = message_header.server_time_ms();
+  }
 
   // Invoke callbacks as appropriate.
   if (message.has_token_control_message()) {
@@ -196,14 +197,14 @@ void ProtocolHandler::SendInfoMessage(
   info_message.mutable_client_version()->CopyFrom(client_version_);
 
   // Add configuration parameters.
-  for (int i = 0; i < config_params.size(); ++i) {
+  for (size_t i = 0; i < config_params.size(); ++i) {
     PropertyRecord* config_record = info_message.add_config_paramter();
     config_record->set_name(config_params[i].first);
     config_record->set_value(config_params[i].second);
   }
 
   // Add performance counters.
-  for (int i = 0; i < performance_counters.size(); ++i) {
+  for (size_t i = 0; i < performance_counters.size(); ++i) {
     PropertyRecord* counter = info_message.add_performance_counter();
     counter->set_name(performance_counters[i].first);
     counter->set_value(performance_counters[i].second);
@@ -217,7 +218,7 @@ void ProtocolHandler::SendInfoMessage(
 void ProtocolHandler::SendRegistrations(
     const vector<ObjectIdP>& object_ids, RegistrationP::OpType reg_op_type) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  for (int i = 0; i < object_ids.size(); ++i) {
+  for (size_t i = 0; i < object_ids.size(); ++i) {
     pending_registrations_[object_ids[i]] = reg_op_type;
   }
   operation_scheduler_->Schedule(batching_task_.get());

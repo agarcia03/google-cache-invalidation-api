@@ -18,9 +18,11 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_DIGEST_STORE_H_
 #define GOOGLE_CACHEINVALIDATION_V2_DIGEST_STORE_H_
 
-#include <iterator>
+#include <vector>
 
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::vector;
 
 template<typename ElementType>
 class DigestStore {

@@ -17,9 +17,14 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_TYPES_H_
 #define GOOGLE_CACHEINVALIDATION_V2_TYPES_H_
 
+#include <string>
+
 #include "google/cacheinvalidation/v2/logging.h"
+#include "google/cacheinvalidation/stl-namespace.h"
 
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::string;
 
 /* Represents an opaque handle that can be used to acknowledge an invalidation
  * event by calling InvalidationClient::Acknowledge(AckHandle) to indicate that

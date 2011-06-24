@@ -17,18 +17,24 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_PROTOCOL_HANDLER_H_
 #define GOOGLE_CACHEINVALIDATION_V2_PROTOCOL_HANDLER_H_
 
-#include <hash_set>
 #include <string>
+#include <utility>
 
 #include "google/cacheinvalidation/v2/hash_map.h"
+#include "google/cacheinvalidation/v2/hash_set.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/v2/operation-scheduler.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
+#include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/statistics.h"
 #include "google/cacheinvalidation/v2/ticl-message-validator.h"
 
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::make_pair;
+using INVALIDATION_STL_NAMESPACE::pair;
+using INVALIDATION_STL_NAMESPACE::string;
 
 /* Representation of a message header for use in a server message. */
 struct ServerMessageHeader {

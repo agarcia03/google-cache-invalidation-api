@@ -19,7 +19,11 @@
 
 #include <string>
 
+#include "google/cacheinvalidation/stl-namespace.h"
+
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::string;
 
 class DigestFunction {
  public:

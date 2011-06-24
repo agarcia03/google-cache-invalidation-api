@@ -18,9 +18,18 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_STATISTICS_H_
 #define GOOGLE_CACHEINVALIDATION_V2_STATISTICS_H_
 
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/v2/string_util.h"
 
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::pair;
+using INVALIDATION_STL_NAMESPACE::string;
+using INVALIDATION_STL_NAMESPACE::vector;
 
 class Statistics {
  public:

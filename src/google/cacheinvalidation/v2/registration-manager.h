@@ -19,6 +19,7 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_REGISTRATION_MANAGER_H_
 #define GOOGLE_CACHEINVALIDATION_V2_REGISTRATION_MANAGER_H_
 
+#include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/v2/digest-function.h"
@@ -65,7 +66,7 @@ class RegistrationManager {
    *     element of registration_statuses.
    */
   void HandleRegistrationStatus(
-      const proto2::RepeatedPtrField<RegistrationStatus>& registration_statuses,
+      const RepeatedPtrField<RegistrationStatus>& registration_statuses,
       vector<bool>* result);
 
   /* Removes all the registrations in this manager and returns the list. */

@@ -26,6 +26,8 @@
 
 namespace invalidation {
 
+using INVALIDATION_STL_NAMESPACE::map;
+
 class SimpleRegistrationStore : public DigestStore<ObjectIdP> {
  public:
   explicit SimpleRegistrationStore(DigestFunction* digest_function)

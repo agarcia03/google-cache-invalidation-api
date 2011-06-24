@@ -32,7 +32,7 @@ string ObjectIdDigestUtils::GetDigest(
 string ObjectIdDigestUtils::GetDigest(
     const ObjectIdP& object_id, DigestFunction* digest_fn) {
   digest_fn->Reset();
-  int32 source = object_id.source();
+  int source = object_id.source();
   string buffer(4, 0);
 
   // Little endian number for type followed by bytes.

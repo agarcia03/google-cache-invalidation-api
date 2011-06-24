@@ -24,6 +24,8 @@
 
 namespace invalidation {
 
+using INVALIDATION_STL_NAMESPACE::map;
+
 class ObjectIdDigestUtils {
  public:
   /* Returns the digest of the set of keys in the given map. */

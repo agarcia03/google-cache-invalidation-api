@@ -18,20 +18,24 @@
 #define GOOGLE_CACHEINVALIDATION_V2_PROTO_HELPERS_H_
 
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
-#include "net/proto2/public/message.h"
-#include "net/proto2/public/text_format.h"
+#include "google/cacheinvalidation/v2/hash_map.h"
+#include "google/protobuf/message.h"
+#include "google/protobuf/text_format.h"
 
 namespace invalidation {
 
-using ::proto2::Message;
-using ::proto2::RepeatedField;
-using ::proto2::RepeatedPtrField;
-using ::proto2::TextFormat;
+using ::google::protobuf::Message;
+using ::google::protobuf::TextFormat;
 
 // Hash functions for various protocol messages.
 struct ProtoHash {
   size_t operator()(const ObjectIdP& object_id) const {
-    return hash<const char*>()(object_id.name().data()) ^ object_id.source();
+    size_t accum = 1;
+    const string& object_name = object_id.name();
+    for (size_t i = 0; i < object_name.length(); ++i) {
+      accum = accum * 31 + object_name.data()[i];
+    }
+    return accum ^ object_id.source();
   }
 
   size_t operator()(const InvalidationP& invalidation) const {
@@ -90,7 +94,7 @@ class ProtoHelpers {
   // Converts a message to text format.
   static string ToString(const Message& message) {
     string result;
-    proto2::TextFormat::PrintToString(message, &result);
+    TextFormat::PrintToString(message, &result);
     return result;
   }
 };

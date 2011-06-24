@@ -18,6 +18,7 @@
 
 #include "google/cacheinvalidation/v2/registration-manager.h"
 
+#include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/v2/log-macro.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
 #include "google/cacheinvalidation/v2/simple-registration-store.h"
@@ -48,13 +49,13 @@ void RegistrationManager::GetRegistrations(
     const string& digest_prefix, int prefix_len, RegistrationSubtree* builder) {
   vector<ObjectIdP> oids;
   desired_registrations_->GetElements(digest_prefix, prefix_len, &oids);
-  for (int i = 0; i < oids.size(); ++i) {
+  for (size_t i = 0; i < oids.size(); ++i) {
     builder->add_registered_object()->CopyFrom(oids[i]);
   }
 }
 
 void RegistrationManager::HandleRegistrationStatus(
-    const proto2::RepeatedPtrField<RegistrationStatus>& registration_statuses,
+    const RepeatedPtrField<RegistrationStatus>& registration_statuses,
     vector<bool>* success_status) {
 
   // Local-processing result code for each element of
