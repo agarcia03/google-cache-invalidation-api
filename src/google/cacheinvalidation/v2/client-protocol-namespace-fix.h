@@ -39,20 +39,27 @@ using ::ipc::invalidation::ClientToServerMessage;
 using ::ipc::invalidation::InfoMessage;
 using ::ipc::invalidation::InfoRequestMessage;
 using ::ipc::invalidation::InfoRequestMessage_InfoType_GET_PERFORMANCE_COUNTERS;
+using ::ipc::invalidation::InitializeMessage;
+using ::ipc::invalidation::InvalidationMessage;
 using ::ipc::invalidation::InvalidationP;
 using ::ipc::invalidation::ObjectIdP;
 using ::ipc::invalidation::PropertyRecord;
 using ::ipc::invalidation::RegistrationP;
 using ::ipc::invalidation::RegistrationP_OpType_REGISTER;
 using ::ipc::invalidation::RegistrationP_OpType_UNREGISTER;
+using ::ipc::invalidation::RegistrationMessage;
 using ::ipc::invalidation::RegistrationStatus;
+using ::ipc::invalidation::RegistrationStatusMessage;
 using ::ipc::invalidation::RegistrationSubtree;
 using ::ipc::invalidation::RegistrationSummary;
+using ::ipc::invalidation::RegistrationSyncMessage;
+using ::ipc::invalidation::ServerHeader;
 using ::ipc::invalidation::ServerToClientMessage;
 using ::ipc::invalidation::StatusP;
 using ::ipc::invalidation::StatusP_Code_SUCCESS;
 using ::ipc::invalidation::StatusP_Code_PERMANENT_FAILURE;
 using ::ipc::invalidation::StatusP_Code_TRANSIENT_FAILURE;
+using ::ipc::invalidation::TokenControlMessage;
 
 // Types
 using ::ipc::invalidation::ObjectSource_Type_INTERNAL;

@@ -388,7 +388,7 @@ void ProtocolHandler::BatchingTask() {
   SendMessageToServer(&message, "BatchingTask");
 }
 
-void ProtocolHandler::MessageReceiver(string message) {
+void ProtocolHandler::MessageReceiver(const string& message) {
   internal_scheduler_->Schedule(Scheduler::kNoDelay, NewPermanentCallback(this,
       &ProtocolHandler::HandleIncomingMessage, message));
 }

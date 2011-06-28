@@ -20,6 +20,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_INVALIDATION_LISTENER_H_
 #define GOOGLE_CACHEINVALIDATION_V2_INVALIDATION_LISTENER_H_
 
+#include "google/cacheinvalidation/v2/types.h"
+
 namespace invalidation {
 
 class InvalidationClient;

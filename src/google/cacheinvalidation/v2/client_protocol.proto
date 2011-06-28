@@ -20,6 +20,8 @@
 
 syntax = "proto2";
 
+option optimize_for = LITE_RUNTIME;
+
 package ipc.invalidation;
 
 // Here is a high-level overview of the protocol. The protocol is designed in a

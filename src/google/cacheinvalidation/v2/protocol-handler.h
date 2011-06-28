@@ -225,7 +225,7 @@ class ProtocolHandler {
   void BatchingTask();
 
   /* Handles inbound messages from the network. */
-  void MessageReceiver(string message);
+  void MessageReceiver(const string& message);
 
   /* Responds to changes in network connectivity. */
   void NetworkStatusReceiver(bool status);

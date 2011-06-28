@@ -35,7 +35,7 @@ namespace invalidation {
 using INVALIDATION_STL_NAMESPACE::pair;
 
 typedef pair<Status, string> StatusStringPair;
-typedef INVALIDATION_CALLBACK1_TYPE(string) MessageCallback;
+typedef INVALIDATION_CALLBACK1_TYPE(const string&) MessageCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(bool) NetworkStatusCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(StatusStringPair) ReadKeyCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(Status) WriteKeyCallback;
@@ -162,15 +162,14 @@ class Storage {
   /* Deletes the key, value pair corresponding to key. If the deletion succeeds,
    * calls done with true; else calls it with false.
    */
-  virtual void DeleteKey(const string& key, Callback1<bool>* done) = 0;
+  virtual void DeleteKey(const string& key, DeleteKeyCallback* done) = 0;
 
   /* Reads all the keys from the underlying store and then calls key_callback
    * with each key that was written earlier and not deleted. When all the keys
    * are done, calls key_callback with null. With each key, the code can
    * indicate a failed status, in which case the iteration stops.
    */
-  virtual void ReadAllKeys(
-      Callback1<pair<Status, string> >* key_callback) = 0;
+  virtual void ReadAllKeys(ReadAllKeysCallback* key_callback) = 0;
 };
 
 /* Interface for a component of a SystemResources implementation constructed by
