@@ -38,14 +38,16 @@ using ::ipc::invalidation::RegistrationManagerState;
 void InvalidationClientImpl::Config::GetConfigParams(
     vector<pair<string, int> >* config_params) {
   config_params->push_back(
-      make_pair("network_timeout_delay",
+      make_pair("networkTimeoutDelay",
                 network_timeout_delay.InMilliseconds()));
   config_params->push_back(
-      make_pair("write_retry_delay", write_retry_delay.InMilliseconds()));
+      make_pair("writeRetryDelay", write_retry_delay.InMilliseconds()));
   config_params->push_back(
-      make_pair("heartbeat_interval", heartbeat_interval.InMilliseconds()));
+      make_pair("heartbeatInterval", heartbeat_interval.InMilliseconds()));
   config_params->push_back(
-      make_pair("perf_counter_delay", perf_counter_delay.InMilliseconds()));
+      make_pair("perfCounterDelay", perf_counter_delay.InMilliseconds()));
+  config_params->push_back(
+      make_pair("maxExponentialBackoffFactor", max_exponential_backoff_factor));
   protocol_handler_config.GetConfigParams(config_params);
 }
 
@@ -77,7 +79,7 @@ InvalidationClientImpl::InvalidationClientImpl(
                         statistics_.get(), application_name, this,
                         msg_validator_.get()),
       operation_scheduler_(logger_, internal_scheduler_),
-      network_exponential_backoff_(
+      token_exponential_backoff_(
           new Random(InvalidationClientUtil::GetCurrentTimeMs(
               resources->internal_scheduler())),
           config.max_exponential_backoff_factor *
@@ -152,7 +154,7 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     // If we had no persistent state or couldn't deserialize the state that we
     // had, start fresh.  Request a new client identifier.
     TLOG(logger_, INFO, "Starting with no previous state");
-    AcquireToken("Startup");
+    ScheduleAcquireToken("Startup");
   }
 
   // We are not currently persisting our registration digest, so regardless of
@@ -363,25 +365,15 @@ void InvalidationClientImpl::HandleTokenChanged(
         Statistics::ClientErrorType_TOKEN_TRANSIENT_FAILURE);
     TLOG(logger_, WARNING, "Server says transient failure for token: %s: %s",
          header.ToString().c_str(), ProtoHelpers::ToString(status).c_str());
-
-    // Retry after a timeout (with exponential backoff).
-    internal_scheduler_->Schedule(network_exponential_backoff_.GetNextDelay(),
-        NewPermanentCallback(
-            this,
-            &InvalidationClientImpl::LoseToken));
+    ScheduleAcquireToken("Failure Retry");
   }
-
-  // Token control message succeeded - reset the network delay so that the next
-  // time we acquire a token, the delay starts from the original value.
-  network_exponential_backoff_.Reset(config_.network_timeout_delay);
 
   // The message is correct - process it.
   ProcessServerHeader(header);
 
   if (new_token.empty()) {
     TLOG(logger_, INFO, "Destroying existing token: %s", client_token_.c_str());
-    set_client_token("");
-    AcquireToken("Destroy");
+    ScheduleAcquireToken("Destroy");
   } else {
     // We just received a new token. Start the regular heartbeats now.
     operation_scheduler_.Schedule(heartbeat_task_.get());
@@ -393,9 +385,15 @@ void InvalidationClientImpl::HandleTokenChanged(
   }
 }
 
-void InvalidationClientImpl::LoseToken() {
+void InvalidationClientImpl::ScheduleAcquireToken(const string& debug_string) {
+  CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   set_client_token("");
-  AcquireToken("Failure Retry");
+
+  // Schedule the token acquisition while respecting exponential backoff.
+  internal_scheduler_->Schedule(token_exponential_backoff_.GetNextDelay(),
+      NewPermanentCallback(
+          this,
+          &InvalidationClientImpl::AcquireToken, debug_string));
 }
 
 void InvalidationClientImpl::HandleInvalidations(
@@ -523,16 +521,19 @@ void InvalidationClientImpl::GetStatisticsAsSerializedProto(
 
 void InvalidationClientImpl::AcquireToken(const string& debug_string) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  CHECK(client_token_.empty()) << "Had existing token";
 
-  // Allocate a nonce and send a message requesting a new token.
-  set_nonce(SimpleItoa(
-      internal_scheduler_->GetCurrentTime().ToInternalValue()));
-  protocol_handler_.SendInitializeMessage(
-      client_type_, application_client_id_, nonce_, debug_string);
+  // If token is still not assigned (as expected), sends a request. Otherwise,
+  // ignore.
+  if (client_token_.empty()) {
+    // Allocate a nonce and send a message requesting a new token.
+    set_nonce(SimpleItoa(
+        internal_scheduler_->GetCurrentTime().ToInternalValue()));
+    protocol_handler_.SendInitializeMessage(
+        client_type_, application_client_id_, nonce_, debug_string);
 
-  // Schedule a timeout to retry if we don't receive a response.
-  operation_scheduler_.Schedule(timeout_task_.get());
+    // Schedule a timeout to retry if we don't receive a response.
+    operation_scheduler_.Schedule(timeout_task_.get());
+  }
 }
 
 void InvalidationClientImpl::CheckNetworkTimeouts() {
@@ -548,7 +549,7 @@ void InvalidationClientImpl::CheckNetworkTimeouts() {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   if (client_token_.empty()) {
     TLOG(logger_, INFO, "Request for token timed out");
-    AcquireToken("Network timeout");
+    ScheduleAcquireToken("Network timeout");
     return;
   }
 
@@ -613,6 +614,12 @@ void InvalidationClientImpl::set_client_token(const string& new_client_token) {
   CHECK(new_client_token.empty() || nonce_.empty()) <<
       "Tried to set token with existing nonce " << nonce_;
   client_token_ = new_client_token;
+
+  if (!new_client_token.empty()) {
+    // Token control message succeeded - reset the network delay so that the
+    // next time we acquire a token, the delay starts from the original value.
+    token_exponential_backoff_.Reset(config_.network_timeout_delay);
+  }
 }
 
 void InvalidationClientImpl::WriteCallback(Status status) {

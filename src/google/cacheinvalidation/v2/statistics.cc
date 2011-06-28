@@ -20,52 +20,52 @@
 namespace invalidation {
 
 const char* Statistics::SentMessageType_names[] = {
-  "info",
-  "initialize",
-  "invalidation_ack",
-  "registration",
-  "registration_sync",
-  "total",
+  "INFO",
+  "INITIALIZE",
+  "INVALIDATION_ACK",
+  "REGISTRATION",
+  "REGISTRATION_SYNC",
+  "TOTAL",
 };
 
 const char* Statistics::ReceivedMessageType_names[] = {
-  "info_request",
-  "invalidation",
-  "registration_status",
-  "registration_sync_request",
-  "token_control",
-  "total",
+  "INFO_REQUEST",
+  "INVALIDATION",
+  "REGISTRATION_STATUS",
+  "REGISTRATION_SYNC_REQUEST",
+  "TOKEN_CONTROL",
+  "TOTAL",
 };
 
 const char* Statistics::IncomingOperationType_names[] = {
-  "acknowledge",
-  "registration",
-  "unregistration",
+  "ACKNOWLEDGE",
+  "REGISTRATION",
+  "UNREGISTRATION",
 };
 
 const char* Statistics::ListenerEventType_names[] = {
-  "inform_error",
-  "inform_registration_failure",
-  "inform_registration_status",
-  "invalidate",
-  "invalidate_all",
-  "invalidate_unknown",
-  "reissue_registrations",
+  "INFORM_ERROR",
+  "INFORM_REGISTRATION_FAILURE",
+  "INFORM_REGISTRATION_STATUS",
+  "INVALIDATE",
+  "INVALIDATE_ALL",
+  "INVALIDATE_UNKNOWN",
+  "REISSUE_REGISTRATIONS",
 };
 
 const char* Statistics::ClientErrorType_names[] = {
-  "acknowledge_handle_failure",
-  "incoming_message_failure",
-  "outgoing_message_failure",
-  "persistent_deserialization_failure",
-  "persistent_read_failure",
-  "persistent_write_failure",
-  "protocol_version_failure",
-  "registration_discrepancy",
-  "nonce_mismatch",
-  "token_mismatch",
-  "token_missing_failure",
-  "token_transient_failure",
+  "ACKNOWLEDGE_HANDLE_FAILURE",
+  "INCOMING_MESSAGE_FAILURE",
+  "OUTGOING_MESSAGE_FAILURE",
+  "PERSISTENT_DESERIALIZATION_FAILURE",
+  "PERSISTENT_READ_FAILURE",
+  "PERSISTENT_WRITE_FAILURE",
+  "PROTOCOL_VERSION_FAILURE",
+  "REGISTRATION_DISCREPANCY",
+  "NONCE_MISMATCH",
+  "TOKEN_MISMATCH",
+  "TOKEN_MISSING_FAILURE",
+  "TOKEN_TRANSIENT_FAILURE",
 };
 
 Statistics::Statistics() {
@@ -81,21 +81,21 @@ void Statistics::GetNonZeroStatistics(
   // Add the non-zero values from the different maps to performance_counters.
   FillWithNonZeroStatistics(
       sent_message_types_, SentMessageType_MAX + 1, SentMessageType_names,
-      "sent_message_type.", performance_counters);
+      "SentMessageType.", performance_counters);
   FillWithNonZeroStatistics(
       received_message_types_, ReceivedMessageType_MAX + 1,
-      ReceivedMessageType_names, "received_message_type.",
+      ReceivedMessageType_names, "ReceivedMessageType.",
       performance_counters);
   FillWithNonZeroStatistics(
       incoming_operation_types_, IncomingOperationType_MAX + 1,
-      IncomingOperationType_names, "incoming_operation_type.",
+      IncomingOperationType_names, "IncomingOperationType.",
       performance_counters);
   FillWithNonZeroStatistics(
       listener_event_types_, ListenerEventType_MAX + 1, ListenerEventType_names,
-      "listener_event_type.", performance_counters);
+      "ListenerEventType.", performance_counters);
   FillWithNonZeroStatistics(
       client_error_types_, ClientErrorType_MAX + 1, ClientErrorType_names,
-      "client_error_type.", performance_counters);
+      "ClientErrorType.", performance_counters);
 }
 
 /* Modifies result to contain those statistics from map whose value is > 0. */

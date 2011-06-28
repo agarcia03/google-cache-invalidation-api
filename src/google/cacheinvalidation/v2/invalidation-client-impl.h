@@ -241,7 +241,8 @@ class InvalidationClientImpl : public InvalidationClient,
 
   void AcknowledgeInternal(const AckHandle& acknowledge_handle);
 
-  void LoseToken();
+  /* Set client_token to NULL and schedule acquisition of the token. */
+  void ScheduleAcquireToken(const string& debug_string);
 
   /* Requests a new client identifier from the server.
    *
@@ -356,8 +357,8 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Last time performance counters were sent to the server. */
   Time last_performance_send_time_;
 
-  /* Exponential backoff generator for network timeouts. */
-  ExponentialBackoffDelayGenerator network_exponential_backoff_;
+  /* Exponential backoff generator for acquire-token timeouts. */
+  ExponentialBackoffDelayGenerator token_exponential_backoff_;
 
   /* Exponential backoff generator for persistence timeouts. */
   ExponentialBackoffDelayGenerator persistence_exponential_backoff_;
