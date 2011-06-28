@@ -625,7 +625,7 @@ void InvalidationClientImpl::set_client_token(const string& new_client_token) {
   // from persistence or from the server, start the ticl and inform the
   // application.
   bool finish_starting_ticl = !ticl_state_.IsStarted() &&
-      (client_token_ == NULL) && (new_client_token != NULL);
+      client_token_.empty() && !new_client_token.empty();
   client_token_ = new_client_token;
 
   if (!new_client_token.empty()) {
