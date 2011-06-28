@@ -73,8 +73,7 @@ class ProtocolListener {
    * new_token - a new token for the client. If NULL, it means destroy the token.
    */
   virtual void HandleTokenChanged(
-      const ServerMessageHeader& header, const string& new_token,
-      const StatusP& status) = 0;
+      const ServerMessageHeader& header, const string& new_token) = 0;
 
   /* Handles invalidations from the server.
    *
@@ -112,6 +111,17 @@ class ProtocolListener {
   virtual void HandleInfoMessage(
       const ServerMessageHeader& header,
       const RepeatedField<int>& info_types) = 0;
+
+   /* Handles an error message from the server.
+    *
+    * Arguments:
+    * code - error reason
+    * description - human-readable description of the error
+    */
+  virtual void HandleErrorMessage(
+      const ServerMessageHeader& header,
+      const ErrorMessage::Code code,
+      const string& description) = 0;
 
   /* Stores a summary of the current desired registrations. */
   virtual void GetRegistrationSummary(RegistrationSummary* summary) = 0;

@@ -194,8 +194,7 @@ class InvalidationClientImpl : public InvalidationClient,
   virtual string GetClientToken();
 
   virtual void HandleTokenChanged(
-      const ServerMessageHeader& header, const string& new_token,
-      const StatusP& status);
+      const ServerMessageHeader& header, const string& new_token);
 
   virtual void HandleInvalidations(
       const ServerMessageHeader& header,
@@ -211,6 +210,11 @@ class InvalidationClientImpl : public InvalidationClient,
   virtual void HandleInfoMessage(
       const ServerMessageHeader& header,
       const RepeatedField<int>& info_types);
+
+  virtual void HandleErrorMessage(
+      const ServerMessageHeader& header,
+      const ErrorMessage::Code code,
+      const string& description);
 
   virtual void GetRegistrationSummary(RegistrationSummary* summary) {
     registration_manager_.GetRegistrationSummary(summary);

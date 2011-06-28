@@ -63,6 +63,7 @@ class Statistics {
     ReceivedMessageType_REGISTRATION_STATUS,
     ReceivedMessageType_REGISTRATION_SYNC_REQUEST,
     ReceivedMessageType_TOKEN_CONTROL,
+    ReceivedMessageType_ERROR,
     ReceivedMessageType_TOTAL,  // Refers to the actual ServerToClientMessage
                                 // messages received from the network.
   };

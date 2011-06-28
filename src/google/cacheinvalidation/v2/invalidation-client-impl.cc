@@ -306,8 +306,7 @@ string InvalidationClientImpl::GetClientToken() {
 }
 
 void InvalidationClientImpl::HandleTokenChanged(
-    const ServerMessageHeader& header, const string& new_token,
-    const StatusP& status) {
+    const ServerMessageHeader& header, const string& new_token) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   // If the client token was valid, we have already checked in protocol
@@ -327,48 +326,7 @@ void InvalidationClientImpl::HandleTokenChanged(
     }
   }
 
-  // The message is for us. Now check for failure.
-
-  // Check it it is a permanent failure. If so, issue an informError, remove
-  // registrations and stop the Ticl.
-  if (status.code() == StatusP_Code_PERMANENT_FAILURE) {
-    TLOG(logger_, SEVERE, "Server could not assign token %s: %s",
-         header.ToString().c_str(), ProtoHelpers::ToString(status).c_str());
-    ErrorInfo error_info(ErrorReason::UNKNOWN_FAILURE, false,
-                         status.description(), ErrorContext());
-    listener_->InformError(this, error_info);
-
-    // If there are any registrations, remove them and issue registration
-    // failure.
-    vector<ObjectIdP> desired_registrations;
-    registration_manager_.RemoveRegisteredObjects(&desired_registrations);
-    TLOG(logger_, WARNING, "Issuing failure for %d objects",
-         desired_registrations.size());
-    for (size_t i = 0; i < desired_registrations.size(); ++i) {
-      ObjectId object_id;
-      ProtoConverter::ConvertFromObjectIdProto(
-          desired_registrations[i], &object_id);
-      listener_->InformRegistrationFailure(
-          this, object_id, false, "Ticl connection failure");
-    }
-
-    // Schedule the stop on the listener work queue so that it happens after the
-    // inform registration failure calls above
-    resources_->listener_scheduler()->Schedule(
-        Scheduler::kNoDelay,
-        NewPermanentCallback(this, &InvalidationClientImpl::Stop));
-    return;
-  }
-
-  if (status.code() == StatusP_Code_TRANSIENT_FAILURE) {
-    statistics_->RecordError(
-        Statistics::ClientErrorType_TOKEN_TRANSIENT_FAILURE);
-    TLOG(logger_, WARNING, "Server says transient failure for token: %s: %s",
-         header.ToString().c_str(), ProtoHelpers::ToString(status).c_str());
-    ScheduleAcquireToken("Failure Retry");
-  }
-
-  // The message is correct - process it.
+  // The message is for us. Process it.
   ProcessServerHeader(header);
 
   if (new_token.empty()) {
@@ -492,6 +450,61 @@ void InvalidationClientImpl::HandleInfoMessage(
     }
   }
   SendInfoMessageToServer(must_send_performance_counters);
+}
+
+void InvalidationClientImpl::HandleErrorMessage(
+      const ServerMessageHeader& header,
+      const ErrorMessage::Code code,
+      const string& description) {
+  CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
+  ProcessServerHeader(header);
+
+  // If it is an auth failure, we shut down the ticl.
+  TLOG(logger_, SEVERE, "Received error message: %s, %d, %s",
+         header.ToString().c_str(), code, description.c_str());
+
+  // Translate the code to error reason.
+  int reason;
+  switch (code) {
+    case ErrorMessage_Code_AUTH_FAILURE:
+      reason = ErrorReason::AUTH_FAILURE;
+      break;
+    case ErrorMessage_Code_UNKNOWN_FAILURE:
+      reason = ErrorReason::UNKNOWN_FAILURE;
+      break;
+    default:
+      reason = ErrorReason::UNKNOWN_FAILURE;
+      break;
+  }
+  // Issue an informError to the application.
+  ErrorInfo error_info(reason, false, description, ErrorContext());
+  listener_->InformError(this, error_info);
+
+  // If this is an auth failure, remove registrations and stop the Ticl.
+  // Otherwise do nothing.
+  if (code != ErrorMessage_Code_AUTH_FAILURE) {
+    return;
+  }
+
+  // If there are any registrations, remove them and issue registration
+  // failure.
+  vector<ObjectIdP> desired_registrations;
+  registration_manager_.RemoveRegisteredObjects(&desired_registrations);
+  TLOG(logger_, WARNING, "Issuing failure for %d objects",
+       desired_registrations.size());
+  for (size_t i = 0; i < desired_registrations.size(); ++i) {
+    ObjectId object_id;
+    ProtoConverter::ConvertFromObjectIdProto(
+        desired_registrations[i], &object_id);
+    listener_->InformRegistrationFailure(
+        this, object_id, false, "Auth error");
+  }
+
+  // Schedule the stop on the listener work queue so that it happens after the
+  // inform registration failure calls above
+  resources_->listener_scheduler()->Schedule(
+      Scheduler::kNoDelay,
+      NewPermanentCallback(this, &InvalidationClientImpl::Stop));
 }
 
 void InvalidationClientImpl::GetRegistrationManagerStateAsSerializedProto(

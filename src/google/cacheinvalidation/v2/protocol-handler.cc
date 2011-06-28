@@ -141,8 +141,7 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
     const TokenControlMessage& token_msg = message.token_control_message();
     statistics_->RecordReceivedMessage(
         Statistics::ReceivedMessageType_TOKEN_CONTROL);
-    listener_->HandleTokenChanged(
-        header, token_msg.new_token(), token_msg.status());
+    listener_->HandleTokenChanged(header, token_msg.new_token());
   }
 
   // We explicitly check to see if we have a valid token after we pass the token
@@ -178,6 +177,13 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
         Statistics::ReceivedMessageType_INFO_REQUEST);
     listener_->HandleInfoMessage(
         header, message.info_request_message().info_type());
+  }
+  if (message.has_error_message()) {
+    statistics_->RecordReceivedMessage(
+        Statistics::ReceivedMessageType_ERROR);
+    listener_->HandleErrorMessage(
+        header, message.error_message().code(),
+        message.error_message().description());
   }
 }
 

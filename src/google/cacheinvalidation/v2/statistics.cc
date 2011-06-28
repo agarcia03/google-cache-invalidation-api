@@ -34,6 +34,7 @@ const char* Statistics::ReceivedMessageType_names[] = {
   "REGISTRATION_STATUS",
   "REGISTRATION_SYNC_REQUEST",
   "TOKEN_CONTROL",
+  "ERROR",
   "TOTAL",
 };
 
