@@ -156,14 +156,8 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     TLOG(logger_, INFO, "Starting with no previous state");
     ScheduleAcquireToken("Startup");
   }
-
-  // We are not currently persisting our registration digest, so regardless of
-  // whether or not we are restarting from persistent state, we need to query
-  // the application for all of its registrations.
-  listener_->ReissueRegistrations(this, RegistrationManager::kEmptyPrefix, 0);
-  ticl_state_.Start();
-  listener_->Ready(this);
-  TLOG(logger_, INFO, "Ticl started: %s", ToString().c_str());
+  // InvalidationListener.Ready() is called when the ticl has acquired a
+  // new token
 }
 
 void InvalidationClientImpl::Stop() {
@@ -626,6 +620,12 @@ void InvalidationClientImpl::set_nonce(const string& new_nonce) {
 void InvalidationClientImpl::set_client_token(const string& new_client_token) {
   CHECK(new_client_token.empty() || nonce_.empty()) <<
       "Tried to set token with existing nonce " << nonce_;
+
+  // If the ticl has not been started and we are getting a new token (either
+  // from persistence or from the server, start the ticl and inform the
+  // application.
+  bool finish_starting_ticl = !ticl_state_.IsStarted() &&
+      (client_token_ == NULL) && (new_client_token != NULL);
   client_token_ = new_client_token;
 
   if (!new_client_token.empty()) {
@@ -633,6 +633,23 @@ void InvalidationClientImpl::set_client_token(const string& new_client_token) {
     // next time we acquire a token, the delay starts from the original value.
     token_exponential_backoff_.Reset(config_.network_timeout_delay);
   }
+
+  if (finish_starting_ticl) {
+    FinishStartingTiclAndInformListener();
+  }
+}
+
+void InvalidationClientImpl::FinishStartingTiclAndInformListener() {
+  CHECK(!ticl_state_.IsStarted());
+
+  ticl_state_.Start();
+  listener_->Ready(this);
+
+  // We are not currently persisting our registration digest, so regardless of
+  // whether or not we are restarting from persistent state, we need to query
+  // the application for all of its registrations.
+  listener_->ReissueRegistrations(this, RegistrationManager::kEmptyPrefix, 0);
+  TLOG(logger_, INFO, "Ticl started: %s", ToString().c_str());
 }
 
 void InvalidationClientImpl::WriteCallback(Status status) {

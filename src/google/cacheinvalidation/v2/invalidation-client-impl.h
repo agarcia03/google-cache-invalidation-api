@@ -306,6 +306,9 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Ensures that a heartbeat message is sent periodically. */
   void HeartbeatTask();
 
+  /* Finish starting the ticl and inform the listener that it is ready. */
+  void FinishStartingTiclAndInformListener();
+
   /* Converts an operation type reg_status to a
    * InvalidationListener::RegistrationState.
    */
