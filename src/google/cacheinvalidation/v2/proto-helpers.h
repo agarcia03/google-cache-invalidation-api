@@ -252,7 +252,6 @@ class ProtoHelpers {
   static string ToString(const TokenControlMessage& message) {
     std::stringstream ss;
     ss << "{ ";
-    ss << "status: " << ToString(message.status()) << ", ";
     ss << "new_token: " << message.new_token();
     ss << " }";
     return ss.str();
