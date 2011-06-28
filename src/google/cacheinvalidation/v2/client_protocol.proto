@@ -35,7 +35,7 @@ package ipc.invalidation;
 //    C -> S: InitializeMessage
 //    S -> C: TokenControlMessage
 //
-// 2. Registration: When a client wants to register or unregister for a set of
+// 2. Registration: When a client has to register or unregister for a set of
 //    objects, the following flow occurs:
 //    C -> S: RegistrationMessage
 //    S -> C: RegistrationStatusMessage
@@ -152,8 +152,8 @@ message ObjectIdP {
 message ApplicationClientIdP {
 
   // A client name or unique id assigned by the application.  Application should
-  // choose a unique name for different client instances if it wants to be able
-  // to squelch invalidations by name (as discussed above).
+  // choose a unique name for different client instances if it wants to squelch
+  // invalidations by name (as discussed above).
   optional bytes client_name = 2;
 }
 
@@ -403,13 +403,15 @@ message ServerToClientMessage {
 
   // Request for client information.
   optional InfoRequestMessage info_request_message = 7;
+
+  // Asynchronous error information that the server sends to the client.
+  optional ErrorMessage error_message = 8;
 }
 
 // Message used to supply a new client token or invalidate an existing one.
 message TokenControlMessage {
   // If status is failure, new_token cannot be set.
-  optional StatusP status = 1;
-  optional bytes new_token = 2;  // If missing, means destroy_token
+  optional bytes new_token = 1;  // If missing, means destroy_token
 }
 
 // Status of a particular registration (could be sent spontaneously by the
@@ -453,4 +455,20 @@ message ConfigChangeMessage {
   // to tell the clients that they should not come back to the server
   // for some period of time.
   optional int64 next_message_delay_ms = 1;
+}
+
+// An error message that contains an enum for different types of failures with a
+// textual description of the failure (as the need arises new error codes will
+// be added to this message).
+message ErrorMessage {
+
+  enum Code {
+    AUTH_FAILURE = 1;  // Authorization or authentication failure.
+    UNKNOWN_FAILURE = 10000;  // Some failure which is not described above.
+  };
+
+  optional Code code = 1;
+
+  // Textual description of the error
+  optional string description = 2;
 }
