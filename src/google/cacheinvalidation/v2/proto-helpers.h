@@ -22,13 +22,17 @@
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 
-namespace invalidation {
+namespace BASE_HASH_NAMESPACE {
 
-using ::google::protobuf::Message;
-using ::google::protobuf::TextFormat;
+using ::invalidation::ObjectIdP;
+using ::invalidation::InvalidationP;
+using ::invalidation::RegistrationSubtree;
+
+using ::google::protobuf::RepeatedPtrField;
 
 // Hash functions for various protocol messages.
-struct ProtoHash {
+template<>
+struct hash<ObjectIdP> {
   size_t operator()(const ObjectIdP& object_id) const {
     size_t accum = 1;
     const string& object_name = object_id.name();
@@ -37,39 +41,66 @@ struct ProtoHash {
     }
     return accum ^ object_id.source();
   }
+};
 
+template<>
+struct hash<InvalidationP> {
   size_t operator()(const InvalidationP& invalidation) const {
-    return (*this)(invalidation.object_id()) ^ invalidation.version() ^
+    hash<ObjectIdP> object_hash;
+    return object_hash(invalidation.object_id()) ^ invalidation.version() ^
         invalidation.is_known_version();
   }
+};
 
-  size_t operator()(const RegistrationSubtree& reg_subtree) const {
+template<>
+struct hash<RegistrationSubtree> {
+  size_t operator()(
+      const RegistrationSubtree& reg_subtree) const {
     RepeatedPtrField<ObjectIdP> objects = reg_subtree.registered_object();
     RepeatedPtrField<ObjectIdP>::const_iterator iter;
     size_t accum = 0;
+    hash<ObjectIdP> object_hash;
     for (iter = objects.begin(); iter != objects.end(); ++iter) {
-      accum = (accum * 31) + (*this)(*iter);
+      accum = (accum * 31) + object_hash(*iter);
     }
     return accum;
   }
 };
 
+}  // namespace BASE_HASH_NAMESPACE
+
+namespace std {
+
+using ::invalidation::ObjectIdP;
+using ::invalidation::InvalidationP;
+using ::invalidation::RegistrationSubtree;
+
+using ::google::protobuf::RepeatedPtrField;
+
 // Equality operators for various protocol messages.
-struct ProtoEq {
+template<>
+struct equal_to<ObjectIdP> {
   bool operator()(const ObjectIdP& object_id1,
                   const ObjectIdP& object_id2) const {
     return (object_id1.source() == object_id2.source()) &&
         (object_id1.name() == object_id2.name());
   }
+};
 
+template<>
+struct equal_to<InvalidationP> {
   bool operator()(const InvalidationP& inv1,
                   const InvalidationP& inv2) const {
-    return (*this)(inv1.object_id(), inv2.object_id()) &&
+    equal_to<ObjectIdP> object_eq;
+    return object_eq(inv1.object_id(), inv2.object_id()) &&
         (inv1.version() == inv2.version()) &&
         (inv1.is_known_version() == inv2.is_known_version()) &&
         (inv1.payload() == inv2.payload());
   }
+};
 
+template<>
+struct equal_to<RegistrationSubtree> {
   bool operator()(const RegistrationSubtree& reg_subtree1,
                   const RegistrationSubtree& reg_subtree2) const {
     RepeatedPtrField<ObjectIdP> objects1 = reg_subtree1.registered_object();
@@ -78,15 +109,23 @@ struct ProtoEq {
       return false;
     }
     RepeatedPtrField<ObjectIdP>::const_iterator iter1, iter2;
+    equal_to<ObjectIdP> object_eq;
     for (iter1 = objects1.begin(), iter2 = objects2.begin();
          iter1 != objects1.end(); ++iter1, ++iter2) {
-      if (!(*this)(*iter1, *iter2)) {
+      if (!object_eq(*iter1, *iter2)) {
         return false;
       }
     }
     return true;
   }
 };
+
+}  // namespace std
+
+namespace invalidation {
+
+using ::google::protobuf::Message;
+using ::google::protobuf::TextFormat;
 
 // Other protocol message utilities.
 class ProtoHelpers {

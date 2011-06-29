@@ -314,7 +314,7 @@ void ProtocolHandler::SendMessageToServer(
   if (!acked_invalidations_.empty()) {
     InvalidationMessage* ack_message =
         builder->mutable_invalidation_ack_message();
-    hash_set<InvalidationP, ProtoHash, ProtoEq>::const_iterator iter;
+    hash_set<InvalidationP>::const_iterator iter;
     for (iter = acked_invalidations_.begin();
          iter != acked_invalidations_.end(); ++iter) {
       ack_message->add_invalidation()->CopyFrom(*iter);
@@ -326,8 +326,7 @@ void ProtocolHandler::SendMessageToServer(
 
   // Check regs.
   if (!pending_registrations_.empty()) {
-    hash_map<ObjectIdP, RegistrationP::OpType, ProtoHash,
-        ProtoEq>::const_iterator iter;
+    hash_map<ObjectIdP, RegistrationP::OpType>::const_iterator iter;
     RegistrationMessage* reg_message = builder->mutable_registration_message();
     for (iter = pending_registrations_.begin();
          iter != pending_registrations_.end(); ++iter) {
@@ -343,7 +342,7 @@ void ProtocolHandler::SendMessageToServer(
   if (!registration_subtrees_.empty()) {
     RegistrationSyncMessage* sync_message =
         builder->mutable_registration_sync_message();
-    hash_set<RegistrationSubtree, ProtoHash, ProtoEq>::const_iterator iter;
+    hash_set<RegistrationSubtree>::const_iterator iter;
     for (iter = registration_subtrees_.begin();
          iter != registration_subtrees_.end(); ++iter) {
       sync_message->add_subtree()->CopyFrom(*iter);

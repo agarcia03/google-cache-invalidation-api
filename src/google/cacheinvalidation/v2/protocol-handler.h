@@ -274,14 +274,13 @@ class ProtocolHandler {
   /* Set of pending registrations stored as a map for overriding later
    * operations.
    */
-  hash_map<ObjectIdP, RegistrationP::OpType, ProtoHash, ProtoEq>
-  pending_registrations_;
+  hash_map<ObjectIdP, RegistrationP::OpType> pending_registrations_;
 
   /* Set of pending invalidation acks. */
-  hash_set<InvalidationP, ProtoHash, ProtoEq> acked_invalidations_;
+  hash_set<InvalidationP> acked_invalidations_;
 
   /* Set of pending registration sub trees for registration sync. */
-  hash_set<RegistrationSubtree, ProtoHash, ProtoEq> registration_subtrees_;
+  hash_set<RegistrationSubtree> registration_subtrees_;
 
   /* Statistics objects to track number of sent messages, etc. */
   Statistics* statistics_;
