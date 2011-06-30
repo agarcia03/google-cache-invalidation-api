@@ -15,8 +15,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_STRING_UTIL_H_
 #define GOOGLE_CACHEINVALIDATION_V2_STRING_UTIL_H_
 
-#error This file should be replaced with a stub pointing to a file \
-  containing string utility functions in the invalidation namespace. \
-  At least StringAppendV() StringPrintf(), and SimpleItoa are needed.
+#error This file should be replaced with a stub pointing to a file      \
+  containing string utility functions in the invalidation namespace.    \
+  At least StringAppendV() StringPrintf(), and IntToString() are needed.
 
 #endif  // GOOGLE_CACHEINVALIDATION_V2_STRING_UTIL_H_

@@ -111,7 +111,7 @@ void InvalidationClientImpl::Start() {
 
   // Initialize the nonce so that we can maintain the invariant that exactly
   // one of "nonce" and "clientToken" is non-null.
-  set_nonce(SimpleItoa(
+  set_nonce(IntToString(
       internal_scheduler_->GetCurrentTime().ToInternalValue()));
 
   TLOG(logger_, INFO, "Starting with C++ config: %s",
@@ -533,7 +533,7 @@ void InvalidationClientImpl::AcquireToken(const string& debug_string) {
   // ignore.
   if (client_token_.empty()) {
     // Allocate a nonce and send a message requesting a new token.
-    set_nonce(SimpleItoa(
+    set_nonce(IntToString(
         internal_scheduler_->GetCurrentTime().ToInternalValue()));
     protocol_handler_.SendInitializeMessage(
         client_type_, application_client_id_, nonce_, debug_string);
