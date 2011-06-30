@@ -23,6 +23,7 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_SYSTEM_RESOURCES_H_
 #define GOOGLE_CACHEINVALIDATION_V2_SYSTEM_RESOURCES_H_
 
+#include <string>
 #include <utility>
 
 #include "google/cacheinvalidation/callback.h"
@@ -32,6 +33,7 @@
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::pair;
+using INVALIDATION_STL_NAMESPACE::string;
 
 class Status;
 class SystemResources;  // Declared below.

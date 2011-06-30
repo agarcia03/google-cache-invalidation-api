@@ -17,13 +17,17 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_PROTO_HELPERS_H_
 #define GOOGLE_CACHEINVALIDATION_V2_PROTO_HELPERS_H_
 
+#include <sstream>
+
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/v2/hash_map.h"
+#include "google/cacheinvalidation/v2/stl-namespace.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 
 namespace BASE_HASH_NAMESPACE {
 
+using INVALIDATION_STL_NAMESPACE::string;
 using ::invalidation::ObjectIdP;
 using ::invalidation::InvalidationP;
 using ::invalidation::RegistrationSubtree;
