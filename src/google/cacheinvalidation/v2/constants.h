@@ -23,16 +23,16 @@ namespace invalidation {
 class Constants {
  public:
   /* Major version of the client library. */
-  static const int kClientMajorVersion = 3;
+  static const int kClientMajorVersion;
 
   /* Minor version of the client library. */
-  static const int kClientMinorVersion = 1;
+  static const int kClientMinorVersion;
 
   /* Major version of the protocol between the client and the server. */
-  static const int kProtocolMajorVersion = 3;
+  static const int kProtocolMajorVersion;
 
   /* Minor version of the protocol between the client and the server. */
-  static const int kProtocolMinorVersion = 1;
+  static const int kProtocolMinorVersion;
 };
 
 }  // namespace invalidation

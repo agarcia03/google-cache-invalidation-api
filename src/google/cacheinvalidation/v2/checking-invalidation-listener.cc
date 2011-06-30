@@ -42,7 +42,7 @@ void CheckingInvalidationListener::Invalidate(
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   statistics_->RecordListenerEvent(Statistics::ListenerEventType_INVALIDATE);
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           delegate_, &InvalidationListener::Invalidate, client, invalidation,
           ack_handle));
@@ -55,7 +55,7 @@ void CheckingInvalidationListener::InvalidateUnknownVersion(
   statistics_->RecordListenerEvent(
       Statistics::ListenerEventType_INVALIDATE_UNKNOWN);
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           delegate_, &InvalidationListener::InvalidateUnknownVersion, client,
           object_id, ack_handle));
@@ -67,7 +67,7 @@ void CheckingInvalidationListener::InvalidateAll(
   statistics_->RecordListenerEvent(
       Statistics::ListenerEventType_INVALIDATE_ALL);
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           delegate_, &InvalidationListener::InvalidateAll, client,
           ack_handle));
@@ -80,7 +80,7 @@ void CheckingInvalidationListener::InformRegistrationFailure(
   statistics_->RecordListenerEvent(
       Statistics::ListenerEventType_INFORM_REGISTRATION_FAILURE);
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           delegate_, &InvalidationListener::InformRegistrationFailure, client,
           object_id, is_transient, error_message));
@@ -93,7 +93,7 @@ void CheckingInvalidationListener::InformRegistrationStatus(
   statistics_->RecordListenerEvent(
       Statistics::ListenerEventType_INFORM_REGISTRATION_STATUS);
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           delegate_, &InvalidationListener::InformRegistrationStatus, client,
           object_id, reg_state));
@@ -105,7 +105,7 @@ void CheckingInvalidationListener::ReissueRegistrations(
   statistics_->RecordListenerEvent(
       Statistics::ListenerEventType_REISSUE_REGISTRATIONS);
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           delegate_, &InvalidationListener::ReissueRegistrations,
           client, prefix, prefix_len));
@@ -117,7 +117,7 @@ void CheckingInvalidationListener::InformError(
   statistics_->RecordListenerEvent(
       Statistics::ListenerEventType_INFORM_ERROR);
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           delegate_, &InvalidationListener::InformError, client, error_info));
 }
@@ -126,7 +126,7 @@ void CheckingInvalidationListener::Ready(InvalidationClient* client) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   TLOG(logger_, INFO, "Informing app that ticl is ready");
   listener_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(delegate_, &InvalidationListener::Ready, client));
 }
 

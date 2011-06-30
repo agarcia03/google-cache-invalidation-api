@@ -22,9 +22,17 @@
 
 #include "google/cacheinvalidation/v2/types.h"
 
+#include <string>
+
 namespace invalidation {
 
+using INVALIDATION_STL_NAMESPACE::string;
+
+class AckHandle;
+class ErrorInfo;
+class Invalidation;
 class InvalidationClient;
+class ObjectId;
 
 class InvalidationListener {
  public:

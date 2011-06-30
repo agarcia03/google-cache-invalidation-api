@@ -28,11 +28,13 @@
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/v2/time.h"
-#include "google/cacheinvalidation/v2/types.h"
 
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::pair;
+
+class Status;
+class SystemResources;  // Declared below.
 
 typedef pair<Status, string> StatusStringPair;
 typedef INVALIDATION_CALLBACK1_TYPE(const string&) MessageCallback;
@@ -41,8 +43,6 @@ typedef INVALIDATION_CALLBACK1_TYPE(StatusStringPair) ReadKeyCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(Status) WriteKeyCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(bool) DeleteKeyCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(StatusStringPair) ReadAllKeysCallback;
-
-class SystemResources;  // Declared below.
 
 /* Interface specifying the logging functionality provided by
  * SystemResources.
@@ -78,8 +78,10 @@ class Scheduler {
  public:
   virtual ~Scheduler() {}
 
-  /* Symbolic constant representing no scheduling delay, for readability. */
-  static const TimeDelta kNoDelay;
+  /* Function returning a zero time delta, for readability. */
+  static TimeDelta NoDelay() {
+    return TimeDelta::FromMilliseconds(0);
+  }
 
   /* Schedules runnable to be run on scheduler's thread after at least
    * delay.

@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Interfaces for the system resources used by the Ticl. System resources are an
-// abstraction layer over the host operating system that provides the Ticl with
-// the ability to schedule events, send network messages, store data, and
-// perform logging.
-//
-// NOTE: All the resource types and SystemResources are required to be
-// thread-safe.
+// Various constants common to clients and servers used in version 2 of the
+// Ticl.
 
-#include "google/cacheinvalidation/v2/system-resources.h"
+#include "google/cacheinvalidation/v2/constants.h"
 
 namespace invalidation {
 
-const TimeDelta Scheduler::kNoDelay = TimeDelta::FromMilliseconds(0);
+const int Constants::kClientMajorVersion = 3;
+const int Constants::kClientMinorVersion = 1;
+const int Constants::kProtocolMajorVersion = 3;
+const int Constants::kProtocolMinorVersion = 1;
 
 }  // namespace invalidation

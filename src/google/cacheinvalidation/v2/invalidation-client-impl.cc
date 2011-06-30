@@ -162,7 +162,7 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
 
 void InvalidationClientImpl::Stop() {
   internal_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(this, &InvalidationClientImpl::StopInternal));
 }
 
@@ -205,7 +205,7 @@ void InvalidationClientImpl::PerformRegisterOperations(
   }
 
   internal_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           this, &InvalidationClientImpl::PerformRegisterOperationsInternal,
           object_ids, reg_op_type));
@@ -243,7 +243,7 @@ void InvalidationClientImpl::Acknowledge(const AckHandle& acknowledge_handle) {
   }
 
   internal_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           this, &InvalidationClientImpl::AcknowledgeInternal,
           acknowledge_handle));
@@ -497,7 +497,7 @@ void InvalidationClientImpl::HandleErrorMessage(
   // Schedule the stop on the listener work queue so that it happens after the
   // inform registration failure calls above
   resources_->listener_scheduler()->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(this, &InvalidationClientImpl::Stop));
 }
 
@@ -686,7 +686,7 @@ void InvalidationClientImpl::ReadCallback(
   }
   // Call start now.
   internal_scheduler_->Schedule(
-      Scheduler::kNoDelay,
+      Scheduler::NoDelay(),
       NewPermanentCallback(
           this, &InvalidationClientImpl::StartInternal, serialized_state));
 }

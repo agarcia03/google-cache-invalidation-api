@@ -394,7 +394,7 @@ void ProtocolHandler::BatchingTask() {
 }
 
 void ProtocolHandler::MessageReceiver(const string& message) {
-  internal_scheduler_->Schedule(Scheduler::kNoDelay, NewPermanentCallback(this,
+  internal_scheduler_->Schedule(Scheduler::NoDelay(), NewPermanentCallback(this,
       &ProtocolHandler::HandleIncomingMessage, message));
 }
 

@@ -20,11 +20,14 @@
 #include <vector>
 
 #include "google/cacheinvalidation/stl-namespace.h"
-#include "google/cacheinvalidation/v2/types.h"
 
 namespace invalidation {
 
 using ::INVALIDATION_STL_NAMESPACE::vector;
+
+class AckHandle;
+class Invalidation;
+class ObjectId;
 
 class InvalidationClient {
  public:
