@@ -107,8 +107,6 @@ InvalidationClientImpl::InvalidationClientImpl(
 }
 
 void InvalidationClientImpl::Start() {
-  resources_->Start();
-
   // Initialize the nonce so that we can maintain the invariant that exactly
   // one of "nonce" and "clientToken" is non-null.
   set_nonce(IntToString(
@@ -170,9 +168,6 @@ void InvalidationClientImpl::StopInternal() {
   TLOG(logger_, WARNING, "Ticl being stopped: %s", ToString().c_str());
   if (ticl_state_.IsStarted()) {
     ticl_state_.Stop();
-  }
-  if (resources_->IsStarted()) {
-    resources_->Stop();
   }
 }
 
