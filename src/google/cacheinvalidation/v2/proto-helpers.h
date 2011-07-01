@@ -18,121 +18,86 @@
 #define GOOGLE_CACHEINVALIDATION_V2_PROTO_HELPERS_H_
 
 #include <sstream>
+#include <string>
 
+#include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
-#include "google/cacheinvalidation/v2/hash_map.h"
-#include "google/cacheinvalidation/v2/stl-namespace.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 
-namespace BASE_HASH_NAMESPACE {
+namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
-using ::invalidation::ObjectIdP;
-using ::invalidation::InvalidationP;
-using ::invalidation::RegistrationSubtree;
-
+using ::google::protobuf::Message;
 using ::google::protobuf::RepeatedPtrField;
+using ::google::protobuf::TextFormat;
 
-// Hash functions for various protocol messages.
-template<>
-struct hash<ObjectIdP> {
-  size_t operator()(const ObjectIdP& object_id) const {
-    size_t accum = 1;
-    const string& object_name = object_id.name();
-    for (size_t i = 0; i < object_name.length(); ++i) {
-      accum = accum * 31 + object_name.data()[i];
-    }
-    return accum ^ object_id.source();
-  }
-};
-
-template<>
-struct hash<InvalidationP> {
-  size_t operator()(const InvalidationP& invalidation) const {
-    hash<ObjectIdP> object_hash;
-    return object_hash(invalidation.object_id()) ^ invalidation.version() ^
-        invalidation.is_known_version();
-  }
-};
-
-template<>
-struct hash<RegistrationSubtree> {
-  size_t operator()(
-      const RegistrationSubtree& reg_subtree) const {
-    const RepeatedPtrField<ObjectIdP>& objects =
-        reg_subtree.registered_object();
-    RepeatedPtrField<ObjectIdP>::const_iterator iter;
-    size_t accum = 0;
-    hash<ObjectIdP> object_hash;
-    for (iter = objects.begin(); iter != objects.end(); ++iter) {
-      accum = (accum * 31) + object_hash(*iter);
-    }
-    return accum;
-  }
-};
-
-}  // namespace BASE_HASH_NAMESPACE
-
-namespace std {
-
-using ::invalidation::ObjectIdP;
-using ::invalidation::InvalidationP;
-using ::invalidation::RegistrationSubtree;
-
-using ::google::protobuf::RepeatedPtrField;
-
-// Equality operators for various protocol messages.
-template<>
-struct equal_to<ObjectIdP> {
+// Functor to compare various protocol messages.
+struct ProtoCompareLess {
   bool operator()(const ObjectIdP& object_id1,
                   const ObjectIdP& object_id2) const {
-    return (object_id1.source() == object_id2.source()) &&
-        (object_id1.name() == object_id2.name());
+    // If the sources differ, then the one with the smaller source is the
+    // smaller object id.
+    int source_diff = object_id1.source() - object_id2.source();
+    if (source_diff != 0) {
+      return source_diff < 0;
+    }
+    // Otherwise, the one with the smaller name is the smaller object id.
+    return object_id1.name().compare(object_id2.name()) < 0;
   }
-};
 
-template<>
-struct equal_to<InvalidationP> {
   bool operator()(const InvalidationP& inv1,
                   const InvalidationP& inv2) const {
-    equal_to<ObjectIdP> object_eq;
-    return object_eq(inv1.object_id(), inv2.object_id()) &&
-        (inv1.version() == inv2.version()) &&
-        (inv1.is_known_version() == inv2.is_known_version()) &&
-        (inv1.payload() == inv2.payload());
-  }
-};
+    const ProtoCompareLess& compare_less_than = *this;
+    // If the object ids differ, then the one with the smaller object id is the
+    // smaller invalidation.
+    if (compare_less_than(inv1.object_id(), inv2.object_id())) {
+      return true;
+    }
+    if (compare_less_than(inv2.object_id(), inv1.object_id())) {
+      return false;
+    }
 
-template<>
-struct equal_to<RegistrationSubtree> {
+    // Otherwise, the object ids are the same, so we need to look at the
+    // versions.
+
+    // We define an unknown version to be less than a known version.
+    int64 known_version_diff = inv1.is_known_version() - inv2.is_known_version();
+    if (known_version_diff != 0) {
+      return known_version_diff < 0;
+    }
+
+    // Otherwise, they're both known both unknown, so the one with the smaller
+    // version is the smaller invalidation.
+    return inv1.version() < inv2.version();
+  }
+
   bool operator()(const RegistrationSubtree& reg_subtree1,
                   const RegistrationSubtree& reg_subtree2) const {
     const RepeatedPtrField<ObjectIdP>& objects1 =
         reg_subtree1.registered_object();
     const RepeatedPtrField<ObjectIdP>& objects2 =
         reg_subtree2.registered_object();
+    // If they have different numbers of objects, the one with fewer is smaller.
     if (objects1.size() != objects2.size()) {
-      return false;
+      return objects1.size() < objects2.size();
     }
+    // Otherwise, compare the object ids in order.
     RepeatedPtrField<ObjectIdP>::const_iterator iter1, iter2;
-    equal_to<ObjectIdP> object_eq;
+    const ProtoCompareLess& compare_less_than = *this;
     for (iter1 = objects1.begin(), iter2 = objects2.begin();
          iter1 != objects1.end(); ++iter1, ++iter2) {
-      if (!object_eq(*iter1, *iter2)) {
+      if (compare_less_than(*iter1, *iter2)) {
+        return true;
+      }
+      if (compare_less_than(*iter2, *iter1)) {
         return false;
       }
     }
-    return true;
+    // The registration subtrees are the same.
+    return false;
   }
 };
-
-}  // namespace std
-
-namespace invalidation {
-
-using ::google::protobuf::Message;
-using ::google::protobuf::TextFormat;
 
 // Other protocol message utilities.
 class ProtoHelpers {

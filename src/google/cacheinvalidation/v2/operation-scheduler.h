@@ -18,23 +18,16 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_OPERATION_SCHEDULER_H_
 #define GOOGLE_CACHEINVALIDATION_V2_OPERATION_SCHEDULER_H_
 
-#include "google/cacheinvalidation/v2/hash_map.h"
+#include <map>
+
+#include "google/cacheinvalidation/stl-namespace.h"
 #include "google/cacheinvalidation/v2/invalidation-client-util.h"
 #include "google/cacheinvalidation/v2/smearer.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 
-namespace BASE_HASH_NAMESPACE {
-
-template<>
-struct hash<invalidation::Closure*> {
-  size_t operator()(invalidation::Closure* closure) const {
-    return (size_t) closure;
-  }
-};
-
-}  // namespace BASE_HASH_NAMESPACE
-
 namespace invalidation {
+
+using INVALIDATION_STL_NAMESPACE::map;
 
 /* Information about an operation. */
 struct OperationScheduleInfo {
@@ -92,7 +85,7 @@ class OperationScheduler {
   /* Operations that can be scheduled - key is the actual closure being
    * scheduled.
    */
-  hash_map<Closure*, OperationScheduleInfo> operations_;
+  map<Closure*, OperationScheduleInfo> operations_;
   Logger* logger_;
   Scheduler* scheduler_;
 

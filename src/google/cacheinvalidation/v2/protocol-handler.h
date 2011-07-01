@@ -17,11 +17,11 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_PROTOCOL_HANDLER_H_
 #define GOOGLE_CACHEINVALIDATION_V2_PROTOCOL_HANDLER_H_
 
+#include <map>
+#include <set>
 #include <string>
 #include <utility>
 
-#include "google/cacheinvalidation/v2/hash_map.h"
-#include "google/cacheinvalidation/v2/hash_set.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/v2/invalidation-client-util.h"
@@ -34,7 +34,9 @@
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::make_pair;
+using INVALIDATION_STL_NAMESPACE::map;
 using INVALIDATION_STL_NAMESPACE::pair;
+using INVALIDATION_STL_NAMESPACE::set;
 using INVALIDATION_STL_NAMESPACE::string;
 
 /* Representation of a message header for use in a server message. */
@@ -274,13 +276,13 @@ class ProtocolHandler {
   /* Set of pending registrations stored as a map for overriding later
    * operations.
    */
-  hash_map<ObjectIdP, RegistrationP::OpType> pending_registrations_;
+  map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess> pending_registrations_;
 
   /* Set of pending invalidation acks. */
-  hash_set<InvalidationP> acked_invalidations_;
+  set<InvalidationP, ProtoCompareLess> acked_invalidations_;
 
   /* Set of pending registration sub trees for registration sync. */
-  hash_set<RegistrationSubtree> registration_subtrees_;
+  set<RegistrationSubtree, ProtoCompareLess> registration_subtrees_;
 
   /* Statistics objects to track number of sent messages, etc. */
   Statistics* statistics_;
