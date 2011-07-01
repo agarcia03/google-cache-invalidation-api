@@ -35,7 +35,7 @@ void OperationScheduler::SetOperation(TimeDelta delay, Closure* operation) {
 
 void OperationScheduler::ChangeDelayForTest(
     Closure* operation, TimeDelta delay) {
-  hash_map<Closure*, OperationScheduleInfo, ClosureHashFunction>::iterator it =
+  hash_map<Closure*, OperationScheduleInfo>::iterator it =
       operations_.find(operation);
   CHECK(it != operations_.end());
   OperationScheduleInfo& op_info = it->second;
@@ -45,7 +45,7 @@ void OperationScheduler::ChangeDelayForTest(
 }
 
 void OperationScheduler::Schedule(Closure* operation) {
-  hash_map<Closure*, OperationScheduleInfo, ClosureHashFunction>::iterator it =
+  hash_map<Closure*, OperationScheduleInfo>::iterator it =
       operations_.find(operation);
   CHECK(it != operations_.end()) << "cannot schedule operation: not set";
   OperationScheduleInfo* op_info = &it->second;

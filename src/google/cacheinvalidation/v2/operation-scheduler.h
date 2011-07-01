@@ -23,14 +23,18 @@
 #include "google/cacheinvalidation/v2/smearer.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 
-namespace invalidation {
+namespace BASE_HASH_NAMESPACE {
 
-/* Computes hashes of closures (uses the address). */
-struct ClosureHashFunction {
+template<>
+struct hash<Closure*> {
   size_t operator()(Closure* closure) const {
     return (size_t) closure;
   }
 };
+
+}  // namespace BASE_HASH_NAMESPACE
+
+namespace invalidation {
 
 /* Information about an operation. */
 struct OperationScheduleInfo {
@@ -88,7 +92,7 @@ class OperationScheduler {
   /* Operations that can be scheduled - key is the actual closure being
    * scheduled.
    */
-  hash_map<Closure*, OperationScheduleInfo, ClosureHashFunction> operations_;
+  hash_map<Closure*, OperationScheduleInfo> operations_;
   Logger* logger_;
   Scheduler* scheduler_;
 
