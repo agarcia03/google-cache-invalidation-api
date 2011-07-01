@@ -26,8 +26,8 @@
 namespace BASE_HASH_NAMESPACE {
 
 template<>
-struct hash<Closure*> {
-  size_t operator()(Closure* closure) const {
+struct hash<invalidation::Closure*> {
+  size_t operator()(invalidation::Closure* closure) const {
     return (size_t) closure;
   }
 };
