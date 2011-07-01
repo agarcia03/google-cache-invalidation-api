@@ -60,7 +60,8 @@ template<>
 struct hash<RegistrationSubtree> {
   size_t operator()(
       const RegistrationSubtree& reg_subtree) const {
-    RepeatedPtrField<ObjectIdP> objects = reg_subtree.registered_object();
+    const RepeatedPtrField<ObjectIdP>& objects =
+        reg_subtree.registered_object();
     RepeatedPtrField<ObjectIdP>::const_iterator iter;
     size_t accum = 0;
     hash<ObjectIdP> object_hash;
@@ -107,8 +108,10 @@ template<>
 struct equal_to<RegistrationSubtree> {
   bool operator()(const RegistrationSubtree& reg_subtree1,
                   const RegistrationSubtree& reg_subtree2) const {
-    RepeatedPtrField<ObjectIdP> objects1 = reg_subtree1.registered_object();
-    RepeatedPtrField<ObjectIdP> objects2 = reg_subtree2.registered_object();
+    const RepeatedPtrField<ObjectIdP>& objects1 =
+        reg_subtree1.registered_object();
+    const RepeatedPtrField<ObjectIdP>& objects2 =
+        reg_subtree2.registered_object();
     if (objects1.size() != objects2.size()) {
       return false;
     }
