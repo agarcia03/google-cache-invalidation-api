@@ -16,6 +16,8 @@
 
 #include "google/cacheinvalidation/v2/invalidation-client-impl.h"
 
+#include <sstream>
+
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/v2/client_test_internal.pb.h"
@@ -52,11 +54,11 @@ void InvalidationClientImpl::Config::GetConfigParams(
 }
 
 string InvalidationClientImpl::Config::ToString() {
-  return StringPrintf(
-      "network delay: %ld, write retry delay: %ld, heartbeat: %ld",
-      network_timeout_delay.InMilliseconds(),
-      write_retry_delay.InMilliseconds(),
-      heartbeat_interval.InMilliseconds());
+  std::stringstream ss;
+  ss << "network delay: " << network_timeout_delay.InMilliseconds()
+     << ", write retry delay: " << write_retry_delay.InMilliseconds(),
+     << ", heartbeat: " << heartbeat_interval.InMilliseconds();
+  return ss.str();
 }
 
 InvalidationClientImpl::InvalidationClientImpl(
