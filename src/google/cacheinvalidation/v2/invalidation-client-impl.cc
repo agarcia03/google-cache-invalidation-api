@@ -54,11 +54,11 @@ void InvalidationClientImpl::Config::GetConfigParams(
 }
 
 string InvalidationClientImpl::Config::ToString() {
-  std::stringstream ss;
-  ss << "network delay: " << network_timeout_delay.InMilliseconds()
-     << ", write retry delay: " << write_retry_delay.InMilliseconds()
-     << ", heartbeat: " << heartbeat_interval.InMilliseconds();
-  return ss.str();
+  std::stringstream stream;
+  stream << "network delay: " << network_timeout_delay.InMilliseconds()
+         << ", write retry delay: " << write_retry_delay.InMilliseconds()
+         << ", heartbeat: " << heartbeat_interval.InMilliseconds();
+  return stream.str();
 }
 
 InvalidationClientImpl::InvalidationClientImpl(
