@@ -62,7 +62,7 @@ ProtocolHandler::ProtocolHandler(
   client_version_.set_application_info(application_name);
 
   operation_scheduler_->SetOperation(
-      config.batching_delay, batching_task_.get());
+      config.batching_delay, batching_task_.get(), "[batching task]");
 
   // Install ourselves as a receiver for server messages.
   resources_->network()->SetMessageReceiver(

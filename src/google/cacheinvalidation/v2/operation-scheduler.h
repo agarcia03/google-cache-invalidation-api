@@ -33,15 +33,17 @@ using INVALIDATION_STL_NAMESPACE::map;
 struct OperationScheduleInfo {
  public:
   TimeDelta delay;
+  string name;
   bool has_been_scheduled;
 
   OperationScheduleInfo() {}
 
-  explicit OperationScheduleInfo(TimeDelta init_delay)
-      : delay(init_delay), has_been_scheduled(false) {}
+  OperationScheduleInfo(TimeDelta init_delay, const string& op_name)
+      : delay(init_delay), name(op_name), has_been_scheduled(false) {}
 
   OperationScheduleInfo& operator=(const OperationScheduleInfo& other) {
     delay = other.delay;
+    name = other.name;
     has_been_scheduled = other.has_been_scheduled;
     return *this;
   }
@@ -60,8 +62,9 @@ class OperationScheduler {
    *
    * delay - delay to use when scheduling
    * operation - implementation of the operation
+   * name - a name for the operation (for logging)
    */
-  void SetOperation(TimeDelta delay, Closure* operation);
+  void SetOperation(TimeDelta delay, Closure* operation, const string& name);
 
   /* Changes the existing delay for operation to be delay.
    *

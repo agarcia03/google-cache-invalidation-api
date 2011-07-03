@@ -102,9 +102,9 @@ InvalidationClientImpl::InvalidationClientImpl(
               this, &InvalidationClientImpl::CheckNetworkTimeouts)) {
   application_client_id_.set_client_name(client_name);
   operation_scheduler_.SetOperation(
-      config.network_timeout_delay, timeout_task_.get());
+      config.network_timeout_delay, timeout_task_.get(), "[timeout task]");
   operation_scheduler_.SetOperation(
-      config.heartbeat_interval, heartbeat_task_.get());
+      config.heartbeat_interval, heartbeat_task_.get(), "[heartbeat task]");
   TLOG(logger_, INFO, "Created client: %s", ToString().c_str());
 }
 
