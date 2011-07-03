@@ -92,13 +92,13 @@ class Scheduler {
 
   /* Returns whether the current code is executing on the scheduler's thread.
    */
-  virtual bool IsRunningOnThread() = 0;
+  virtual bool IsRunningOnThread() const = 0;
 
   /* Returns the current time in milliseconds since *some* epoch (NOT
    * necessarily the UNIX epoch).  The only requirement is that this time
    * advance at the rate of real time.
    */
-  virtual Time GetCurrentTime() = 0;
+  virtual Time GetCurrentTime() const = 0;
 };
 
 /* Interface specifying the network functionality provided by
@@ -223,12 +223,12 @@ class SystemResources {
   virtual void Stop() = 0;
 
   /* Returns whether the resources are started. */
-  virtual bool IsStarted() = 0;
+  virtual bool IsStarted() const = 0;
 
   /* Returns information about the client operating system/platform, e.g.,
    * Windows, ChromeOS (for debugging/monitoring purposes).
    */
-  virtual string platform() = 0;
+  virtual string platform() const = 0;
 
   /* Returns an object that can be used to do logging. */
   virtual Logger* logger() = 0;
