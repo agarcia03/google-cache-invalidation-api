@@ -335,6 +335,18 @@ class ProtoHelpers {
     ss << " }";
     return ss.str();
   }
+
+  /* Returns an ascii string for the given bytes for easier debugging. */
+  static string ToString(const string& bytes);
+
+ private:
+  static const int NUM_CHARS = 256;
+  static char CHAR_OCTAL_STRINGS1[NUM_CHARS];
+  static char CHAR_OCTAL_STRINGS2[NUM_CHARS];
+  static char CHAR_OCTAL_STRINGS3[NUM_CHARS];
+
+  // Have the above arrays been initialized or not.
+  static bool is_initialized;
 };
 
 }  // namespace invalidation

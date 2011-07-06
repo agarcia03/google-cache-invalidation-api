@@ -78,7 +78,7 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
   message.ParseFromString(incoming_message);
   if (!message.IsInitialized()) {
     TLOG(logger_, WARNING, "Incoming message is unparseable: %s",
-         incoming_message.c_str());
+         ProtoHelpers::ToString(incoming_message).c_str());
     return;
   }
 
@@ -203,7 +203,8 @@ bool ProtocolHandler::CheckServerToken(const string& server_token) {
   if (client_token != server_token) {
     // Bad token - reject whole message
     TLOG(logger_, WARNING, "Incoming message has bad token: %s, %s",
-         client_token.c_str(), server_token.c_str());
+         ProtoHelpers::ToString(client_token).c_str(),
+         ProtoHelpers::ToString(server_token).c_str());
     statistics_->RecordError(Statistics::ClientErrorType_TOKEN_MISMATCH);
     return false;
   }
@@ -383,7 +384,7 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
   const string& client_token = listener_->GetClientToken();
   if (client_token != "") {
     TLOG(logger_, FINE, "Sending token on client->server message: %s",
-         client_token.c_str());
+         ProtoHelpers::ToString(client_token).c_str());
     builder->set_client_token(client_token);
   }
 }

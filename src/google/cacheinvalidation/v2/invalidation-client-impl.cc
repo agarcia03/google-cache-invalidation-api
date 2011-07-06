@@ -139,14 +139,15 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     statistics_->RecordError(
         Statistics::ClientErrorType_PERSISTENT_DESERIALIZATION_FAILURE);
     TLOG(logger_, SEVERE, "Failed deserializing persistent state: %s",
-         serialized_state.c_str());
+         ProtoHelpers::ToString(serialized_state).c_str());
   }
   if (deserialized) {
     // If we have persistent state, use the previously-stored token and send a
     // heartbeat to let the server know that we've restarted, since we may have
     // been marked offline.
     TLOG(logger_, INFO, "Restarting from persistent state: %s",
-         persistent_state.client_token().c_str());
+         ProtoHelpers::ToString(
+             persistent_state.client_token()).c_str());
     set_nonce("");
     set_client_token(persistent_state.client_token());
     SendInfoMessageToServer(false);
@@ -255,7 +256,8 @@ void InvalidationClientImpl::AcknowledgeInternal(
   ack_handle.ParseFromString(acknowledge_handle.handle_data());
   if (!ack_handle.IsInitialized()) {
     TLOG(logger_, WARNING, "Bad ack handle : %s",
-         acknowledge_handle.handle_data().c_str());
+         ProtoHelpers::ToString(
+             acknowledge_handle.handle_data()).c_str());
     statistics_->RecordError(
         Statistics::ClientErrorType_ACKNOWLEDGE_HANDLE_FAILURE);
     return;
@@ -287,12 +289,13 @@ void InvalidationClientImpl::AcknowledgeInternal(
 string InvalidationClientImpl::ToString() {
   return StringPrintf("Client: %s, %s",
                       ProtoHelpers::ToString(application_client_id_).c_str(),
-                      client_token_.c_str());
+                      ProtoHelpers::ToString(client_token_).c_str());
 }
 
 string InvalidationClientImpl::GetClientToken() {
   CHECK(client_token_.empty() || nonce_.empty());
-  TLOG(logger_, FINE, "Return client token = %s", client_token_.c_str());
+  TLOG(logger_, FINE, "Return client token = %s",
+       ProtoHelpers::ToString(client_token_).c_str());
   return client_token_;
 }
 
@@ -306,13 +309,14 @@ void InvalidationClientImpl::HandleTokenChanged(
   if (!nonce_.empty()) {
     if (header.token == nonce_) {
       TLOG(logger_, INFO, "Accepting server message with matching nonce: %s",
-           nonce_.c_str());
+           ProtoHelpers::ToString(nonce_).c_str());
       set_nonce("");
     } else {
       statistics_->RecordError(Statistics::ClientErrorType_NONCE_MISMATCH);
       TLOG(logger_, INFO,
            "Rejecting server message with mismatched nonce: %s, %s",
-           nonce_.c_str(), header.token.c_str());
+           ProtoHelpers::ToString(nonce_).c_str(),
+           ProtoHelpers::ToString(header.token).c_str());
       return;
     }
   }
@@ -321,7 +325,8 @@ void InvalidationClientImpl::HandleTokenChanged(
   ProcessServerHeader(header);
 
   if (new_token.empty()) {
-    TLOG(logger_, INFO, "Destroying existing token: %s", client_token_.c_str());
+    TLOG(logger_, INFO, "Destroying existing token: %s",
+         ProtoHelpers::ToString(client_token_).c_str());
     ScheduleAcquireToken("Destroy");
   } else {
     // We just received a new token. Start the regular heartbeats now.
@@ -330,7 +335,8 @@ void InvalidationClientImpl::HandleTokenChanged(
     set_client_token(new_token);
     WriteStateBlob();
     TLOG(logger_, INFO, "New token assigned at client: %s, Old = %s",
-         new_token.c_str(), client_token_.c_str());
+         ProtoHelpers::ToString(new_token).c_str(),
+         ProtoHelpers::ToString(client_token_).c_str());
   }
 }
 
