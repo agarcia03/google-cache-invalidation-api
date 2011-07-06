@@ -76,7 +76,7 @@ InvalidationClientImpl::InvalidationClientImpl(
       client_type_(client_type),
       digest_fn_(new Sha1DigestFunction()),
       registration_manager_(logger_, statistics_.get(), digest_fn_.get()),
-      msg_validator_(new TiclMessageValidator()),
+      msg_validator_(new TiclMessageValidator(logger_)),
       protocol_handler_(config.protocol_handler_config, resources,
                         statistics_.get(), application_name, this,
                         msg_validator_.get()),

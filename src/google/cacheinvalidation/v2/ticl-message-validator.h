@@ -13,8 +13,6 @@
 // limitations under the License.
 
 // Validator for v2 protocol messages.
-//
-// TODO: Fill in the implementation for this class.
 
 #ifndef GOOGLE_CACHEINVALIDATION_V2_TICL_MESSAGE_VALIDATOR_H_
 #define GOOGLE_CACHEINVALIDATION_V2_TICL_MESSAGE_VALIDATOR_H_
@@ -23,22 +21,33 @@
 
 namespace invalidation {
 
+class Logger;
+
 class TiclMessageValidator {
  public:
-  /* Returns whether client_message is valid. */
-  bool IsValid(const ClientToServerMessage& client_message) {
-    return true;
+  TiclMessageValidator(Logger* logger) : logger_(logger) {}
+
+  // Generic IsValid() method.  Delegates to the private |Validate| helper
+  // method.
+  template<typename T>
+  bool IsValid(const T& message) {
+    bool result = true;
+    Validate(message, &result);
+    return result;
   }
 
-  /* Returns whether server_message is valid. */
-  bool IsValid(const ServerToClientMessage& server_message) {
-    return true;
-  }
+ private:
+  // Validates a message.  For each type of message to be validated, there
+  // should be a specialization of this method.  Instead of returning a boolean,
+  // the method stores |false| in |*result| if the message is invalid.  Thus,
+  // the caller must initialize |*result| to |true|.  Following this pattern
+  // allows the specific validation methods to be simpler (i.e., a method that
+  // accepts all messages has an empty body instead of having to return |true|).
+  template<typename T>
+  void Validate(const T& message, bool* result);
 
-  /* Returns whether invalidation is valid. */
-  bool IsValid(const InvalidationP& invalidation) {
-    return true;
-  }
+ private:
+  Logger* logger_;
 };
 
 }  // namespace invalidation
