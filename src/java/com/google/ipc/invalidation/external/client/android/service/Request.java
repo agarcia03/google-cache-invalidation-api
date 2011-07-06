@@ -70,6 +70,9 @@ public final class Request extends Message {
   public static class Parameter extends Message.Parameter {
     private Parameter() {} // not instantiable
 
+    /** Contains the integer client type */
+    public static final String CLIENT_TYPE = "clientType";
+
     /** Contains an {@link Intent} value that can be used to bind for event delivery */
     public static final String INTENT = "intent";
 
@@ -88,6 +91,14 @@ public final class Request extends Message {
     private Builder(String action) {
       super(action, new Bundle());
       bundle.putString(Parameter.ACTION, action);
+    }
+
+    /**
+     * Stores the client type within a request message.
+     */
+    public Builder setClientType(int clientType) {
+      bundle.putInt(Parameter.CLIENT_TYPE, clientType);
+      return this;
     }
 
     /**
@@ -131,6 +142,13 @@ public final class Request extends Message {
    */
   public Request(Bundle bundle) {
     super(bundle);
+  }
+
+  /**
+   * Returns the client type from a request message, or {@code -1} if not present.
+   */
+  public int getClientType() {
+    return parameters.getInt(Parameter.CLIENT_TYPE, -1);
   }
 
   /**

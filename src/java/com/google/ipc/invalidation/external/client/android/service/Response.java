@@ -69,9 +69,15 @@ public final class Response extends Message {
      * Sets the status to {@link Status#RUNTIME_ERROR} and the error message to
      * the exception message within a response message.
      */
-    public void setException(Exception e) {
-      setStatus(Status.RUNTIME_ERROR);
-      setError(e.getMessage());
+    public void setException(Exception exception) {
+      if (exception instanceof AndroidClientException) {
+        AndroidClientException ace = (AndroidClientException) exception;
+        setStatus(ace.status);
+        setError(ace.message);
+      } else {
+        setStatus(Status.RUNTIME_ERROR);
+        setError(exception.getMessage());
+      }
     }
 
     /**
@@ -110,14 +116,14 @@ public final class Response extends Message {
    * Throws a {@link RuntimeException} if the response message contains a
    * status value other than {@link Status#SUCCESS}.
    */
-  public void throwOnFailure() {
+  public void throwOnFailure() throws AndroidClientException {
     int status = getStatus();
     if (status != Status.SUCCESS) {
       String error = parameters.getString(Parameter.ERROR);
       if (error == null) {
         error = "Unexpected status value:" + status;
       }
-      throw new RuntimeException(error);
+      throw new AndroidClientException(status, error);
     }
   }
 }

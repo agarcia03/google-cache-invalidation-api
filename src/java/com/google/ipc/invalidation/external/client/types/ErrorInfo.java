@@ -22,12 +22,11 @@ package com.google.ipc.invalidation.external.client.types;
  */
 public final class ErrorInfo {
   /**
-   * Possible reasons for error in {@code InvalidationListener.informError}. The application
-   * writer must NOT assume that this is complete list since error codes may be added later. That
-   * is, for error codes that it cannot handle, it should not necessarily just crash the code. It
-   * may want to present a dialog box to the user (say). For each ErrorReason, the ErrorInfo
-   * object has a context object. We describe the type and meaning of the context for each enum
-   * value below.
+   * Possible reasons for error in {@code InvalidationListener.informError}. The application writer
+   * must NOT assume that this is complete list since error codes may be added later. That is, for
+   * error codes that it cannot handle, it should not necessarily just crash the code. It may want
+   * to present a dialog box to the user (say). For each ErrorReason, the ErrorInfo object has a
+   * context object. We describe the type and meaning of the context for each named constant below.
    */
   public static class ErrorReason {
     /**
@@ -36,7 +35,7 @@ public final class ErrorInfo {
      * {@code context} is an Integer that indicates the invalidation source type w.r.t. which the
      * auth problem occurred.
      */
-    public static final int AUTH_FAIILURE = 1;
+    public static final int AUTH_FAILURE = 1;
 
     /** An unknown failure - more human-readable information is in the error message. */
     public static final int UNKNOWN_FAILURE = -1;
@@ -56,7 +55,7 @@ public final class ErrorInfo {
   /** Human-readable description of the error. */
   private final String errorMessage;
 
-  /** Extra information about the error - cast to appropriate object as specified in the enum. */
+  /** Extra information about the error - cast to appropriate object as specified by the reason. */
   private final Object context;
 
   /**

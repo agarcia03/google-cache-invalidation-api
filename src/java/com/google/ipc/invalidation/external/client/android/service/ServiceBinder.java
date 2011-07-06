@@ -24,12 +24,15 @@ import android.os.IBinder;
 import android.util.Log;
 
 /**
- * Helper class that assists in make connections to a bound service.
+ * Abstract base class that assists in making connections to a bound service. Subclasses can define
+ * a concrete binding to a particular bound service interface by binding to an explicit type on
+ * declaration, providing a public constructor, and providing an implementation of the
+ * {@link #asInterface} method.
  *
  * @param <BoundService> the bound service interface associated with the binder.
  *
  */
-public class ServiceBinder<BoundService> {
+public abstract class ServiceBinder<BoundService> {
 
   /** Logging tag */
   private static final String TAG = "ServiceBinder";
@@ -43,26 +46,8 @@ public class ServiceBinder<BoundService> {
   /** Class that represents the bound service interface */
   private Class<BoundService> serviceClass;
 
-  /** BindHelper that aids in casting the service class */
-  private BindHelper<BoundService> bindHelper;
-
   /** Bound service instance held by the binder or {@code null} if not bound */
   BoundService serviceInstance;
-
-  /**
-   * Helper class provided at construction time to return an instance of the
-   * bound service stub from a binder instance.  This is necessary because
-   * Android bound services do not provide any common binding interface on
-   * the generated stub classes.
-   *
-   * @param <T> the bound service interface returned by the helper.
-   */
-  public interface BindHelper<T> {
-    /**
-     * Returns the bound service interface for the binder.
-     */
-    public T asInterface(IBinder binder);
-  }
 
   /**
    * Service connection implementation that handles connection/disconnection
@@ -73,7 +58,7 @@ public class ServiceBinder<BoundService> {
     @Override
     public void onServiceConnected(ComponentName serviceName, IBinder binder) {
       synchronized (this) {
-        serviceInstance = bindHelper.asInterface(binder);
+        serviceInstance = asInterface(binder);
         Log.i(TAG, "onServiceConnected:" + serviceClass);
 
         // Wake up the thread blocking on the connection
@@ -89,26 +74,16 @@ public class ServiceBinder<BoundService> {
   };
 
   /**
-   * Constructs a new ServiceBinder instance that will use the provided service
-   * intent to connect to the bound service that implements the provided service
-   * interface.
+   * Constructs a new ServiceBinder that uses the provided intent to bind to the service of the
+   * specific type. Subclasses should expose a public constructor that passes the appropriate intent
+   * and type into this constructor.
    *
-   * @param <T> the bound service interface associated with the binder.
-   * @param serviceIntent the intent used to connect to the bound service.
-   * @param serviceClass the bound service interface class
-   * @param bindHelper a binding helper provided by the caller.
+   * @param serviceIntent intent that can be used to connect to the bound service.
+   * @param serviceClass interface exposed by the bound service.
    */
-  public static <T> ServiceBinder<T> of (Intent serviceIntent, Class<T> serviceClass,
-      BindHelper<T> bindHelper) {
-    return new ServiceBinder<T>(serviceIntent, serviceClass, bindHelper);
-  }
-
-  // Private constructor called by of() which provides type safety
-  private ServiceBinder(
-      Intent serviceIntent, Class<BoundService> serviceClass, BindHelper<BoundService> bindHelper) {
+  protected ServiceBinder(Intent serviceIntent, Class<BoundService> serviceClass) {
     this.serviceIntent = serviceIntent;
     this.serviceClass = serviceClass;
-    this.bindHelper = bindHelper;
   }
 
   /**
@@ -129,6 +104,7 @@ public class ServiceBinder<BoundService> {
           Log.e(TAG, "Failure waiting for service connection", e);
         }
       }
+      Log.i(TAG, "Bound " + serviceClass + " to " + serviceInstance);
     }
     return serviceInstance;
   }
@@ -137,8 +113,11 @@ public class ServiceBinder<BoundService> {
    * Unbind to the service associated with the binder within the provided context.
    */
   public void unbind(Context context) {
-    context.unbindService(serviceConnection);
-    serviceInstance = null;
+    if (isBound()) {
+      Log.i(TAG, "Unbinding " + serviceClass + " from " + serviceInstance);
+      context.unbindService(serviceConnection);
+      serviceInstance = null;
+    }
   }
 
   /**
@@ -148,4 +127,12 @@ public class ServiceBinder<BoundService> {
   public boolean isBound() {
     return serviceInstance != null;
   }
+
+  @Override
+  public String toString() {
+    return this.getClass().getSimpleName() + "[" + serviceIntent + "]";
+  }
+
+  /** Returns a bound service stub of the expected type. */
+  protected abstract BoundService asInterface(IBinder binder);
 }

@@ -79,7 +79,14 @@ public abstract class AndroidInvalidationListener extends Service
   };
 
   @Override
+  public void onCreate() {
+    super.onCreate();
+    Log.i(TAG, "onCreate:" + this.getClass());
+  }
+
+  @Override
   public IBinder onBind(Intent arg0) {
+    Log.i(TAG, "Binding: " + arg0);
     return listenerBinder;
   }
 
@@ -94,12 +101,13 @@ public abstract class AndroidInvalidationListener extends Service
 
     Event event = new Event(input);
     Response.Builder response = Response.newBuilder(event.getAction(), output);
+    // All events should contain an action and client id
     String action = event.getAction();
+    String clientKey = event.getClientKey();
+    Log.d(TAG, "Received " + action + " event for " + clientKey);
 
-    // All events should contain a client id
     try {
-      String clientKey = event.getClientKey();
-      Log.i(TAG, "Received " + action + " event for " + clientKey);
+
       if (clientKey == null) {
         throw new IllegalStateException("Missing client id:" + event);
       }

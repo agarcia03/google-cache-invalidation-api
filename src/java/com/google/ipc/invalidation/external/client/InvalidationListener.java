@@ -113,7 +113,7 @@ public interface InvalidationListener {
    *
    * @param client the {@link InvalidationClient} invoking the listener
    * @param objectId the id of the object whose state changed
-   * @param isTransient if the error is transient or permanent.
+   * @param isTransient whether the error is transient or permanent
    * @param errorMessage extra information about the message
    */
   void informRegistrationFailure(InvalidationClient client, ObjectId objectId,
@@ -131,7 +131,7 @@ public interface InvalidationListener {
    *   digest.update(object name)
    *   digest.getDigestSummary()
    * <p>
-   * For a set of objects, digest is computing by sorting lexicographically based on their digests
+   * For a set of objects, digest is computed by sorting lexicographically based on their digests
    * and then performing the update process given above (i.e., calling digest.update on each
    * object's digest and then calling getDigestSummary at the end).
    * <p>

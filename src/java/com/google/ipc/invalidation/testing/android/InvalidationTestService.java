@@ -16,7 +16,10 @@
 
 package com.google.ipc.invalidation.testing.android;
 
+import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.android.service.Event;
+import com.google.ipc.invalidation.external.client.android.service.ListenerBinder;
+import com.google.ipc.invalidation.external.client.android.service.ListenerService;
 import com.google.ipc.invalidation.external.client.android.service.Message;
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Response;
@@ -116,10 +119,25 @@ public class InvalidationTestService extends AbstractInvalidationService {
 
     @Override
     public void sendEvent(Bundle eventBundle) {
+
+      // Retrive info for that target client
       String clientKey = eventBundle.getString(Request.Parameter.CLIENT);
       ClientState state = clientMap.get(clientKey);
-      Assert.assertNotNull(state);
-      InvalidationTestService.this.sendEvent(state.eventIntent, new Event(eventBundle));
+      Preconditions.checkNotNull(state);
+
+      // Bind to the listener associated with the client and send the event
+      ListenerBinder binder = null;
+      InvalidationTestService theService = InvalidationTestService.this;
+      try {
+        binder = new ListenerBinder(state.eventIntent);
+        ListenerService service = binder.bind(theService);
+        theService.sendEvent(service, new Event(eventBundle));
+      } finally {
+        // Ensure that listener binding is released
+        if (binder != null) {
+          binder.unbind(theService);
+        }
+      }
     }
 
     @Override
@@ -180,11 +198,11 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void sendEvent(Intent eventIntent, Event event) {
+  protected void sendEvent(ListenerService listenerService, Event event) {
     if (captureEvents) {
       events.add(event.getBundle());
     }
-    super.sendEvent(eventIntent, event);
+    super.sendEvent(listenerService, event);
   }
 
 
@@ -194,6 +212,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
         Request.Action.CREATE,
         Request.Parameter.ACTION,
         Request.Parameter.CLIENT,
+        Request.Parameter.CLIENT_TYPE,
         Request.Parameter.ACCOUNT,
         Request.Parameter.INTENT);
     Log.i(TAG, "Creating client " + request.getClientKey() + ":" + clientMap.keySet());

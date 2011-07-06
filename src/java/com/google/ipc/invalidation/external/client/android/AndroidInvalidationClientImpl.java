@@ -16,12 +16,14 @@
 
 package com.google.ipc.invalidation.external.client.android;
 
+import com.google.ipc.invalidation.external.client.InvalidationClient;
+import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.android.service.Event;
+import com.google.ipc.invalidation.external.client.android.service.InvalidationBinder;
 import com.google.ipc.invalidation.external.client.android.service.InvalidationService;
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Request.Action;
 import com.google.ipc.invalidation.external.client.android.service.Response;
-import com.google.ipc.invalidation.external.client.android.service.ServiceBinder;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 
@@ -29,7 +31,6 @@ import android.accounts.Account;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -61,6 +62,11 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   private final String clientKey;
 
   /**
+   * Contains the client type for this client.
+   */
+  private final int clientType;
+
+  /**
    * The Account associated with this client. May be {@code null} for resumed
    * clients.
    */
@@ -69,14 +75,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   /**
    * A service binder used to bind to the invalidation service.
    */
-  private static final ServiceBinder<InvalidationService> serviceBinder =
-      ServiceBinder.of(Request.SERVICE_INTENT, InvalidationService.class,
-          new ServiceBinder.BindHelper<InvalidationService>() {
-            @Override
-            public InvalidationService asInterface(IBinder binder) {
-              return InvalidationService.Stub.asInterface(binder);
-            }
-      });
+  private static final InvalidationBinder serviceBinder = new InvalidationBinder();
 
   /**
    * The {@link InvalidationListener} service class that handles events for
@@ -95,10 +94,11 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    * @param listenerClass the {@link AndroidInvalidationListener} subclass that
    *        will handle invalidation events.
    */
-  AndroidInvalidationClientImpl(Context context, String clientKey, Account account,
+  AndroidInvalidationClientImpl(Context context, String clientKey, int clientType, Account account,
       Class<? extends AndroidInvalidationListener> listenerClass) {
     this.context = context;
     this.clientKey = clientKey;
+    this.clientType = clientType;
     this.account = account;
     this.listenerClass = listenerClass;
   }
@@ -116,6 +116,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
     this.context = context;
     this.account = null;
     this.listenerClass = null;
+    this.clientType = -1;
   }
 
   /**
@@ -236,10 +237,12 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
     // provided listener service.
     Intent eventIntent = new Intent(Event.LISTENER_INTENT);
     eventIntent.setClass(context, listenerClass);
+    eventIntent.setPackage(context.getPackageName());
 
     Request request = Request
         .newBuilder(Action.CREATE)
         .setClientKey(clientKey)
+        .setClientType(clientType)
         .setAccount(account)
         .setIntent(eventIntent)
         .build();

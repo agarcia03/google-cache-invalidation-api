@@ -16,18 +16,12 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
-import com.google.ipc.invalidation.external.client.InvalidationListener.RegistrationState;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.InvalidationService;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Request.Action;
 import com.google.ipc.invalidation.external.client.android.service.Response;
-import com.google.ipc.invalidation.external.client.android.service.ServiceBinder;
-import com.google.ipc.invalidation.external.client.types.AckHandle;
-import com.google.ipc.invalidation.external.client.types.ErrorInfo;
-import com.google.ipc.invalidation.external.client.types.Invalidation;
-import com.google.ipc.invalidation.external.client.types.ObjectId;
 
 import android.app.Service;
 import android.content.Intent;
@@ -113,176 +107,12 @@ public abstract class AbstractInvalidationService extends Service {
   protected abstract void stop(Request request, Response.Builder response);
 
   /**
-   * Sends an ready event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   */
-  protected void sendReadyAllEvent(
-      String clientKey, Intent listenerIntent) {
-    Event event = Event
-        .newBuilder(Event.Action.READY)
-        .setClientKey(clientKey)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
-   * Sends an invalidate event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   * @param invalidation the invalidation to send
-   * @param ackHandle the acknowledgement handle
-   */
-  protected void sendInvalidateEvent(
-      String clientKey, Intent listenerIntent, Invalidation invalidation, AckHandle ackHandle) {
-    Event event = Event
-        .newBuilder(Event.Action.INVALIDATE)
-        .setClientKey(clientKey)
-        .setInvalidation(invalidation)
-        .setAckHandle(ackHandle)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
-   * Sends an invalidate unknown version event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   * @param objectId the object being invalidated
-   * @param ackHandle the acknowledgement handle
-   */
-  protected void sendInvalidateUnknownVersionEvent(
-      String clientKey, Intent listenerIntent, ObjectId objectId, AckHandle ackHandle) {
-    Event event = Event
-        .newBuilder(Event.Action.INVALIDATE_UNKNOWN)
-        .setClientKey(clientKey)
-        .setObjectId(objectId)
-        .setAckHandle(ackHandle)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
-   * Sends an invalidation all event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   * @param ackHandle the acknowledgement handle
-   */
-  protected void sendInvalidateAllEvent(
-      String clientKey, Intent listenerIntent, AckHandle ackHandle) {
-    Event event = Event
-        .newBuilder(Event.Action.INVALIDATE_ALL)
-        .setClientKey(clientKey)
-        .setAckHandle(ackHandle)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
-   * Sends an inform registration status event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   * @param objectId the object with a changed registration status
-   * @param regState the new registration state
-   */
-  protected void sendInformRegistrationStatusEvent(
-      String clientKey, Intent listenerIntent, ObjectId objectId,
-      RegistrationState regState) {
-    Event event = Event
-        .newBuilder(Event.Action.INFORM_REGISTRATION_STATUS)
-        .setClientKey(clientKey)
-        .setObjectId(objectId)
-        .setRegistrationState(regState)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
-   * Sends an inform registration failure event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   * @param objectId the object with a changed registration status
-   * @param isTransient indicate the failure is transient if {@code true}
-   * @param errorMessage error message
-   */
-  protected void sendInformRegistrationFailureEvent(
-      String clientKey, Intent listenerIntent, ObjectId objectId,
-      boolean isTransient, String errorMessage) {
-    Event event = Event
-        .newBuilder(Event.Action.INFORM_REGISTRATION_FAILURE)
-        .setClientKey(clientKey)
-        .setObjectId(objectId)
-        .setIsTransient(isTransient)
-        .setError(errorMessage)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
-   * Sends a reissue registrations event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   * @param prefix prefix of registrations requestioned
-   * @param prefixLength length of prefix in bits
-   */
-  protected void sendReissueRegistrationsEvent(
-      String clientKey, Intent listenerIntent, byte[] prefix, int prefixLength) {
-    Event event = Event
-        .newBuilder(Event.Action.REISSUE_REGISTRATIONS)
-        .setClientKey(clientKey)
-        .setPrefix(prefix, prefixLength)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
-   * Sends an inform error event back to the application client.
-   *
-   * @param clientKey receiving client key
-   * @param listenerIntent intent used to bind to the listener service.
-   * @param errorInfo error information
-   */
-  protected void sendInformErrorEvent(
-      String clientKey, Intent listenerIntent, ErrorInfo errorInfo) {
-    Event event = Event
-        .newBuilder(Event.Action.INFORM_ERROR)
-        .setClientKey(clientKey)
-        .setErrorInfo(errorInfo)
-        .build();
-    sendEvent(listenerIntent, event);
-  }
-
-  /**
    * Send event messages to application clients and provides common processing
    * of the response.
    */
-  protected void sendEvent(Intent eventIntent, Event event) {
-    ServiceBinder<ListenerService> binder = null;
-    ListenerService listenerService = null;
+  protected void sendEvent(ListenerService listenerService, Event event) {
     try {
       Log.i(TAG, "Sending " + event.getAction() + " event");
-
-      // Create a service binder to bind to the client listener service
-      // TODO: Implement binding caching so we'll hold the
-      // listener binding across multiple event calls, potentially
-      // unbinding after some timeout period.
-      ServiceBinder<ListenerService> serviceBinder = binder = ServiceBinder.of(
-          eventIntent, ListenerService.class, new ServiceBinder.BindHelper<ListenerService>() {
-            @Override
-            public ListenerService asInterface(IBinder binder) {
-              return ListenerService.Stub.asInterface(binder);
-            }
-          });
-
-      // Bind and send the event to the listener service.
-      listenerService = serviceBinder.bind(this);
       Bundle responseBundle = new Bundle();
       listenerService.handleEvent(event.getBundle(), responseBundle);
 
@@ -292,11 +122,6 @@ public abstract class AbstractInvalidationService extends Service {
     } catch (RemoteException re) {
       Log.e(TAG, "Unable to send event", re);
       throw new RuntimeException("Unable to send event", re);
-    } finally {
-      // Ensure that the binding to the listener service is released.
-      if (binder != null) {
-        binder.unbind(this);
-      }
     }
   }
 }

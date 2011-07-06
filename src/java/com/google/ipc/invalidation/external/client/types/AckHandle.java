@@ -60,4 +60,9 @@ public final class AckHandle {
   public int hashCode() {
     return Arrays.hashCode(handleData);
   }
+
+  @Override
+  public String toString() {
+    return String.format("AckHandle: %s", BytesFormatter.toString(handleData));
+  }
 }

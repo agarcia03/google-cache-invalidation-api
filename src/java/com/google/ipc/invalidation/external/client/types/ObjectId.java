@@ -80,6 +80,6 @@ public final class ObjectId {
 
   @Override
   public String toString() {
-    return String.format("Oid: <%s, %s>", source, name); // byte[] won't print!
+    return String.format("Oid: <%s, %s>", source, BytesFormatter.toString(name));
   }
 }

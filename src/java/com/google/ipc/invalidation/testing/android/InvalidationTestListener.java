@@ -18,17 +18,34 @@ package com.google.ipc.invalidation.testing.android;
 
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
+import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationListener;
+import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 
+import android.content.Context;
+import android.content.Intent;
 import android.util.Log;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
- * TestListener service that forwards received events to an InvalidationListener
- * instance set on a static field.
+ * TestListener service maintains a mapping of listeners by client key and forwards received events
+ * to an InvalidationListener instance.   The listener should be registered in
+ * {@code Android-Manifest.xml} as follows:
+ *
+ * {@code
+ * <service
+ *   android:name="com.google.ipc.invalidation.testing.android.InvalidationTestListener">
+ *  <intent-filter>
+ *     <action android:name="com.google.ipc.invalidation.EVENTS"/>
+ *  </intent-filter>
+ * </service>
+ * }
  *
  */
 public class InvalidationTestListener extends AndroidInvalidationListener {
@@ -36,20 +53,39 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
   /** Logging tag */
   private static final String TAG = "InvalidationTestListener";
 
-  /** Listener delegate to forward events to */
-  private static InvalidationListener listener = null;
+  private static final Map<String, InvalidationListener> listenerMap =
+      new ConcurrentHashMap<String, InvalidationListener>();
 
   /**
-   * Sets the invalidation listener delegate to receive events or disables
-   * event forwarding if {@code null}.
+   * Creates and returns an intent that is valid for use in creating a new invalidation client
+   * that will deliver events to the test listener.
    */
-  public static void setInvalidationListener(InvalidationListener listener) {
-    Log.i(TAG, "setListener: " + listener);
-    InvalidationTestListener.listener = listener;
+  public static Intent getEventIntent(Context context) {
+    Intent eventIntent = new Intent(Event.LISTENER_INTENT);
+    eventIntent.setClass(context, InvalidationTestListener.class);
+    eventIntent.setPackage(context.getPackageName());
+    return eventIntent;
+  }
+
+  /**
+   * Sets the invalidation listener delegate to receive events for a given clientKey.
+   */
+  public static void setInvalidationListener(String clientKey, InvalidationListener listener) {
+    Log.d(TAG, "setListener " + listener + " for " + clientKey);
+    listenerMap.put(clientKey, listener);
+  }
+
+  /**
+   * Removes the invalidation listener delegate to receive events for a given clientKey.
+   */
+  public static void removeInvalidationListener(String clientKey) {
+    listenerMap.remove(clientKey);
   }
 
   @Override
   public void ready(InvalidationClient client) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received READY for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.ready(client);
     }
@@ -58,6 +94,8 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
   @Override
   public void invalidate(
       InvalidationClient client, Invalidation invalidation, AckHandle ackHandle) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received INVALIDATE for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.invalidate(client, invalidation, ackHandle);
     }
@@ -66,6 +104,8 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
   @Override
   public void invalidateUnknownVersion(
       InvalidationClient client, ObjectId objectId, AckHandle ackHandle) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received INVALIDATE_UNKNOWN_VERSION for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.invalidateUnknownVersion(client, objectId, ackHandle);
     }
@@ -73,22 +113,28 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
 
   @Override
   public void invalidateAll(InvalidationClient client, AckHandle ackHandle) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received INVALIDATE_ALL for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.invalidateAll(client, ackHandle);
     }
   }
 
   @Override
-  public void informRegistrationStatus(InvalidationClient client, ObjectId objectId,
-      RegistrationState regState) {
+  public void informRegistrationStatus(
+      InvalidationClient client, ObjectId objectId, RegistrationState regState) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received INFORM_REGISTRATION_STATUS for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.informRegistrationStatus(client, objectId, regState);
     }
   }
 
   @Override
-  public void informRegistrationFailure(InvalidationClient client, ObjectId objectId,
-      boolean isTransient, String errorMessage) {
+  public void informRegistrationFailure(
+      InvalidationClient client, ObjectId objectId, boolean isTransient, String errorMessage) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received INFORM_REGISTRATION_FAILURE for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.informRegistrationFailure(client, objectId, isTransient, errorMessage);
     }
@@ -96,6 +142,8 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
 
   @Override
   public void reissueRegistrations(InvalidationClient client, byte[] prefix, int prefixLength) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received REISSUE_REGISTRATIONS for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.reissueRegistrations(client, prefix, prefixLength);
     }
@@ -103,8 +151,19 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
 
   @Override
   public void informError(InvalidationClient client, ErrorInfo errorInfo) {
+    InvalidationListener listener = getListener(client);
+    Log.d(TAG, "Received INFORM_ERROR for " + getClientKey(client) + ":" + listener);
     if (listener != null) {
       listener.informError(client, errorInfo);
     }
+  }
+
+  private String getClientKey(InvalidationClient client) {
+    return ((AndroidInvalidationClient) client).getClientKey();
+  }
+
+  private InvalidationListener getListener(InvalidationClient client) {
+    String clientKey = getClientKey(client);
+    return listenerMap.get(clientKey);
   }
 }

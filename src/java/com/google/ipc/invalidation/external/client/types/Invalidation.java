@@ -104,6 +104,6 @@ public final class Invalidation {
 
   @Override
   public String toString() {
-    return String.format("Inv: <%s, %d, %s>", objectId, version, payload);
+    return String.format("Inv: <%s, %d, %s>", objectId, version, BytesFormatter.toString(payload));
   }
 }
