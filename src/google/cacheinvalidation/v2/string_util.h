@@ -17,7 +17,6 @@
 
 #error This file should be replaced with a stub pointing to a file      \
   containing string utility functions in the invalidation namespace.    \
-  At least StringAppendV() StringPrintf(), IntToString(), and           \
-  Int64ToString are needed.
+  At least StringAppendV() StringPrintf(), and IntToString() are needed.
 
 #endif  // GOOGLE_CACHEINVALIDATION_V2_STRING_UTIL_H_

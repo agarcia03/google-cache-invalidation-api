@@ -14,6 +14,8 @@
 
 // Useful utility functions for the TICL
 
+#include <sstream>
+
 #include "google/cacheinvalidation/v2/proto-helpers.h"
 #include "google/cacheinvalidation/v2/string_util.h"
 
@@ -46,13 +48,6 @@ namespace invalidation {
     stream << #field << ": " << ToString(message.field()) << ", ";      \
   }
 
-// Emits "field: <escaped string value>" if the given field (of bytes type) is
-// present in |message|.
-#define BYTES(field)                                                    \
-  if (message.has_##field()) {                                          \
-    stream << #field << ": " << ToString(message.field()) << ", "; \
-  }
-
 // Emits "field: <field value as string>" for each instance of field in message.
 #define REPEATED(field)                                                 \
   for (int i = 0; i < message.field##_size(); ++i) {                    \
@@ -72,11 +67,15 @@ DEFINE_TO_STRING(bool) {
 }
 
 DEFINE_TO_STRING(int) {
-  return IntToString(message);
+  std::stringstream stream;
+  stream << message;
+  return stream.str();
 }
 
 DEFINE_TO_STRING(int64) {
-  return Int64ToString(message);
+  std::stringstream stream;
+  stream << message;
+  return stream.str();
 }
 
 /*
