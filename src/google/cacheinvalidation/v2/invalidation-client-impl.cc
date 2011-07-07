@@ -264,13 +264,7 @@ void InvalidationClientImpl::AcknowledgeInternal(
   }
 
   // 2. Validate ack handle - it should have a valid invalidation.
-  // TODO: remove the explicit checks on
-  // ack_handle.invalidation() once the message validator is ported
-  // to C++.
   if (!ack_handle.has_invalidation()
-      || !ack_handle.invalidation().has_object_id()
-      || !ack_handle.invalidation().object_id().has_name()
-      || !ack_handle.invalidation().object_id().has_source()
       || !msg_validator_->IsValid(ack_handle.invalidation())) {
     TLOG(logger_, WARNING, "Incorrect ack handle: %s",
          ProtoHelpers::ToString(ack_handle).c_str());

@@ -44,6 +44,8 @@ using ::ipc::invalidation::InfoMessage;
 using ::ipc::invalidation::InfoRequestMessage;
 using ::ipc::invalidation::InfoRequestMessage_InfoType_GET_PERFORMANCE_COUNTERS;
 using ::ipc::invalidation::InitializeMessage;
+using ::ipc::invalidation::InitializeMessage_DigestSerializationType_BYTE_BASED;
+using ::ipc::invalidation::InitializeMessage_DigestSerializationType_NUMBER_BASED;
 using ::ipc::invalidation::InvalidationMessage;
 using ::ipc::invalidation::InvalidationP;
 using ::ipc::invalidation::ObjectIdP;
