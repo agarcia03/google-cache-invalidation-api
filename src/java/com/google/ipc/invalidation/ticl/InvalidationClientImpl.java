@@ -126,7 +126,7 @@ public class InvalidationClientImpl extends InternalBase
   }
 
   /** The single key used to write all the Ticl state. */
-  private static final byte[] CLIENT_TOKEN_KEY = "ClientToken".getBytes();
+  private static final String CLIENT_TOKEN_KEY = "ClientToken";
 
   /** Resources for the Ticl. */
   private final SystemResources resources;
@@ -328,7 +328,7 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   
-  public byte[] getClientTokenKeyForTest() {
+  public String getClientTokenKeyForTest() {
     return CLIENT_TOKEN_KEY;
   }
 

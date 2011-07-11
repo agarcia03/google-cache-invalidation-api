@@ -99,20 +99,20 @@ public interface SystemResources {
      * <p>
      * REQUIRES: Neither {@code key} nor {@code value} is null.
      */
-    void writeKey(byte[] key, byte[] value, Callback<Status> done);
+    void writeKey(String key, byte[] value, Callback<Status> done);
 
     /**
      * Reads the value corresponding to {@code key} and calls {@code done} with the result.
      * If it finds the key, passes a success status and the value. Else passes a failure status
      * and a null value.
      */
-    void readKey(byte[] key, Callback<SimplePair<Status, byte[]>> done);
+    void readKey(String key, Callback<SimplePair<Status, byte[]>> done);
 
     /**
      * Deletes the key, value pair corresponding to {@code key}. If the deletion succeeds, calls
      * {@code done} with true; else calls it with false.
      */
-    void deleteKey(byte[] key, Callback<Boolean> done);
+    void deleteKey(String key, Callback<Boolean> done);
 
     /**
      * Reads all the keys from the underlying store and then calls {@code keyCallback} with
@@ -120,7 +120,7 @@ public interface SystemResources {
      * {@code keyCallback} with {@code null}. With each key, the code can indicate a
      * failed status, in which case the iteration stops.
      */
-    void readAllKeys(Callback<SimplePair<Status, byte[]>> keyCallback);
+    void readAllKeys(Callback<SimplePair<Status, String>> keyCallback);
   }
 
   /**

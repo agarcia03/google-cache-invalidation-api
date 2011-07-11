@@ -81,7 +81,7 @@ public interface TestableInvalidationClient extends InvalidationClient {
   ByteString getClientTokenForTest();
 
   /** Returns the single key used to write all the Ticl state. */
-  byte[] getClientTokenKeyForTest();
+  String getClientTokenKeyForTest();
 
   /** Returns the next time a message is allowed to be sent to the server (could be in the past). */
   long getNextMessageSendTimeMsForTest();

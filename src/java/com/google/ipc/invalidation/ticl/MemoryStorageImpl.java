@@ -16,14 +16,12 @@
 
 package com.google.ipc.invalidation.ticl;
 
-import com.google.ipc.invalidation.common.CommonProtoStrings2;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.ComponentStorage;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.external.client.types.Status;
-import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.TypedUtil;
 
 import java.util.HashMap;
@@ -35,10 +33,10 @@ import java.util.Map;
  */
 public class MemoryStorageImpl implements ComponentStorage {
   private SystemResources systemResources;
-  private Map<Bytes, byte[]> ticlPersistentState = new HashMap<Bytes, byte[]>();
+  private Map<String, byte[]> ticlPersistentState = new HashMap<String, byte[]>();
 
   @Override
-  public void writeKey(final byte[] key, final byte[] value, final Callback<Status> callback) {
+  public void writeKey(final String key, final byte[] value, final Callback<Status> callback) {
     // Need to schedule immediately because C++ locks aren't reentrant, and
     // C++ locking code assumes that this call will not return directly.
 
@@ -48,7 +46,7 @@ public class MemoryStorageImpl implements ComponentStorage {
     systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
       @Override
       public void run() {
-        ticlPersistentState.put(new Bytes(key), value);
+        ticlPersistentState.put(key, value);
         callback.accept(Status.newInstance(Status.Code.SUCCESS, ""));
       }
     });
@@ -64,17 +62,16 @@ public class MemoryStorageImpl implements ComponentStorage {
   }
 
   @Override
-  public void readKey(final byte[] key, final Callback<SimplePair<Status, byte[]>> done) {
+  public void readKey(final String key, final Callback<SimplePair<Status, byte[]>> done) {
     systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
       @Override
       public void run() {
-        byte[] value = TypedUtil.mapGet(ticlPersistentState, new Bytes(key));
+        byte[] value = TypedUtil.mapGet(ticlPersistentState, key);
         final SimplePair<Status, byte[]> result;
         if (value != null) {
           result = SimplePair.of(Status.newInstance(Status.Code.SUCCESS, ""), value);
         } else {
-          String error = "No value present in map for " +
-              CommonProtoStrings2.toLazyCompactString(key);
+          String error = "No value present in map for " + key;
           result = SimplePair.of(Status.newInstance(Status.Code.PERMANENT_FAILURE, error), null);
         }
         done.accept(result);
@@ -83,24 +80,24 @@ public class MemoryStorageImpl implements ComponentStorage {
   }
 
   @Override
-  public void deleteKey(final byte[] key, final Callback<Boolean> done) {
+  public void deleteKey(final String key, final Callback<Boolean> done) {
     systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
       @Override
       public void run() {
-        TypedUtil.remove(ticlPersistentState, new Bytes(key));
+        TypedUtil.remove(ticlPersistentState, key);
         done.accept(true);
       }
     });
   }
 
   @Override
-  public void readAllKeys(final Callback<SimplePair<Status, byte[]>> done) {
+  public void readAllKeys(final Callback<SimplePair<Status, String>> done) {
     systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
       @Override
       public void run() {
         Status successStatus = Status.newInstance(Status.Code.SUCCESS, "");
-        for (Bytes key : ticlPersistentState.keySet()) {
-          done.accept(SimplePair.of(successStatus, key.getByteArray()));
+        for (String key : ticlPersistentState.keySet()) {
+          done.accept(SimplePair.of(successStatus, key));
         }
       }
     });
@@ -115,7 +112,7 @@ public class MemoryStorageImpl implements ComponentStorage {
    * Same as write except without any callbacks and is NOT done on the internal thread.
    * Test code should typically call this before starting the client.
    */
-  void writeForTest(final byte[] key, final byte[] value) {
-    ticlPersistentState.put(new Bytes(key), value);
+  void writeForTest(final String key, final byte[] value) {
+    ticlPersistentState.put(key, value);
   }
 }

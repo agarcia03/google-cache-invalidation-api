@@ -21,6 +21,7 @@ import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationListener;
 import com.google.ipc.invalidation.external.client.android.service.Event;
+import com.google.ipc.invalidation.external.client.android.service.Response;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
@@ -28,6 +29,7 @@ import com.google.ipc.invalidation.external.client.types.ObjectId;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.util.Log;
 
 import java.util.Map;
@@ -80,6 +82,24 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
    */
   public static void removeInvalidationListener(String clientKey) {
     listenerMap.remove(clientKey);
+  }
+
+
+  @Override
+  protected void handleEvent(Bundle input, Bundle output) {
+
+    // Ignore events that target a client key where there is no listener registered
+    // It's likely that these are late-delivered events for an earlier test case.
+    Event event = new Event(input);
+    String clientKey = event.getClientKey();
+    if (!listenerMap.containsKey(clientKey)) {
+      Log.d(TAG, "Ignoring " + event.getAction() + " event to " + clientKey);
+      Response.Builder response = Response.newBuilder(event.getAction(), output);
+      response.setStatus(Response.Status.SUCCESS);
+      return;
+    }
+
+    super.handleEvent(input, output);
   }
 
   @Override
