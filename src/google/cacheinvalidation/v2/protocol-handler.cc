@@ -49,6 +49,8 @@ ProtocolHandler::ProtocolHandler(
       message_id_(1),
       last_known_server_time_ms_(0),
       next_message_send_time_ms_(0),
+      pending_initialize_message_(NULL),
+      pending_info_message_(NULL),
       statistics_(statistics),
       batching_task_(NewPermanentCallback(
           this, &ProtocolHandler::BatchingTask)) {
@@ -155,6 +157,9 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
   if (listener_->GetClientToken().empty()) {
     return;
   }
+
+  // Handle the messages received from the server by calling the appropriate
+  // listener method.
   if (message.has_invalidation_message()) {
     statistics_->RecordReceivedMessage(
         Statistics::ReceivedMessageType_INVALIDATION);
@@ -216,43 +221,49 @@ void ProtocolHandler::SendInitializeMessage(
     const string& nonce, const string& debug_string) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
-  InitializeMessage init_msg;
-  init_msg.set_client_type(client_type);
-  init_msg.mutable_application_client_id()->CopyFrom(application_client_id);
-  init_msg.set_nonce(nonce);
-  init_msg.set_digest_serialization_type(
+  // Simply store the message in pending_initialize_message_ and send it
+  // when the batching task runs.
+  pending_initialize_message_.reset(new InitializeMessage());
+  pending_initialize_message_->set_client_type(client_type);
+  pending_initialize_message_->mutable_application_client_id()->CopyFrom(
+      application_client_id);
+  pending_initialize_message_->set_nonce(nonce);
+  pending_initialize_message_->set_digest_serialization_type(
       InitializeMessage_DigestSerializationType_BYTE_BASED);
-  statistics_->RecordSentMessage(Statistics::SentMessageType_INITIALIZE);
 
-  ClientToServerMessage message;
-  message.mutable_initialize_message()->CopyFrom(init_msg);
-  SendMessageToServer(&message, "Init-" + debug_string);
+  TLOG(logger_, INFO, "Batching initialize message for client: %s, %s",
+       debug_string.c_str(),
+       ProtoHelpers::ToString(*pending_initialize_message_).c_str());
+  operation_scheduler_->Schedule(batching_task_.get());
 }
 
 void ProtocolHandler::SendInfoMessage(
     const vector<pair<string, int> >& performance_counters,
     const vector<pair<string, int> >& config_params) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  InfoMessage info_message;
-  info_message.mutable_client_version()->CopyFrom(client_version_);
+
+  // Simply store the message in pending_info_message_ and send it
+  // when the batching task runs.
+  pending_info_message_.reset(new InfoMessage());
+  pending_info_message_->mutable_client_version()->CopyFrom(client_version_);
 
   // Add configuration parameters.
   for (size_t i = 0; i < config_params.size(); ++i) {
-    PropertyRecord* config_record = info_message.add_config_paramter();
+    PropertyRecord* config_record =
+        pending_info_message_->add_config_paramter();
     config_record->set_name(config_params[i].first);
     config_record->set_value(config_params[i].second);
   }
 
   // Add performance counters.
   for (size_t i = 0; i < performance_counters.size(); ++i) {
-    PropertyRecord* counter = info_message.add_performance_counter();
+    PropertyRecord* counter = pending_info_message_->add_performance_counter();
     counter->set_name(performance_counters[i].first);
     counter->set_value(performance_counters[i].second);
   }
-  statistics_->RecordSentMessage(Statistics::SentMessageType_INFO);
-  ClientToServerMessage message;
-  message.mutable_info_message()->CopyFrom(info_message);
-  SendMessageToServer(&message, "Info");
+  TLOG(logger_, INFO, "Batching info message for client: %s",
+       ProtoHelpers::ToString(*pending_info_message_).c_str());
+  operation_scheduler_->Schedule(batching_task_.get());
 }
 
 void ProtocolHandler::SendRegistrations(
@@ -268,21 +279,20 @@ void ProtocolHandler::SendInvalidationAck(const InvalidationP& invalidation) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   // We could do squelching - we don't since it is unlikely to be too beneficial
   // here.
-  acked_invalidations_.insert(invalidation);
+  pending_acked_invalidations_.insert(invalidation);
   operation_scheduler_->Schedule(batching_task_.get());
 }
 
 void ProtocolHandler::SendRegistrationSyncSubtree(
     const RegistrationSubtree& reg_subtree) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  registration_subtrees_.insert(reg_subtree);
+  pending_reg_subtrees_.insert(reg_subtree);
   TLOG(logger_, INFO, "Adding subtree: %s",
        ProtoHelpers::ToString(reg_subtree).c_str());
   operation_scheduler_->Schedule(batching_task_.get());
 }
 
-void ProtocolHandler::SendMessageToServer(
-    ClientToServerMessage* builder, const string& debug_string) {
+void ProtocolHandler::SendMessageToServer() {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   if (next_message_send_time_ms_ > GetCurrentTimeMs()) {
@@ -291,44 +301,54 @@ void ProtocolHandler::SendMessageToServer(
     return;
   }
 
+  // Check if an initialize message needs to be sent.
+  ClientToServerMessage builder;
+  if (pending_initialize_message_.get() != NULL) {
+    statistics_->RecordSentMessage(Statistics::SentMessageType_INITIALIZE);
+    builder.mutable_initialize_message()->CopyFrom(
+        *pending_initialize_message_);
+    pending_initialize_message_.reset();
+  }
+
   // Note: Even if an initialize message is being sent, we can send additional
   // messages such as regisration messages, etc to the server. But if there is
   // no token and an initialize message is not being sent, we cannot send any
   // other message.
 
   if ((listener_->GetClientToken().empty()) &&
-      !builder->has_initialize_message()) {
+      !builder.has_initialize_message()) {
     // Cannot send any message
     TLOG(logger_, WARNING,
-         "Cannot send message since no token and no initialze msg: %s, %s",
-         debug_string.c_str(), ProtoHelpers::ToString(*builder).c_str());
+         "Cannot send message since no token and no initialze msg: %s",
+         ProtoHelpers::ToString(builder).c_str());
     statistics_->RecordError(Statistics::ClientErrorType_TOKEN_MISSING_FAILURE);
     return;
   }
 
-  ClientHeader* outgoing_header = builder->mutable_header();
+  ClientHeader* outgoing_header = builder.mutable_header();
   InitClientHeader(outgoing_header);
 
   // Check for pending batched operations and add to message builder if needed.
 
   // Add reg, acks, reg subtrees - clear them after adding.
-  if (!acked_invalidations_.empty()) {
+  if (!pending_acked_invalidations_.empty()) {
     InvalidationMessage* ack_message =
-        builder->mutable_invalidation_ack_message();
+        builder.mutable_invalidation_ack_message();
     set<InvalidationP, ProtoCompareLess>::const_iterator iter;
-    for (iter = acked_invalidations_.begin();
-         iter != acked_invalidations_.end(); ++iter) {
+    for (iter = pending_acked_invalidations_.begin();
+         iter != pending_acked_invalidations_.end(); ++iter) {
       ack_message->add_invalidation()->CopyFrom(*iter);
     }
-    acked_invalidations_.clear();
+    pending_acked_invalidations_.clear();
     statistics_->RecordSentMessage(
         Statistics::SentMessageType_INVALIDATION_ACK);
   }
 
   // Check regs.
   if (!pending_registrations_.empty()) {
-    map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>::const_iterator iter;
-    RegistrationMessage* reg_message = builder->mutable_registration_message();
+    map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>::const_iterator
+        iter;
+    RegistrationMessage* reg_message = builder.mutable_registration_message();
     for (iter = pending_registrations_.begin();
          iter != pending_registrations_.end(); ++iter) {
       RegistrationP* reg = reg_message->add_registration();
@@ -340,34 +360,41 @@ void ProtocolHandler::SendMessageToServer(
   }
 
   // Check reg substrees.
-  if (!registration_subtrees_.empty()) {
+  if (!pending_reg_subtrees_.empty()) {
     RegistrationSyncMessage* sync_message =
-        builder->mutable_registration_sync_message();
+        builder.mutable_registration_sync_message();
     set<RegistrationSubtree, ProtoCompareLess>::const_iterator iter;
-    for (iter = registration_subtrees_.begin();
-         iter != registration_subtrees_.end(); ++iter) {
+    for (iter = pending_reg_subtrees_.begin();
+         iter != pending_reg_subtrees_.end(); ++iter) {
       sync_message->add_subtree()->CopyFrom(*iter);
     }
-    registration_subtrees_.clear();
+    pending_reg_subtrees_.clear();
     statistics_->RecordSentMessage(
         Statistics::SentMessageType_REGISTRATION_SYNC);
   }
 
+  // Check info message.
+  if (pending_info_message_.get() != NULL) {
+    statistics_->RecordSentMessage(Statistics::SentMessageType_INFO);
+    builder.mutable_info_message()->CopyFrom(*pending_info_message_);
+    pending_info_message_.reset();
+  }
+
   // Validate the message and send it.
   ++message_id_;
-  if (!msg_validator_->IsValid(*builder)) {
-    TLOG(logger_, SEVERE, "(%s): Tried to send invalid message: %s",
-         debug_string.c_str(), ProtoHelpers::ToString(*builder).c_str());
+  if (!msg_validator_->IsValid(builder)) {
+    TLOG(logger_, SEVERE, "Tried to send invalid message: %s",
+         ProtoHelpers::ToString(builder).c_str());
     statistics_->RecordError(
         Statistics::ClientErrorType_OUTGOING_MESSAGE_FAILURE);
     return;
   }
 
-  TLOG(logger_, FINE, "(%s) Sending message to server: %s",
-       debug_string.c_str(), ProtoHelpers::ToString(*builder).c_str());
+  TLOG(logger_, FINE, "Sending message to server: %s",
+       ProtoHelpers::ToString(builder).c_str());
   statistics_->RecordSentMessage(Statistics::SentMessageType_TOTAL);
   string serialized;
-  builder->SerializeToString(&serialized);
+  builder.SerializeToString(&serialized);
   resources_->network()->SendMessage(serialized);
 }
 
@@ -390,8 +417,7 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
 }
 
 void ProtocolHandler::BatchingTask() {
-  ClientToServerMessage message;
-  SendMessageToServer(&message, "BatchingTask");
+  SendMessageToServer();
 }
 
 void ProtocolHandler::MessageReceiver(const string& message) {

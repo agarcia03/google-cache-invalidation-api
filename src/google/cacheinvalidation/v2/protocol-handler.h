@@ -222,13 +222,8 @@ class ProtocolHandler {
 
   /* Sends pending data to the server (e.g., registrations, acks, registration
    * sync messages).
-   *
-   * Arguments:
-   * builder - initial message builder
-   * debug_string - information to identify the caller
    */
-  void SendMessageToServer(ClientToServerMessage* builder,
-                           const string& debugString);
+  void SendMessageToServer();
 
   /* Stores the header to include on a message to the server. */
   void InitClientHeader(ClientHeader* header);
@@ -246,7 +241,6 @@ class ProtocolHandler {
   int64 GetCurrentTimeMs() {
     return InvalidationClientUtil::GetCurrentTimeMs(internal_scheduler_);
   }
-
 
   ClientVersion client_version_;
   SystemResources* resources_;  // who owns this?
@@ -279,10 +273,16 @@ class ProtocolHandler {
   map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess> pending_registrations_;
 
   /* Set of pending invalidation acks. */
-  set<InvalidationP, ProtoCompareLess> acked_invalidations_;
+  set<InvalidationP, ProtoCompareLess> pending_acked_invalidations_;
 
   /* Set of pending registration sub trees for registration sync. */
-  set<RegistrationSubtree, ProtoCompareLess> registration_subtrees_;
+  set<RegistrationSubtree, ProtoCompareLess> pending_reg_subtrees_;
+
+  /* Pending initialization message to send to the server, if any. */
+  scoped_ptr<InitializeMessage> pending_initialize_message_;
+
+  /* Pending info message to send to the server, if any. */
+  scoped_ptr<InfoMessage> pending_info_message_;
 
   /* Statistics objects to track number of sent messages, etc. */
   Statistics* statistics_;
