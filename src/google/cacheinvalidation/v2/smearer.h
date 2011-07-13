@@ -47,13 +47,14 @@ class Smearer {
   }
 
   /* Given a delay, returns a value that is randomly distributed between
-   * [delay - smearPercent * delay, delay + smearPercent * delay]
+   * (delay - smearPercent * delay, delay + smearPercent * delay)
    */
   TimeDelta GetSmearedDelay(TimeDelta delay) {
     // Get a random number between -1 and 1 and then multiply that by the
     // smear fraction.
     double smear_factor = (2 * random_->RandDouble() - 1.0) * smear_fraction_;
-    return delay + delay * smear_factor;
+    return TimeDelta::FromMilliseconds(
+        delay.InMilliseconds() * (1.0 + smear_factor));
   }
 
  private:
