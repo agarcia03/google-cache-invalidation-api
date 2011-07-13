@@ -348,6 +348,11 @@ message InfoMessage {
 
   // Performance counters from the client.
   repeated PropertyRecord performance_counter = 3;
+
+  // If 'true', indicates that the client does not know the server's
+  // registration summary, so the server should respond with it even if the
+  // client's summary matches the server's.
+  optional bool server_registration_summary_requested = 4;
 }
 
 // Information about a single config/performance counter value in the
