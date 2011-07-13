@@ -42,6 +42,9 @@ ProtocolHandler::ProtocolHandler(
     : resources_(resources),
       logger_(resources->logger()),
       internal_scheduler_(resources->internal_scheduler()),
+      throttled_message_sender_(config.rate_limits, internal_scheduler_,
+                NewPermanentCallback(
+                    this, &ProtocolHandler::SendMessageToServer)),
       listener_(listener),
       operation_scheduler_(new OperationScheduler(
           logger_, internal_scheduler_)),
@@ -417,7 +420,9 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
 }
 
 void ProtocolHandler::BatchingTask() {
-  SendMessageToServer();
+  // Go through a throttler to ensure that we obey rate limits in sending
+  // messages.
+  throttled_message_sender_.Fire();
 }
 
 void ProtocolHandler::MessageReceiver(const string& message) {

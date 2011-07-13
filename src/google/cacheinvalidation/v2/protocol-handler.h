@@ -29,6 +29,7 @@
 #include "google/cacheinvalidation/v2/proto-helpers.h"
 #include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/statistics.h"
+#include "google/cacheinvalidation/v2/throttle.h"
 #include "google/cacheinvalidation/v2/ticl-message-validator.h"
 
 namespace invalidation {
@@ -137,17 +138,29 @@ class ProtocolHandler {
   /* Configuration for the protocol client. */
   class Config {
    public:
-    Config() : batching_delay(TimeDelta::FromMilliseconds(500)) {}
+    Config() : batching_delay(
+        TimeDelta::FromMilliseconds(kDefaultBatchingDelayMs)) {
+      // At most one message per second.
+      rate_limits.push_back(RateLimit(TimeDelta::FromSeconds(1), 1));
+      // At most six messages per minute.
+      rate_limits.push_back(RateLimit(TimeDelta::FromMinutes(1), 6));
+    }
 
-    /* Batching delay - certain messages (e.g., registrations, invalidation acks)
-     * are sent to the server after this delay.
+    /* Batching delay - certain messages (e.g., registrations, invalidation
+     * acks) are sent to the server after this delay.
      */
     TimeDelta batching_delay;
+
+    /* Rate limits for sending messages. */
+    vector<RateLimit> rate_limits;
 
     void GetConfigParams(vector<pair<string, int> >* config_params) {
       config_params->push_back(
           make_pair("batching_delay", batching_delay.InMilliseconds()));
     }
+
+    // Default batching delay in milliseconds.
+    static const int kDefaultBatchingDelayMs = 500;
   };
 
   /* Creates an instance.
@@ -243,12 +256,13 @@ class ProtocolHandler {
   }
 
   ClientVersion client_version_;
-  SystemResources* resources_;  // who owns this?
+  SystemResources* resources_;
 
   // Cached from resources
   Logger* logger_;
   Scheduler* internal_scheduler_;
 
+  Throttle throttled_message_sender_;
   ProtocolListener* listener_;
   scoped_ptr<OperationScheduler> operation_scheduler_;
   TiclMessageValidator* msg_validator_;
