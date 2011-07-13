@@ -242,7 +242,8 @@ void ProtocolHandler::SendInitializeMessage(
 
 void ProtocolHandler::SendInfoMessage(
     const vector<pair<string, int> >& performance_counters,
-    const vector<pair<string, int> >& config_params) {
+    const vector<pair<string, int> >& config_params,
+    bool request_server_registration_summary) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   // Simply store the message in pending_info_message_ and send it
@@ -264,6 +265,11 @@ void ProtocolHandler::SendInfoMessage(
     counter->set_name(performance_counters[i].first);
     counter->set_value(performance_counters[i].second);
   }
+
+  // Indicate whether we want the server's registration summary sent back.
+  pending_info_message_->set_server_registration_summary_requested(
+      request_server_registration_summary);
+
   TLOG(logger_, INFO, "Batching info message for client: %s",
        ProtoHelpers::ToString(*pending_info_message_).c_str());
   operation_scheduler_->Schedule(batching_task_.get());

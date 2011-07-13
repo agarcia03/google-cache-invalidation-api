@@ -199,11 +199,12 @@ class ProtocolHandler {
       int client_type, const ApplicationClientIdP& applicationClientId,
       const string& nonce, const string& debugString);
 
-  /* Sends an info message to the server with the performance counters supplied in
-   * performance_counters and the config supplies in config_params.
+  /* Sends an info message to the server with the performance counters supplied
+   * in performance_counters and the config supplies in config_params.
    */
   void SendInfoMessage(const vector<pair<string, int> >& performance_counters,
-                       const vector<pair<string, int> >& config_params);
+                       const vector<pair<string, int> >& config_params,
+                       bool request_server_registration_summary);
 
   /* Sends a registration request to the server.
    *
@@ -284,7 +285,8 @@ class ProtocolHandler {
   /* Set of pending registrations stored as a map for overriding later
    * operations.
    */
-  map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess> pending_registrations_;
+  map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>
+      pending_registrations_;
 
   /* Set of pending invalidation acks. */
   set<InvalidationP, ProtoCompareLess> pending_acked_invalidations_;

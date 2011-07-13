@@ -113,7 +113,7 @@ string ProtoHelpers::ToString(const string& bytes) {
   }
   string builder;
   builder.reserve(3 * bytes.length());
-  for (int i = 0; i < bytes.length(); i++) {
+  for (size_t i = 0; i < bytes.length(); i++) {
     char c = bytes[i];
     switch (c) {
       case '\n': builder += '\\'; builder += 'n'; break;

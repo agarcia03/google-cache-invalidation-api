@@ -593,7 +593,10 @@ void InvalidationClientImpl::SendInfoMessageToServer(
     config_.GetConfigParams(&config_params);
     last_performance_send_time_ = internal_scheduler_->GetCurrentTime();
   }
-  protocol_handler_.SendInfoMessage(performance_counters, config_params);
+
+  protocol_handler_.SendInfoMessage(
+      performance_counters, config_params,
+      !registration_manager_.IsStateInSyncWithServer());
 }
 
 void InvalidationClientImpl::WriteStateBlob() {

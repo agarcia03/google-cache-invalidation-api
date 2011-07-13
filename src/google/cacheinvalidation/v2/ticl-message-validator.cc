@@ -257,6 +257,7 @@ DEFINE_VALIDATOR(InfoMessage) {
   REQUIRE(client_version);
   ZERO_OR_MORE(config_paramter);
   ZERO_OR_MORE(performance_counter);
+  ALLOW(server_registration_summary_requested);
 }
 
 DEFINE_VALIDATOR(RegistrationSubtree) {
