@@ -149,7 +149,6 @@ class ProtocolHandler {
      */
     void handleErrorMessage(ServerMessageHeader header, ErrorMessage.Code code, String description);
 
-
     /** Returns a summary of the current desired registrations. */
     RegistrationSummary getRegistrationSummary();
 
@@ -212,10 +211,16 @@ class ProtocolHandler {
       new HashMap<ObjectIdP, RegistrationP.OpType>();
 
   /** Set of pending invalidation acks. */
-  private final Set<InvalidationP> ackedInvalidations = new HashSet<InvalidationP>();
+  private final Set<InvalidationP> pendingAckedInvalidations = new HashSet<InvalidationP>();
 
   /** Set of pending registration sub trees for registration sync. */
-  private final Set<RegistrationSubtree> registrationSubtrees = new HashSet<RegistrationSubtree>();
+  private final Set<RegistrationSubtree> pendingRegSubtrees = new HashSet<RegistrationSubtree>();
+
+  /** Pending initialization message to send to the server, if any. */
+  private InitializeMessage pendingInitializeMessage = null;
+
+  /** Pending info message to send to the server, if any. */
+  private InfoMessage pendingInfoMessage = null;
 
   /** Statistics objects to track number of sent messages, etc. */
   private final Statistics statistics;
@@ -225,7 +230,7 @@ class ProtocolHandler {
     @Override
     public void run() {
       // Send message to server - the batching information is picked up in sendMessageToServer.
-      sendMessageToServer(ClientToServerMessage.newBuilder(), "BatchingTask");
+      sendMessageToServer();
     }
   };
 
@@ -348,6 +353,7 @@ class ProtocolHandler {
       return;
     }
 
+    // Handle the messages received from the server by calling the appropriate listener method.
     if (message.hasInvalidationMessage()) {
       statistics.recordReceivedMessage(ReceivedMessageType.INVALIDATION);
       listener.handleInvalidations(header, message.getInvalidationMessage().getInvalidationList());
@@ -408,19 +414,24 @@ class ProtocolHandler {
       ByteString nonce, String debugString) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
-    InitializeMessage initMsg = CommonProtos2.newInitializeMessage(clientType, applicationClientId,
+    // Simply store the message in pendingInitializeMessage and send it when the batching task runs.
+    pendingInitializeMessage = CommonProtos2.newInitializeMessage(clientType, applicationClientId,
         nonce, DigestSerializationType.BYTE_BASED);
-    statistics.recordSentMessage(SentMessageType.INITIALIZE);
-    sendMessageToServer(ClientToServerMessage.newBuilder().setInitializeMessage(initMsg),
-        "Init-" + debugString);
+    logger.info("Batching initialize message for client: %s, %s", debugString,
+        pendingInitializeMessage);
+    operationScheduler.schedule(batchingTask);
   }
 
   /**
-   * Sends an info message to the server with the performance counters supplied in
-   * {@code performanceCounters} and the config supplies in {@code configParams}.
+   * Sends an info message to the server with the performance counters supplied
+   * in {@code performanceCounters} and the config supplies in
+   * {@code configParams}.
+   *
+   * @param requestServerRegistrationSummary indicates whether to request the
+   *        server's registration summary
    */
   void sendInfoMessage(List<SimplePair<String, Integer>> performanceCounters,
-      List<SimplePair<String, Integer>> configParams) {
+      List<SimplePair<String, Integer>> configParams, boolean requestServerRegistrationSummary) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     InfoMessage.Builder infoMessage = InfoMessage.newBuilder()
         .setClientVersion(clientVersion);
@@ -438,8 +449,13 @@ class ProtocolHandler {
           CommonProtos2.newPropertyRecord(performanceCounter.first, performanceCounter.second);
       infoMessage.addPerformanceCounter(counter);
     }
-    statistics.recordSentMessage(SentMessageType.INFO);
-    sendMessageToServer(ClientToServerMessage.newBuilder().setInfoMessage(infoMessage), "Info");
+
+    // Indicate whether we want the server's registration summary sent back.
+    infoMessage.setServerRegistrationSummaryRequested(requestServerRegistrationSummary);
+
+    // Simply store the message in pendingInfoMessage and send it when the batching task runs.
+    pendingInfoMessage = infoMessage.build();
+    operationScheduler.schedule(batchingTask);
   }
 
   /**
@@ -461,7 +477,7 @@ class ProtocolHandler {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     // We could do squelching - we don't since it is unlikely to be too beneficial here.
     logger.fine("Sending ack for invalidation %s", invalidation);
-    ackedInvalidations.add(invalidation);
+    pendingAckedInvalidations.add(invalidation);
     operationScheduler.schedule(batchingTask);
   }
 
@@ -472,18 +488,13 @@ class ProtocolHandler {
    */
   void sendRegistrationSyncSubtree(RegistrationSubtree regSubtree) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    registrationSubtrees.add(regSubtree);
+    pendingRegSubtrees.add(regSubtree);
     logger.info("Adding subtree: %s", regSubtree);
     operationScheduler.schedule(batchingTask);
  }
 
-  /**
-   * Sends pending data to the server (e.g., registrations, acks, registration sync messages).
-   *
-   * @param builder initial message builder
-   * @param debugString information to identify the caller
-   */
-  private void sendMessageToServer(ClientToServerMessage.Builder builder, String debugString) {
+  /** Sends pending data to the server (e.g., registrations, acks, registration sync messages). */
+  private void sendMessageToServer() {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
     if (nextMessageSendTimeMs > internalScheduler.getCurrentTimeMs()) {
@@ -492,14 +503,21 @@ class ProtocolHandler {
       return;
     }
 
+    // Check if an initialize message needs to be sent.
+    ClientToServerMessage.Builder builder = ClientToServerMessage.newBuilder();
+    if (pendingInitializeMessage != null) {
+      statistics.recordSentMessage(SentMessageType.INITIALIZE);
+      builder.setInitializeMessage(pendingInitializeMessage);
+      pendingInitializeMessage = null;
+    }
+
     // Note: Even if an initialize message is being sent, we can send additional
     // messages such as regisration messages, etc to the server. But if there is no token
     // and an initialize message is not being sent, we cannot send any other message.
 
     if ((listener.getClientToken() == null) && !builder.hasInitializeMessage()) {
       // Cannot send any message
-      logger.warning("Cannot send message since no token and no initialze msg: %s, %s",
-          debugString, builder);
+      logger.warning("Cannot send message since no token and no initialze msg: %s", builder);
       statistics.recordError(ClientErrorType.TOKEN_MISSING_FAILURE);
       return;
     }
@@ -510,10 +528,11 @@ class ProtocolHandler {
     // Check for pending batched operations and add to message builder if needed.
 
     // Add reg, acks, reg subtrees - clear them after adding.
-    if (!ackedInvalidations.isEmpty()) {
-      InvalidationMessage ackMessage = CommonProtos2.newInvalidationMessage(ackedInvalidations);
+    if (!pendingAckedInvalidations.isEmpty()) {
+      InvalidationMessage ackMessage =
+          CommonProtos2.newInvalidationMessage(pendingAckedInvalidations);
       builder.setInvalidationAckMessage(ackMessage);
-      ackedInvalidations.clear();
+      pendingAckedInvalidations.clear();
       statistics.recordSentMessage(SentMessageType.INVALIDATION_ACK);
     }
 
@@ -533,23 +552,30 @@ class ProtocolHandler {
     }
 
     // Check reg substrees.
-    if (!registrationSubtrees.isEmpty()) {
+    if (!pendingRegSubtrees.isEmpty()) {
       builder.setRegistrationSyncMessage(RegistrationSyncMessage.newBuilder()
-          .addAllSubtree(registrationSubtrees));
-      registrationSubtrees.clear();
+          .addAllSubtree(pendingRegSubtrees));
+      pendingRegSubtrees.clear();
       statistics.recordSentMessage(SentMessageType.REGISTRATION_SYNC);
+    }
+
+    // Check if an info message has to be sent.
+    if (pendingInfoMessage != null) {
+      statistics.recordSentMessage(SentMessageType.INFO);
+      builder.setInfoMessage(pendingInfoMessage);
+      pendingInfoMessage = null;
     }
 
     // Validate the message and send it.
     messageId++;
     ClientToServerMessage message = builder.build();
     if (!msgValidator.isValid(message)) {
-      logger.severe("(%s): Tried to send invalid message: %s", debugString, message);
+      logger.severe("Tried to send invalid message: ", message);
       statistics.recordError(ClientErrorType.OUTGOING_MESSAGE_FAILURE);
       return;
     }
 
-    logger.fine("(%s) Sending message to server: %s", debugString, message);
+    logger.fine("Sending message to server: %s", message);
     statistics.recordSentMessage(SentMessageType.TOTAL);
     resources.getNetwork().sendMessage(message.toByteArray());
   }

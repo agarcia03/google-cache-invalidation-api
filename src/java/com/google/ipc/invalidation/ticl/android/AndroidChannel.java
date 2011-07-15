@@ -72,7 +72,6 @@ class AndroidChannel implements ComponentNetworkChannel {
   private final HttpRequestFactory requestFactory;
 
   /** System resources for this channel */
-  @SuppressWarnings("unused")
   private SystemResources resources;
 
   /** The registration id associated with the channel */
@@ -91,6 +90,12 @@ class AndroidChannel implements ComponentNetworkChannel {
   private List<byte[]> pendingMessages = null;
 
   /**
+   * Testing only flag that disables interactions with the AcccountManager for mock tests.
+   */
+  // TODO: Temporary: remove as part of 4971241
+   static boolean disableAccountManager = false;
+
+  /**
    * Creates a new AndroidChannel.
    *
    * @param proxy the client proxy associated with the channel
@@ -106,7 +111,7 @@ class AndroidChannel implements ComponentNetworkChannel {
 
     // Prefetch the auth sub token.  Since this might require an HTTP round trip, we do this
     // at new client creation time.
-    getAuthToken();
+    requestAuthToken();
 
     // Create a request factory for the provided transport that will automatically set the
     // authentication token for all requests.
@@ -139,8 +144,6 @@ class AndroidChannel implements ComponentNetworkChannel {
     return authToken;
   }
 
-  AccountManagerFuture<Bundle> pendingTokenFuture = null;
-
   /**
    * Initiates acquisition of an authentication token that can be used with channel HTTP requests.
    * Android token acquisition is asynchronous since it may require HTTP interactions with the
@@ -149,7 +152,7 @@ class AndroidChannel implements ComponentNetworkChannel {
   
   synchronized void requestAuthToken() {
     // If there is currently no token and no pending request, initiate one.
-    if ((authToken == null) && (pendingTokenFuture == null)) {
+    if (authToken == null && !disableAccountManager) {
 
       // Ask the AccountManager for the token, with a pending future to store it on the channel
       // once available.
@@ -158,9 +161,9 @@ class AndroidChannel implements ComponentNetworkChannel {
       accountManager.getAuthToken(proxy.getAccount(), AndroidHttpConstants.SERVICE, true,
           new AccountManagerCallback<Bundle>() {
             @Override
-            public void run(AccountManagerFuture<Bundle> bundle) {
+            public void run(AccountManagerFuture<Bundle> future) {
               try {
-                Bundle result = pendingTokenFuture.getResult();
+                Bundle result = future.getResult();
                 if (result.containsKey(AccountManager.KEY_INTENT)) {
                   // TODO: Handle case where there are no authentication credentials
                   // associated with the client account
@@ -177,9 +180,6 @@ class AndroidChannel implements ComponentNetworkChannel {
               } catch (IOException exception) {
                 Log.i(TAG, "IO Exception acquiring token", exception);
                 requestAuthToken();
-              } finally {
-                // Reset the pending future to indicate no request is pending
-                pendingTokenFuture = null;
               }
             }
       }, null);
@@ -221,7 +221,7 @@ class AndroidChannel implements ComponentNetworkChannel {
   }
 
   @Override
-  public synchronized void sendMessage(byte[] outgoingMessage) {
+  public synchronized void sendMessage(final byte[] outgoingMessage) {
     // synchronized to avoid concurrent access to pendingMessages
 
     // If there is no registration id, we cannot compute a network endpoint id. If there is no
@@ -236,27 +236,39 @@ class AndroidChannel implements ComponentNetworkChannel {
       return;
     }
 
+    // Do the actual HTTP I/O on a seperate thread, since we may be called on the main
+    // thread for the application.
+    resources.getListenerScheduler().schedule(SystemResources.Scheduler.NO_DELAY,
+        new Runnable() {
+          @Override
+          public void run() {
+            deliverOutboundMessage(outgoingMessage);
+          }
+        });
+  }
+
+  private void deliverOutboundMessage(final byte [] outgoingMessage) {
     NetworkEndpointId networkEndpointId =
-        CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey());
+      CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey());
 
-    StringBuilder target = new StringBuilder();
-    target.append(proxy.service.getChannelUrl());
-    target.append(AndroidHttpConstants.REQUEST_URL);
-    target.append(Base64.encodeToString(networkEndpointId.toByteArray(),
-        Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING));
-    GenericUrl url = new GenericUrl(target.toString());
+  StringBuilder target = new StringBuilder();
+  target.append(proxy.service.getChannelUrl());
+  target.append(AndroidHttpConstants.REQUEST_URL);
+  target.append(Base64.encodeToString(networkEndpointId.toByteArray(),
+      Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING));
+  GenericUrl url = new GenericUrl(target.toString());
 
-    ByteArrayContent content = createByteArrayContent(outgoingMessage);
-    try {
-      HttpRequest request = requestFactory.buildPostRequest(url, content);
-      request.execute();
-    } catch (HttpResponseException exception) {
-      // TODO: Distinguish between key HTTP error codes and handle more specifically
-      // where appropriate.
-      Log.e(TAG, "Error from server on request", exception);
-    } catch (IOException exception) {
-      Log.e(TAG, "Error writing request", exception);
-    }
+  ByteArrayContent content = createByteArrayContent(outgoingMessage);
+  try {
+    HttpRequest request = requestFactory.buildPostRequest(url, content);
+    request.execute();
+  } catch (HttpResponseException exception) {
+    // TODO: Distinguish between key HTTP error codes and handle more specifically
+    // where appropriate.
+    Log.e(TAG, "Error from server on request", exception);
+  } catch (IOException exception) {
+    Log.e(TAG, "Error writing request", exception);
+  }
   }
 
   /**
@@ -267,10 +279,13 @@ class AndroidChannel implements ComponentNetworkChannel {
   private synchronized void checkReady() {
     if (registrationId != null && authToken != null) {
 
-      // Notify the status receiver that we are now network enebled
-      statusReceiver.accept(true);
+      // Notify the status receiver that we are now network enabled
+      if (statusReceiver != null) {
+        statusReceiver.accept(true);
+      }
 
       // Flush any pending messages
+      Log.i(TAG, "Flushing pending messages for " + proxy.getClientKey());
       if (pendingMessages != null) {
         for (byte [] message : pendingMessages) {
           sendMessage(message);

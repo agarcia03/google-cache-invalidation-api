@@ -787,7 +787,8 @@ public class InvalidationClientImpl extends InternalBase
       config.getConfigParams(configParams);
       lastPerformanceSendTimeMs = internalScheduler.getCurrentTimeMs();
     }
-    protocolHandler.sendInfoMessage(performanceCounters, configParams);
+    protocolHandler.sendInfoMessage(performanceCounters, configParams,
+        !registrationManager.isStateInSyncWithServer());
   }
 
   /** Writes the Ticl state to persistent storage. */

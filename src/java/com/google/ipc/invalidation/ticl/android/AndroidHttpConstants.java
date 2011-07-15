@@ -24,10 +24,10 @@ public class AndroidHttpConstants {
 
   /** The name of the service that should be used for auth token acquisition/validation */
   // TODO: Change to real value once allocated by Gaia team
-  public static final String SERVICE = "android";
+  public static final String SERVICE = "chromiumsync";
 
   /** The MIME content type to use for requests that contain binary protobuf */
-  public static final String PROTO_CONTENT_TYPE = "application/x-protobuf";
+  public static final String PROTO_CONTENT_TYPE = "application/x-protobuffer";
 
   /** The relative URL to use to send inbound client requests to the Android frontend */
   public static final String REQUEST_URL = "/request/";

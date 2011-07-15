@@ -22,6 +22,9 @@ import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.external.client.types.Status;
+import com.google.ipc.invalidation.util.Bytes;
+import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
 
 import java.util.HashMap;
@@ -31,7 +34,7 @@ import java.util.Map;
  * Map-based in-memory implementation of {@link ComponentStorage}.
  *
  */
-public class MemoryStorageImpl implements ComponentStorage {
+public class MemoryStorageImpl extends InternalBase implements ComponentStorage {
   private SystemResources systemResources;
   private Map<String, byte[]> ticlPersistentState = new HashMap<String, byte[]>();
 
@@ -114,5 +117,13 @@ public class MemoryStorageImpl implements ComponentStorage {
    */
   void writeForTest(final String key, final byte[] value) {
     ticlPersistentState.put(key, value);
+  }
+
+  @Override
+  public void toCompactString(TextBuilder builder) {
+    builder.append("Storage state: ");
+    for (Map.Entry<String, byte[]> entry : ticlPersistentState.entrySet()) {
+      builder.appendFormat("<%s, %s>, ", entry.getKey(), Bytes.toString(entry.getValue()));
+    }
   }
 }

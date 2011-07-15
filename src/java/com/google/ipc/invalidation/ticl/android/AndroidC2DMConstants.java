@@ -25,12 +25,18 @@ public class AndroidC2DMConstants {
   /** Account name associated with delivered C2DM messages */
   public static final  String SENDER_ID = "ipc.invalidation@gmail.com";
 
+  /**
+   * The prefix that is added to data items when C2DM messages are generated.  This prefix
+   * <b>does not</b> appear on the data items in the received C2DM intent extra bundle.
+   */
+  public static final String DATA_PREFIX = "data.";
+
   /** Name of C2DM parameter containing the client key. */
-  public static final String CLIENT_KEY_PARAM = "data.tid";
+  public static final String CLIENT_KEY_PARAM = "tid";
 
   /** Name of C2DM parameter containing the mailbox id. */
-  public static final String MAILBOX_ID_PARAM = "data.mid";
+  public static final String MAILBOX_ID_PARAM = "mid";
 
   /** Name of C2DM parameter containing message content. */
-  public static final String CONTENT_PARAM = "data.content";
+  public static final String CONTENT_PARAM = "content";
 }

@@ -446,12 +446,14 @@ public class ClientProtocolAccessor {
       Arrays.<String>asList(
         "client_version",
         "config_paramter",
-        "performance_counter"
+        "performance_counter",
+        "server_registration_summary_requested"
       ));
     
     public static final Descriptor CLIENT_VERSION = new Descriptor("client_version");
     public static final Descriptor CONFIG_PARAMTER = new Descriptor("config_paramter");
     public static final Descriptor PERFORMANCE_COUNTER = new Descriptor("performance_counter");
+    public static final Descriptor SERVER_REGISTRATION_SUMMARY_REQUESTED = new Descriptor("server_registration_summary_requested");
     
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
@@ -468,6 +470,9 @@ public class ClientProtocolAccessor {
       }
       if (field == PERFORMANCE_COUNTER) {
         return message.getPerformanceCounterCount() > 0;
+      }
+      if (field == SERVER_REGISTRATION_SUMMARY_REQUESTED) {
+        return message.hasServerRegistrationSummaryRequested();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -487,6 +492,9 @@ public class ClientProtocolAccessor {
       }
       if (field == PERFORMANCE_COUNTER) {
         return message.getPerformanceCounterList();
+      }
+      if (field == SERVER_REGISTRATION_SUMMARY_REQUESTED) {
+        return message.getServerRegistrationSummaryRequested();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }

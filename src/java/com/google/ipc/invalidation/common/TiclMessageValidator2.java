@@ -396,7 +396,8 @@ public class TiclMessageValidator2 {
         ClientProtocolAccessor.INFO_MESSAGE_ACCESSOR,
         FieldInfo.newRequired(InfoMessageAccessor.CLIENT_VERSION, CLIENT_VERSION),
         FieldInfo.newOptional(InfoMessageAccessor.CONFIG_PARAMTER),
-        FieldInfo.newOptional(InfoMessageAccessor.PERFORMANCE_COUNTER));
+        FieldInfo.newOptional(InfoMessageAccessor.PERFORMANCE_COUNTER),
+        FieldInfo.newOptional(InfoMessageAccessor.SERVER_REGISTRATION_SUMMARY_REQUESTED));
 
     /** Validation for registration subtrees. */
     final MessageInfo SUBTREE = new MessageInfo(
@@ -611,16 +612,15 @@ public class TiclMessageValidator2 {
       return new Iterable<FieldType>() {
         @Override
         public Iterator<FieldType> iterator() {
-          return new Iterator() {
+          return new Iterator<FieldType>() {
             boolean done;
             @Override
             public boolean hasNext() {
               return !done;
             }
 
-            @SuppressWarnings("cast") // FieldType cast
             @Override
-            public Object next() {
+            public FieldType next() {
               if (done) {
                 throw new NoSuchElementException();
               }
