@@ -163,6 +163,12 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
 
   // Handle the messages received from the server by calling the appropriate
   // listener method.
+
+  // In the beginning inform the listener about the header (the caller is
+  // already prepared to handle the fact that the same header is given to
+  // it multiple times).
+  listener_->HandleIncomingHeader(header);
+
   if (message.has_invalidation_message()) {
     statistics_->RecordReceivedMessage(
         Statistics::ReceivedMessageType_INVALIDATION);

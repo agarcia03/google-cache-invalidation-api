@@ -65,9 +65,27 @@ struct ServerMessageHeader {
   RegistrationSummary registration_summary;
 };
 
+/*
+ * Listener for protocol events. The protocol client calls these methods when
+ * a message is received from the server. It guarantees that the call will be
+ * made on the internal thread that the SystemResources provides. When the
+ * protocol listener is called, the token has been checked and message
+ * validation has been completed (using the {@link TiclMessageValidator2}).
+ * That is, all of the methods below can assume that the nonce is null and the
+ * server token is valid.
+ */
 class ProtocolListener {
  public:
   virtual ~ProtocolListener() {}
+
+  /* Handles an incoming message from the server. This method may be called in
+   * addition to the handle* methods below - so the listener code should be
+   * prepared for it.
+   *
+   * Arguments:
+   * header - server message header
+   */
+  virtual void HandleIncomingHeader(const ServerMessageHeader& header) = 0;
 
   /* Handles a token change event from the server.
    *

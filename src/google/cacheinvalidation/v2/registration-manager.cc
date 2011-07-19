@@ -33,7 +33,7 @@ RegistrationManager::RegistrationManager(
   // Initialize the server summary with a 0 size and the digest corresponding to
   // it.  Using defaultInstance would wrong since the server digest will not
   // match unnecessarily and result in an info message being sent.
-  GetRegistrationSummary(&last_known_server_summary_);
+  GetClientSummary(&last_known_server_summary_);
 }
 
 void RegistrationManager::PerformOperations(
@@ -105,7 +105,7 @@ void RegistrationManager::HandleRegistrationStatus(
   }
 }
 
-void RegistrationManager::GetRegistrationSummary(RegistrationSummary* summary) {
+void RegistrationManager::GetClientSummary(RegistrationSummary* summary) {
   summary->set_num_registrations(desired_registrations_->size());
   summary->set_registration_digest(desired_registrations_->GetDigest());
 }

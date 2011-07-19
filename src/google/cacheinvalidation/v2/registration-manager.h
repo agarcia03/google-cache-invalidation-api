@@ -40,7 +40,7 @@ class RegistrationManager {
    */
   void SetDigestStoreForTest(DigestStore<ObjectIdP>* digest_store) {
     desired_registrations_.reset(digest_store);
-    GetRegistrationSummary(&last_known_server_summary_);
+    GetClientSummary(&last_known_server_summary_);
   }
 
   void GetRegisteredObjectsForTest(vector<ObjectIdP>* registrations) {
@@ -78,8 +78,16 @@ class RegistrationManager {
   // Digest-related methods
   //
 
-  /* Returns a summary of the desired registrations. */
-  void GetRegistrationSummary(RegistrationSummary* summary);
+  /* Modifies client_summary to contain the summary of the desired
+   * registrations (by the client). */
+  void GetClientSummary(RegistrationSummary* client_summary);
+
+  /* Modifies server_summary to contain the last known summary from the server.
+   * If none, modifies server_summary to contain the summary corresponding
+   * to 0 registrations. */
+  void GetServerSummary(RegistrationSummary* server_summary) {
+    server_summary->CopyFrom(last_known_server_summary_);
+  }
 
   /* Informs the manager of a new registration state summary from the server. */
   void InformServerRegistrationSummary(const RegistrationSummary& reg_summary) {
@@ -91,7 +99,7 @@ class RegistrationManager {
    */
   bool IsStateInSyncWithServer() {
     RegistrationSummary summary;
-    GetRegistrationSummary(&summary);
+    GetClientSummary(&summary);
     return (last_known_server_summary_.num_registrations() ==
             summary.num_registrations()) &&
         (last_known_server_summary_.registration_digest() ==

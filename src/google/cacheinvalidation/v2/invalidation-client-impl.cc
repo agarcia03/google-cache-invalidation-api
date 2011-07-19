@@ -32,7 +32,7 @@
 
 namespace invalidation {
 
-using ::ipc::invalidation::RegistrationManagerState;
+using ::ipc::invalidation::RegistrationManagerStateP;
 
 /* Modifies configParams to contain the list of configuration parameter
  * names and their values.
@@ -316,7 +316,7 @@ void InvalidationClientImpl::HandleTokenChanged(
   }
 
   // The message is for us. Process it.
-  ProcessServerHeader(header);
+  HandleIncomingHeader(header);
 
   if (new_token.empty()) {
     TLOG(logger_, INFO, "Destroying existing token: %s",
@@ -349,7 +349,7 @@ void InvalidationClientImpl::HandleInvalidations(
     const ServerMessageHeader& header,
     const RepeatedPtrField<InvalidationP>& invalidations) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  ProcessServerHeader(header);
+  HandleIncomingHeader(header);
 
   for (int i = 0; i < invalidations.size(); ++i) {
     const InvalidationP& invalidation = invalidations.Get(i);
@@ -381,7 +381,7 @@ void InvalidationClientImpl::HandleRegistrationStatus(
     const ServerMessageHeader& header,
     const RepeatedPtrField<RegistrationStatus>& reg_status_list) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  ProcessServerHeader(header);
+  HandleIncomingHeader(header);
 
   vector<bool> local_processing_statuses;
   registration_manager_.HandleRegistrationStatus(
@@ -418,7 +418,7 @@ void InvalidationClientImpl::HandleRegistrationSyncRequest(
     const ServerMessageHeader& header) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   // Send all the registrations in the reg sync message.
-  ProcessServerHeader(header);
+  HandleIncomingHeader(header);
 
   // Generate a single subtree for all the registrations.
   RegistrationSubtree subtree;
@@ -430,7 +430,7 @@ void InvalidationClientImpl::HandleInfoMessage(
     const ServerMessageHeader& header,
     const RepeatedField<int>& info_types) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  ProcessServerHeader(header);
+  HandleIncomingHeader(header);
   bool must_send_performance_counters = false;
   for (int i = 0; i < info_types.size(); ++i) {
     must_send_performance_counters =
@@ -448,7 +448,7 @@ void InvalidationClientImpl::HandleErrorMessage(
       const ErrorMessage::Code code,
       const string& description) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  ProcessServerHeader(header);
+  HandleIncomingHeader(header);
 
   // If it is an auth failure, we shut down the ticl.
   TLOG(logger_, SEVERE, "Received error message: %s, %d, %s",
@@ -500,8 +500,9 @@ void InvalidationClientImpl::HandleErrorMessage(
 
 void InvalidationClientImpl::GetRegistrationManagerStateAsSerializedProto(
     string* result) {
-  RegistrationManagerState reg_state;
-  registration_manager_.GetRegistrationSummary(reg_state.mutable_reg_summary());
+  RegistrationManagerStateP reg_state;
+  registration_manager_.GetClientSummary(reg_state.mutable_client_summary());
+  registration_manager_.GetServerSummary(reg_state.mutable_server_summary());
   vector<ObjectIdP> registered_objects;
   registration_manager_.GetRegisteredObjectsForTest(&registered_objects);
   for (size_t i = 0; i < registered_objects.size(); ++i) {
@@ -566,7 +567,7 @@ void InvalidationClientImpl::CheckNetworkTimeouts() {
   }
 }
 
-void InvalidationClientImpl::ProcessServerHeader(
+void InvalidationClientImpl::HandleIncomingHeader(
     const ServerMessageHeader& header) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   CHECK(nonce_.empty()) <<

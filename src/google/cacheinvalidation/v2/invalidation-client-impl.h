@@ -196,6 +196,8 @@ class InvalidationClientImpl : public InvalidationClient,
   virtual void HandleTokenChanged(
       const ServerMessageHeader& header, const string& new_token);
 
+  virtual void HandleIncomingHeader(const ServerMessageHeader& header);
+
   virtual void HandleInvalidations(
       const ServerMessageHeader& header,
       const RepeatedPtrField<InvalidationP>& invalidations);
@@ -217,7 +219,7 @@ class InvalidationClientImpl : public InvalidationClient,
       const string& description);
 
   virtual void GetRegistrationSummary(RegistrationSummary* summary) {
-    registration_manager_.GetRegistrationSummary(summary);
+    registration_manager_.GetClientSummary(summary);
   }
 
   /* Gets registration manager state as a serialized RegistrationManagerState.
@@ -259,13 +261,6 @@ class InvalidationClientImpl : public InvalidationClient,
 
   /* Function called to check for timed-out network messages. */
   void CheckNetworkTimeouts();
-
-  /* Processes the header on a server message by updating the latest known
-   * server time and informing the registration manager of a new summary.
-   *
-   * REQUIRES: nonce be empty.
-   */
-  void ProcessServerHeader(const ServerMessageHeader& header);
 
   /* Sends an info message to the server. If mustSendPerformanceCounters is
    * true, the performance counters are sent regardless of when they were sent
