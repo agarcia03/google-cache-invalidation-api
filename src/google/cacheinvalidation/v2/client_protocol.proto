@@ -344,7 +344,7 @@ message InfoMessage {
   optional ClientVersion client_version = 1;
 
   // Config parameters used by the client.
-  repeated PropertyRecord config_paramter = 2;
+  repeated PropertyRecord config_parameter = 2;
 
   // Performance counters from the client.
   repeated PropertyRecord performance_counter = 3;

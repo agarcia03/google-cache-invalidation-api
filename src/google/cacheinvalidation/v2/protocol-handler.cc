@@ -260,7 +260,7 @@ void ProtocolHandler::SendInfoMessage(
   // Add configuration parameters.
   for (size_t i = 0; i < config_params.size(); ++i) {
     PropertyRecord* config_record =
-        pending_info_message_->add_config_paramter();
+        pending_info_message_->add_config_parameter();
     config_record->set_name(config_params[i].first);
     config_record->set_value(config_params[i].second);
   }
