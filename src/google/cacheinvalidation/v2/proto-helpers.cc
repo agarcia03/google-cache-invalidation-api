@@ -43,15 +43,15 @@ namespace invalidation {
   }
 
 // Emits "field: <field value as string>" if |field| is present in |message|.
-#define OPTIONAL(field)                                                    \
+#define OPTIONAL(field)                                                 \
   if (message.has_##field()) {                                          \
-    stream << #field << ": " << ToString(message.field()) << ", ";      \
+    stream << #field << ": " << ToString(message.field()) << " ";       \
   }
 
 // Emits "field: <field value as string>" for each instance of field in message.
 #define REPEATED(field)                                                 \
   for (int i = 0; i < message.field##_size(); ++i) {                    \
-    stream << #field << ": " << ToString(message.field(i)) << ", ";     \
+    stream << #field << ": " << ToString(message.field(i)) << " ";      \
   }
 
 // Expands to a case branch that returns "name" if the implicitly tested
@@ -95,9 +95,6 @@ bool ProtoHelpers::is_initialized = false;
 
 template<>
 string ProtoHelpers::ToString(const string& bytes) {
-  if (bytes.empty()) {
-    return "";
-  }
   // This is a racy initialization but that is ok since we are initializing to
   // the same values.
   if (!is_initialized) {
@@ -112,7 +109,8 @@ string ProtoHelpers::ToString(const string& bytes) {
     is_initialized = true;
   }
   string builder;
-  builder.reserve(3 * bytes.length());
+  builder.reserve(3 * bytes.length() + 2);
+  builder += "\"";
   for (size_t i = 0; i < bytes.length(); i++) {
     char c = bytes[i];
     switch (c) {
@@ -137,6 +135,7 @@ string ProtoHelpers::ToString(const string& bytes) {
         break;
     }
   }
+  builder += "\"";
   return builder;
 }
 
@@ -179,15 +178,60 @@ DEFINE_TO_STRING(RegistrationP::OpType) {
   }
 }
 
-// TODO(ghc): Fill in the ToString definitions for these message types.
-DEFINE_TRIVIAL_TO_STRING(InfoMessage)
-DEFINE_TRIVIAL_TO_STRING(PropertyRecord)
-DEFINE_TRIVIAL_TO_STRING(ClientVersion)
-DEFINE_TRIVIAL_TO_STRING(ProtocolVersion)
-DEFINE_TRIVIAL_TO_STRING(InfoRequestMessage)
-DEFINE_TRIVIAL_TO_STRING(ConfigChangeMessage)
-DEFINE_TRIVIAL_TO_STRING(Version)
-DEFINE_TRIVIAL_TO_STRING(RegistrationSyncRequestMessage)
+DEFINE_TO_STRING(RegistrationSyncRequestMessage) {
+  BEGIN();
+  END();
+}
+
+DEFINE_TO_STRING(Version) {
+  BEGIN();
+  OPTIONAL(major_version);
+  OPTIONAL(minor_version);
+  END();
+}
+
+DEFINE_TO_STRING(ClientVersion) {
+  BEGIN();
+  OPTIONAL(version);
+  OPTIONAL(platform);
+  OPTIONAL(language);
+  OPTIONAL(application_info);
+  END();
+}
+
+DEFINE_TO_STRING(ProtocolVersion) {
+  BEGIN();
+  OPTIONAL(version);
+  END();
+}
+
+DEFINE_TO_STRING(InfoRequestMessage) {
+  BEGIN();
+  REPEATED(info_type);
+  END();
+}
+
+DEFINE_TO_STRING(ConfigChangeMessage) {
+  BEGIN();
+  OPTIONAL(next_message_delay_ms);
+  END();
+}
+
+DEFINE_TO_STRING(PropertyRecord) {
+  BEGIN();
+  OPTIONAL(name);
+  OPTIONAL(value);
+  END();
+}
+
+DEFINE_TO_STRING(InfoMessage) {
+  BEGIN();
+  OPTIONAL(client_version);
+  REPEATED(config_parameter);
+  REPEATED(performance_counter);
+  OPTIONAL(server_registration_summary_requested);
+  END();
+}
 
 DEFINE_TO_STRING(ErrorMessage) {
   BEGIN();
