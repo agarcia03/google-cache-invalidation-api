@@ -30,8 +30,8 @@ public class AndroidHttpConstants {
   public static final String PROTO_CONTENT_TYPE = "application/x-protobuffer";
 
   /** The relative URL to use to send inbound client requests to the Android frontend */
-  public static final String REQUEST_URL = "/request/";
+  public static final String REQUEST_URL = "/invalidation/android/request/";
 
   /** The relative URL to use to send mailbox retrieval requests to the Android frontend */
-  public static final String MAILBOX_URL = "/mailbox/";
+  public static final String MAILBOX_URL = "/invalidation/android/mailbox/";
 }
