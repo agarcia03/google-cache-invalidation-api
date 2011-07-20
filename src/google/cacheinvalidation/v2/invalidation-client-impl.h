@@ -266,7 +266,8 @@ class InvalidationClientImpl : public InvalidationClient,
    * true, the performance counters are sent regardless of when they were sent
    * earlier.
    */
-  void SendInfoMessageToServer(bool mustSendPerformanceCounters);
+  void SendInfoMessageToServer(
+      bool mustSendPerformanceCounters, bool request_server_summary);
 
   /* Writes the Ticl state to persistent storage. */
   void WriteStateBlob();
@@ -375,6 +376,11 @@ class InvalidationClientImpl : public InvalidationClient,
 
   /* If not empty, nonce for pending identifier request. */
   string nonce_;
+
+  /* Whether we should send registrations to the server or not. */
+  // TODO(ghc): Make the server summary in the registration manager nullable
+  // and replace this variable with a test for whether it's null or not.
+  bool should_send_registrations_;
 
   /* A task for periodic heartbeats. */
   scoped_ptr<Closure> heartbeat_task_;

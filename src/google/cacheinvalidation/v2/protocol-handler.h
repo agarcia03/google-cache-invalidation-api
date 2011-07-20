@@ -57,7 +57,7 @@ struct ServerMessageHeader {
 
   string ToString() const {
     return StringPrintf(
-        "Token: %s, Summary: %s", token.c_str(),
+        "Token: %s, Summary: %s", ProtoHelpers::ToString(token).c_str(),
         ProtoHelpers::ToString(registration_summary).c_str());
   }
 

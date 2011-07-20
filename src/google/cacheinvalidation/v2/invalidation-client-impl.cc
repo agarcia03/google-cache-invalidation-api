@@ -145,20 +145,31 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     // If we have persistent state, use the previously-stored token and send a
     // heartbeat to let the server know that we've restarted, since we may have
     // been marked offline.
+    //
+    // In the common case, the server will already have all of our
+    // registrations, but we won't know for sure until we've gotten its summary.
+    // We'll ask the application for all of its registrations, but to avoid
+    // making the registrar redo the work of performing registrations that
+    // probably already exist, we'll suppress sending them to the registrar.
     TLOG(logger_, INFO, "Restarting from persistent state: %s",
          ProtoHelpers::ToString(
              persistent_state.client_token()).c_str());
     set_nonce("");
     set_client_token(persistent_state.client_token());
-    SendInfoMessageToServer(false);
+    should_send_registrations_ = false;
+    SendInfoMessageToServer(false, true);
   } else {
     // If we had no persistent state or couldn't deserialize the state that we
     // had, start fresh.  Request a new client identifier.
+    //
+    // The server can't possibly have our registrations, so whatever we get
+    // from the application we should send to the registrar.
     TLOG(logger_, INFO, "Starting with no previous state");
+    should_send_registrations_ = true;
     ScheduleAcquireToken("Startup");
   }
   // InvalidationListener.Ready() is called when the ticl has acquired a
-  // new token
+  // new token.
 }
 
 void InvalidationClientImpl::Stop() {
@@ -229,7 +240,12 @@ void InvalidationClientImpl::PerformRegisterOperationsInternal(
   // Update the registration manager state, then have the protocol client send a
   // message.
   registration_manager_.PerformOperations(object_id_protos, reg_op_type);
-  protocol_handler_.SendRegistrations(object_id_protos, reg_op_type);
+
+  // Check whether we should suppress sending registrations because we don't
+  // yet know the server's summary.
+  if (should_send_registrations_) {
+    protocol_handler_.SendRegistrations(object_id_protos, reg_op_type);
+  }
   operation_scheduler_.Schedule(timeout_task_.get());
 }
 
@@ -440,7 +456,8 @@ void InvalidationClientImpl::HandleInfoMessage(
       break;
     }
   }
-  SendInfoMessageToServer(must_send_performance_counters);
+  SendInfoMessageToServer(must_send_performance_counters,
+                          !registration_manager_.IsStateInSyncWithServer());
 }
 
 void InvalidationClientImpl::HandleErrorMessage(
@@ -451,8 +468,9 @@ void InvalidationClientImpl::HandleErrorMessage(
   HandleIncomingHeader(header);
 
   // If it is an auth failure, we shut down the ticl.
-  TLOG(logger_, SEVERE, "Received error message: %s, %d, %s",
-         header.ToString().c_str(), code, description.c_str());
+  TLOG(logger_, SEVERE, "Received error message: %s, %s, %s",
+         header.ToString().c_str(), ProtoHelpers::ToString(code).c_str(),
+         description.c_str());
 
   // Translate the code to error reason.
   int reason;
@@ -562,7 +580,7 @@ void InvalidationClientImpl::CheckNetworkTimeouts() {
   if (!registration_manager_.IsStateInSyncWithServer()) {
     TLOG(logger_, INFO, "Registration state not in sync with server: %s",
          registration_manager_.ToString().c_str());
-    SendInfoMessageToServer(false);
+    SendInfoMessageToServer(false, true);
     operation_scheduler_.Schedule(timeout_task_.get());
   }
 }
@@ -573,12 +591,16 @@ void InvalidationClientImpl::HandleIncomingHeader(
   CHECK(nonce_.empty()) <<
       "Cannot process server header " << header.ToString() <<
       " with non-empty nonce " << nonce_;
+
+  // We've received a summary from the server, so if we were suppressing
+  // registrations, we should now allow them to go to the registrar.
+  should_send_registrations_ = true;
   registration_manager_.InformServerRegistrationSummary(
       header.registration_summary);
 }
 
 void InvalidationClientImpl::SendInfoMessageToServer(
-    bool must_send_performance_counters) {
+    bool must_send_performance_counters, bool request_server_summary) {
   TLOG(logger_, INFO, "Sending info message to server");
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
@@ -596,8 +618,7 @@ void InvalidationClientImpl::SendInfoMessageToServer(
   }
 
   protocol_handler_.SendInfoMessage(
-      performance_counters, config_params,
-      !registration_manager_.IsStateInSyncWithServer());
+      performance_counters, config_params, request_server_summary);
 }
 
 void InvalidationClientImpl::WriteStateBlob() {
@@ -695,7 +716,8 @@ void InvalidationClientImpl::ReadCallback(
 void InvalidationClientImpl::HeartbeatTask() {
   // Send info message.
   TLOG(logger_, INFO, "Sending heartbeat to server: %s", ToString().c_str());
-  SendInfoMessageToServer(false);
+  SendInfoMessageToServer(
+      false, !registration_manager_.IsStateInSyncWithServer());
   operation_scheduler_.Schedule(heartbeat_task_.get());
 }
 
