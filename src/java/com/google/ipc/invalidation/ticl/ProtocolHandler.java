@@ -106,8 +106,19 @@ class ProtocolHandler {
    * received from the server. It guarantees that the call will be made on the internal thread that
    * the SystemResources provides. When the protocol listener is called, the token has been checked
    * and message validation has been completed (using the {@link TiclMessageValidator2}).
+   * That is, all of the methods below can assume that the nonce is null and the server token is
+   * valid.
    */
   interface ProtocolListener {
+
+    /**
+     * Handles an incoming message from the server. This method may be called in addition
+     * to the handle* methods below - so the listener code should be prepared for it.
+     *
+     * @param header server message header
+     */
+    void handleIncomingHeader(ServerMessageHeader header);
+
     /**
      * Handles a token change event from the server
      *
@@ -321,6 +332,7 @@ class ProtocolHandler {
     // sent for a certain duration. Perform this check before the token is even checked.
     if (message.hasConfigChangeMessage()) {
       ConfigChangeMessage configChangeMsg = message.getConfigChangeMessage();
+      statistics.recordReceivedMessage(ReceivedMessageType.CONFIG_CHANGE);
       if (configChangeMsg.hasNextMessageDelayMs()) {  // Validator has ensured that it is positive.
         nextMessageSendTimeMs =
             internalScheduler.getCurrentTimeMs() + configChangeMsg.getNextMessageDelayMs();
@@ -354,6 +366,11 @@ class ProtocolHandler {
     }
 
     // Handle the messages received from the server by calling the appropriate listener method.
+
+    // In the beginning inform the listener about the header (the caller is already prepared
+    // to handle the fact that the same header is given to it multiple times).
+    listener.handleIncomingHeader(header);
+
     if (message.hasInvalidationMessage()) {
       statistics.recordReceivedMessage(ReceivedMessageType.INVALIDATION);
       listener.handleInvalidations(header, message.getInvalidationMessage().getInvalidationList());
@@ -440,7 +457,7 @@ class ProtocolHandler {
     for (SimplePair<String, Integer> configParam : configParams) {
       PropertyRecord configRecord =
         CommonProtos2.newPropertyRecord(configParam.first, configParam.second);
-      infoMessage.addConfigParamter(configRecord);
+      infoMessage.addConfigParameter(configRecord);
     }
 
     // Add performance counters.
@@ -586,7 +603,7 @@ class ProtocolHandler {
     ClientHeader.Builder builder = ClientHeader.newBuilder()
         .setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION)
         .setClientTimeMs(internalScheduler.getCurrentTimeMs())
-        .setMessageId(Integer.toString(messageId++))
+        .setMessageId(Integer.toString(messageId))
         .setMaxKnownServerTimeMs(lastKnownServerTimeMs)
         .setRegistrationSummary(listener.getRegistrationSummary());
     ByteString clientToken = listener.getClientToken();

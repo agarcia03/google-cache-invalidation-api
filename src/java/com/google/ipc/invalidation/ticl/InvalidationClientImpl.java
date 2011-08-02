@@ -193,13 +193,18 @@ public class InvalidationClientImpl extends InternalBase
   /** If not {@code null}, nonce for pending identifier request. */
   private ByteString nonce = null;
 
+  /** Whether we should send registrations to the server or not. */
+  // TODO: [bug 5055726] Make the server summary in the registration manager nullable
+  // and replace this variable with a test for whether it's null or not.
+  private boolean shouldSendRegistrations;
+
   /** A task for periodic heartbeats. */
   private final Runnable heartbeatTask = new Runnable() {
     @Override
     public void run() {
       // Send info message
       logger.info("Sending heartbeat to server: %s", this);
-      sendInfoMessageToServer(false);
+      sendInfoMessageToServer(false, !registrationManager.isStateInSyncWithServer());
       operationScheduler.schedule(this);
     }
   };
@@ -256,6 +261,12 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   
+  public Config getConfigForTest() {
+    return this.config;
+  }
+
+  @Override
+  
   public byte[] getApplicationClientIdForTest() {
     return applicationClientId.toByteArray();
   }
@@ -294,8 +305,7 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   
-  public SimplePair<RegistrationSummary, ? extends Collection<ObjectIdP>>
-      getRegistrationManagerStateCopyForTest() {
+  public RegistrationManagerState getRegistrationManagerStateCopyForTest() {
     Preconditions.checkState(internalScheduler.isRunningOnThread());
     return registrationManager.getRegistrationManagerStateCopyForTest(
         new ObjectIdDigestUtils.Sha1DigestFunction());
@@ -370,15 +380,32 @@ public class InvalidationClientImpl extends InternalBase
     if (persistentState != null) {
       // If we have persistent state, use the previously-stored token and send a heartbeat to
       // let the server know that we've restarted, since we may have been marked offline.
+
+      // In the common case, the server will already have all of our
+      // registrations, but we won't know for sure until we've gotten its summary.
+      // We'll ask the application for all of its registrations, but to avoid
+      // making the registrar redo the work of performing registrations that
+      // probably already exist, we'll suppress sending them to the registrar.
       logger.info("Restarting from persistent state: %s",
           CommonProtoStrings2.toLazyCompactString(persistentState.getClientToken()));
       setNonce(null);
       setClientToken(persistentState.getClientToken());
-      sendInfoMessageToServer(false);
+      shouldSendRegistrations = false;
+      sendInfoMessageToServer(false, true);
+
+      // We need to ensure that heartbeats are sent, regardless of whether we
+      // start fresh or from persistent state.  The line below ensures that they
+      // are scheduled in the persistent startup case.  For the other case, the
+      // task is scheduled when we acquire a token.
+      operationScheduler.schedule(heartbeatTask);
     } else {
       // If we had no persistent state or couldn't deserialize the state that we had, start fresh.
       // Request a new client identifier.
+
+      // The server can't possibly have our registrations, so whatever we get
+      // from the application we should send to the registrar.
       logger.info("Starting with no previous state");
+      shouldSendRegistrations = true;
       acquireToken("Startup");
     }
 
@@ -462,7 +489,12 @@ public class InvalidationClientImpl extends InternalBase
 
         // Update the registration manager state, then have the protocol client send a message.
         registrationManager.performOperations(objectIdProtos, regOpType);
-        protocolHandler.sendRegistrations(objectIdProtos, regOpType);
+
+        // Check whether we should suppress sending registrations because we don't
+        // yet know the server's summary.
+        if (shouldSendRegistrations) {
+          protocolHandler.sendRegistrations(objectIdProtos, regOpType);
+        }
         operationScheduler.schedule(timeoutTask);
       }
     });
@@ -536,7 +568,7 @@ public class InvalidationClientImpl extends InternalBase
     }
 
     // The message is for us. Process it.
-    processServerHeader(header);
+    handleIncomingHeader(header);
 
     if (newToken == null) {
       logger.info("Destroying existing token: %s",
@@ -555,10 +587,23 @@ public class InvalidationClientImpl extends InternalBase
   }
 
   @Override
+  public void handleIncomingHeader(ServerMessageHeader header) {
+    Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
+    Preconditions.checkState(nonce == null,
+        "Cannot process server header with non-null nonce (have %s): %s", nonce, header);
+    if (header.registrationSummary != null) {
+      // We've received a summary from the server, so if we were suppressing
+      // registrations, we should now allow them to go to the registrar.
+      shouldSendRegistrations = true;
+      registrationManager.informServerRegistrationSummary(header.registrationSummary);
+    }
+  }
+
+  @Override
   public void handleInvalidations(final ServerMessageHeader header,
       final Collection<InvalidationP> invalidations) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    processServerHeader(header);
+    handleIncomingHeader(header);
 
     for (InvalidationP invalidation : invalidations) {
       AckHandle ackHandle = AckHandle.newInstance(
@@ -587,7 +632,7 @@ public class InvalidationClientImpl extends InternalBase
   public void handleRegistrationStatus(final ServerMessageHeader header,
       final List<RegistrationStatus> regStatusList) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    processServerHeader(header);
+    handleIncomingHeader(header);
 
     List<Boolean> localProcessingStatuses =
         registrationManager.handleRegistrationStatus(regStatusList);
@@ -618,7 +663,7 @@ public class InvalidationClientImpl extends InternalBase
   public void handleRegistrationSyncRequest(final ServerMessageHeader header) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     // Send all the registrations in the reg sync message.
-    processServerHeader(header);
+    handleIncomingHeader(header);
 
     // Generate a single subtree for all the registrations.
     RegistrationSubtree subtree =
@@ -629,7 +674,7 @@ public class InvalidationClientImpl extends InternalBase
   @Override
   public void handleInfoMessage(ServerMessageHeader header, Collection<InfoType> infoTypes) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    processServerHeader(header);
+    handleIncomingHeader(header);
     boolean mustSendPerformanceCounters = false;
     for (InfoType infoType : infoTypes) {
       mustSendPerformanceCounters = (infoType == InfoType.GET_PERFORMANCE_COUNTERS);
@@ -637,14 +682,15 @@ public class InvalidationClientImpl extends InternalBase
         break;
       }
     }
-    sendInfoMessageToServer(mustSendPerformanceCounters);
+    sendInfoMessageToServer(mustSendPerformanceCounters,
+        !registrationManager.isStateInSyncWithServer());
   }
 
   @Override
   public void handleErrorMessage(ServerMessageHeader header, ErrorMessage.Code code,
       String description) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    processServerHeader(header);
+    handleIncomingHeader(header);
 
     // If it is an auth failure, we shut down the ticl.
     logger.severe("Received error message: %s, %s, %s", header, code, description);
@@ -747,23 +793,8 @@ public class InvalidationClientImpl extends InternalBase
     // Simply send an info message to ensure syncing happens.
     if (!registrationManager.isStateInSyncWithServer()) {
       logger.info("Registration state not in sync with server: %s", registrationManager);
-      sendInfoMessageToServer(false);
+      sendInfoMessageToServer(false, true);
       operationScheduler.schedule(timeoutTask);
-    }
-  }
-
-  /**
-   * Processes the header on a server message by updating the latest known server time and informing
-   * the registration manager of a new summary.
-   * <p>
-   * REQUIRES: {@code nonce} be {@code null}.
-   */
-  private void processServerHeader(ServerMessageHeader header) {
-    Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    Preconditions.checkState(nonce == null,
-        "Cannot process server header with non-null nonce (have %s): %s", nonce, header);
-    if (header.registrationSummary != null) {
-      registrationManager.informServerRegistrationSummary(header.registrationSummary);
     }
   }
 
@@ -771,7 +802,8 @@ public class InvalidationClientImpl extends InternalBase
    * Sends an info message to the server. If {@code mustSendPerformanceCounters} is true,
    * the performance counters are sent regardless of when they were sent earlier.
    */
-  private void sendInfoMessageToServer(boolean mustSendPerformanceCounters) {
+  private void sendInfoMessageToServer(boolean mustSendPerformanceCounters,
+      boolean requestServerSummary) {
     logger.info("Sending info message to server");
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
@@ -787,8 +819,7 @@ public class InvalidationClientImpl extends InternalBase
       config.getConfigParams(configParams);
       lastPerformanceSendTimeMs = internalScheduler.getCurrentTimeMs();
     }
-    protocolHandler.sendInfoMessage(performanceCounters, configParams,
-        !registrationManager.isStateInSyncWithServer());
+    protocolHandler.sendInfoMessage(performanceCounters, configParams, requestServerSummary);
   }
 
   /** Writes the Ticl state to persistent storage. */
@@ -845,7 +876,7 @@ public class InvalidationClientImpl extends InternalBase
 
   /**
    * Converts an operation type {@code regStatus} to a
-   * {@link InvalidationListener.RegistrationState}.
+   * {@code InvalidationListener.RegistrationState}.
    */
   private static InvalidationListener.RegistrationState convertOpTypeToRegState(
       RegistrationStatus regStatus) {

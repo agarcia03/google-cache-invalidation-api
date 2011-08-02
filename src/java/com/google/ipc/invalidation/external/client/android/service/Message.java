@@ -39,6 +39,8 @@ public abstract class Message {
 
     public static final String ACCOUNT = "account";
 
+    public static final String AUTH_TYPE = "authType";
+
     public static final String ACK_TOKEN = "ackToken";
 
     public static final String CLIENT = "client";
@@ -80,6 +82,12 @@ public abstract class Message {
     /** Stores an acknowledgement handle in the built parameters. */
     public BuilderType setAckHandle(AckHandle ackHandle) {
       bundle.putByteArray(Parameter.ACK_TOKEN, ackHandle.getHandleData());
+      return thisInstance;
+    }
+
+    /** Stores the authentication type in the built parameters */
+    public BuilderType setAuthType(String authType) {
+      bundle.putString(Parameter.AUTH_TYPE, authType);
       return thisInstance;
     }
 
@@ -142,6 +150,11 @@ public abstract class Message {
   public AckHandle getAckHandle() {
     byte [] tokenData = parameters.getByteArray(Parameter.ACK_TOKEN);
     return tokenData != null ? AckHandle.newInstance(tokenData) : null;
+  }
+
+  /** Returns the authentication type set on the message or {@code null} if not set */
+  public String getAuthType() {
+    return parameters.getString(Parameter.AUTH_TYPE);
   }
 
   /** Returns the client key set on the message or {@code null} if not set */

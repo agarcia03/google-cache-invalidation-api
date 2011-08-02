@@ -445,13 +445,13 @@ public class ClientProtocolAccessor {
     private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
       Arrays.<String>asList(
         "client_version",
-        "config_paramter",
+        "config_parameter",
         "performance_counter",
         "server_registration_summary_requested"
       ));
     
     public static final Descriptor CLIENT_VERSION = new Descriptor("client_version");
-    public static final Descriptor CONFIG_PARAMTER = new Descriptor("config_paramter");
+    public static final Descriptor CONFIG_PARAMETER = new Descriptor("config_parameter");
     public static final Descriptor PERFORMANCE_COUNTER = new Descriptor("performance_counter");
     public static final Descriptor SERVER_REGISTRATION_SUMMARY_REQUESTED = new Descriptor("server_registration_summary_requested");
     
@@ -465,8 +465,8 @@ public class ClientProtocolAccessor {
       if (field == CLIENT_VERSION) {
         return message.hasClientVersion();
       }
-      if (field == CONFIG_PARAMTER) {
-        return message.getConfigParamterCount() > 0;
+      if (field == CONFIG_PARAMETER) {
+        return message.getConfigParameterCount() > 0;
       }
       if (field == PERFORMANCE_COUNTER) {
         return message.getPerformanceCounterCount() > 0;
@@ -487,8 +487,8 @@ public class ClientProtocolAccessor {
       if (field == CLIENT_VERSION) {
         return message.getClientVersion();
       }
-      if (field == CONFIG_PARAMTER) {
-        return message.getConfigParamterList();
+      if (field == CONFIG_PARAMETER) {
+        return message.getConfigParameterList();
       }
       if (field == PERFORMANCE_COUNTER) {
         return message.getPerformanceCounterList();

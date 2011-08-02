@@ -20,6 +20,7 @@ import com.google.ipc.invalidation.external.client.android.service.AndroidClient
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
 
 import android.accounts.Account;
+import android.content.Context;
 import android.content.Intent;
 
 import java.util.Map;
@@ -28,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Manages active client instances for the Android invalidation service. The client manager contains
  * the code to create, persist, load, and lookup client instances, as well as handling the
- * propogation of any C2DM registration notifications to active clients.
+ * propagation of any C2DM registration notifications to active clients.
  *
  */
 class AndroidClientManager {
@@ -65,19 +66,20 @@ class AndroidClientManager {
    *
    * @param clientKey key that uniquely identifies the client on the device.
    * @param clientType client type.
-   * @param account user account associated with the client {or @code null}.
+   * @param account user account associated with the client.
+   * @param authType authentication type for the client.
    * @param eventIntent intent that can be used to bind to an event listener for the client.
    * @return an android invalidation client instance representing the client.
    * @throws AndroidClientException if an existing client is found that does not match, or a new
    *         client cannot be created.
    */
-  AndroidClientProxy create(String clientKey, int clientType, Account account, Intent eventIntent)
-      throws AndroidClientException {
+  AndroidClientProxy create(String clientKey, int clientType, Account account, String authType,
+      Intent eventIntent) throws AndroidClientException {
 
     // First check to see if an existing client is found
     AndroidClientProxy proxy = lookup(clientKey);
     if (proxy != null) {
-      if (!proxy.getAccount().equals(account)) {
+      if (!proxy.getAccount().equals(account) || !proxy.getAuthType().equals(authType)) {
         throw new AndroidClientException(
             Status.INVALID_CLIENT, "Account does not match existing client");
       }
@@ -85,11 +87,10 @@ class AndroidClientManager {
     }
 
     // If not found, create a new client proxy instance to represent the client.
-    proxy = new AndroidClientProxy(service, registrationId, clientKey, clientType, account,
-        eventIntent);
-
+    AndroidStorage store = createAndroidStorage(service, clientKey);
+    store.create(clientType, account, authType, eventIntent);
+    proxy = new AndroidClientProxy(service, registrationId, store);
     clientMap.put(clientKey, proxy);
-    // TODO: Persist client state in DB
     return proxy;
   }
 
@@ -106,7 +107,6 @@ class AndroidClientManager {
     if (client != null) {
       return client;
     }
-    // TODO: Look up and instantiate client from DB.
     throw new AndroidClientException(Status.INVALID_CLIENT, "Unknown client key:" + clientKey);
   }
 
@@ -121,16 +121,6 @@ class AndroidClientManager {
   }
 
   /**
-   * Deletes a client instance from memory and persisted storage.
-   *
-   * @param clientKey the client key of the instance to delete.
-   */
-  void delete(String clientKey) {
-    remove(clientKey);
-    // TODO: Remove from DB
-  }
-
-  /**
    * Looks up the client proxy instance associated with the provided key and returns it (or {@code
    * null} if not found).
    *
@@ -139,11 +129,17 @@ class AndroidClientManager {
    */
   
   AndroidClientProxy lookup(String clientKey) {
+
+    // See if the client is already resident in memory
     AndroidClientProxy client = clientMap.get(clientKey);
-    if (client != null) {
-      return client;
+    if (client == null) {
+      // Attempt to load the client from the store
+      AndroidStorage storage = createAndroidStorage(service, clientKey);
+      if (storage.load()) {
+        client = new AndroidClientProxy(service, registrationId, storage);
+      }
     }
-    return null;
+    return client;
   }
 
   /**
@@ -156,7 +152,7 @@ class AndroidClientManager {
 
     // Propagate the value to all existing clients
     for (AndroidClientProxy proxy : clientMap.values()) {
-      proxy.getChannel().setRegistrationId(registrationId);
+      proxy.channel.setRegistrationId(registrationId);
     }
   }
 
@@ -175,5 +171,13 @@ class AndroidClientManager {
       clientProxy.release();
     }
     clientMap.clear();
+  }
+
+  /**
+   * Returns an android storage instance for managing client state.
+   */
+  
+  protected AndroidStorage createAndroidStorage(Context context, String clientKey) {
+    return new AndroidStorage(context, clientKey);
   }
 }

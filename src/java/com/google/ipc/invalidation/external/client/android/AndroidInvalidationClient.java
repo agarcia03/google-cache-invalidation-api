@@ -28,10 +28,14 @@ import android.accounts.Account;
 public interface AndroidInvalidationClient extends InvalidationClient {
 
   /**
-   * Returns the {@link Account} associated with the client or {@code null} if
-   * unknown (when resumed).
+   * Returns the {@link Account} associated with the client.
    */
   Account getAccount();
+
+  /**
+   * Returns the authenticate type that is used to authenticate the client.
+   */
+  String getAuthType();
 
   /*
    * Returns the client key that uniquely identifies this client.   The client key can be passed

@@ -395,7 +395,7 @@ public class TiclMessageValidator2 {
     final MessageInfo INFO = new MessageInfo(
         ClientProtocolAccessor.INFO_MESSAGE_ACCESSOR,
         FieldInfo.newRequired(InfoMessageAccessor.CLIENT_VERSION, CLIENT_VERSION),
-        FieldInfo.newOptional(InfoMessageAccessor.CONFIG_PARAMTER),
+        FieldInfo.newOptional(InfoMessageAccessor.CONFIG_PARAMETER),
         FieldInfo.newOptional(InfoMessageAccessor.PERFORMANCE_COUNTER),
         FieldInfo.newOptional(InfoMessageAccessor.SERVER_REGISTRATION_SUMMARY_REQUESTED));
 

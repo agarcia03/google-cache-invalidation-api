@@ -17,10 +17,10 @@
 package com.google.ipc.invalidation.external.client;
 
 import com.google.common.base.Preconditions;
-import com.google.ipc.invalidation.external.client.SystemResources.ComponentLogger;
-import com.google.ipc.invalidation.external.client.SystemResources.ComponentNetworkChannel;
-import com.google.ipc.invalidation.external.client.SystemResources.ComponentScheduler;
-import com.google.ipc.invalidation.external.client.SystemResources.ComponentStorage;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
+import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
+import com.google.ipc.invalidation.external.client.SystemResources.Storage;
 import com.google.ipc.invalidation.ticl.BasicSystemResources;
 
 /**
@@ -31,19 +31,18 @@ import com.google.ipc.invalidation.ticl.BasicSystemResources;
 
   // The resources used for constructing the SystemResources in builder.
 public class SystemResourcesBuilder {
-  private ComponentScheduler internalScheduler;
-  private ComponentScheduler listenerScheduler;
-  private ComponentLogger logger;
-  private ComponentNetworkChannel network;
-  private ComponentStorage storage;
+  private Scheduler internalScheduler;
+  private Scheduler listenerScheduler;
+  private Logger logger;
+  private NetworkChannel network;
+  private Storage storage;
 
   /** If the build method has been called on this builder. */
   private boolean sealed;
 
   /** See specs at {@code InvalidationClientFactory.createDefaultResourcesBuilder}. */
-  public SystemResourcesBuilder(ComponentLogger logger, ComponentScheduler internalScheduler,
-      ComponentScheduler listenerScheduler, ComponentNetworkChannel network,
-      ComponentStorage storage) {
+  public SystemResourcesBuilder(Logger logger, Scheduler internalScheduler,
+      Scheduler listenerScheduler, NetworkChannel network, Storage storage) {
     this.logger = logger;
     this.internalScheduler = internalScheduler;
     this.listenerScheduler = listenerScheduler;
@@ -62,27 +61,27 @@ public class SystemResourcesBuilder {
   }
 
   /** Returns the internal scheduler. */
-  public ComponentScheduler getInternalScheduler() {
+  public Scheduler getInternalScheduler() {
     return internalScheduler;
   }
 
   /** Returns the listener scheduler. */
-  public ComponentScheduler getListenerScheduler() {
+  public Scheduler getListenerScheduler() {
     return listenerScheduler;
   }
 
   /** Returns the network channel. */
-  public ComponentNetworkChannel getNetwork() {
+  public NetworkChannel getNetwork() {
     return network;
   }
 
   /** Returns the logger. */
-  public ComponentLogger getLogger() {
+  public Logger getLogger() {
     return logger;
   }
 
   /** Returns the storage. */
-  public ComponentStorage getStorage() {
+  public Storage getStorage() {
     return storage;
   }
 
@@ -91,7 +90,7 @@ public class SystemResourcesBuilder {
    * <p>
    * REQUIRES: {@link #build} has not been called.
    */
-  public SystemResourcesBuilder  setInternalScheduler(ComponentScheduler internalScheduler) {
+  public SystemResourcesBuilder setInternalScheduler(Scheduler internalScheduler) {
     Preconditions.checkState(!sealed, "Builder's build method has already been called");
     this.internalScheduler = internalScheduler;
     return this;
@@ -102,7 +101,7 @@ public class SystemResourcesBuilder {
    * <p>
    * REQUIRES: {@link #build} has not been called.
    */
-  public SystemResourcesBuilder setListenerScheduler(ComponentScheduler listenerScheduler) {
+  public SystemResourcesBuilder setListenerScheduler(Scheduler listenerScheduler) {
     Preconditions.checkState(!sealed, "Builder's build method has already been called");
     this.listenerScheduler = listenerScheduler;
     return this;
@@ -113,7 +112,7 @@ public class SystemResourcesBuilder {
    * <p>
    * REQUIRES: {@link #build} has not been called.
    */
-  public SystemResourcesBuilder setLogger(ComponentLogger logger) {
+  public SystemResourcesBuilder setLogger(Logger logger) {
     Preconditions.checkState(!sealed, "Builder's build method has already been called");
     this.logger = logger;
     return this;
@@ -124,7 +123,7 @@ public class SystemResourcesBuilder {
    * <p>
    * REQUIRES: {@link #build} has not been called.
    */
-  public SystemResourcesBuilder setNetwork(ComponentNetworkChannel network) {
+  public SystemResourcesBuilder setNetwork(NetworkChannel network) {
     Preconditions.checkState(!sealed, "Builder's build method has already been called");
     this.network = network;
     return this;
@@ -135,7 +134,7 @@ public class SystemResourcesBuilder {
    * <p>
    * REQUIRES: {@link #build} has not been called.
    */
-  public SystemResourcesBuilder setStorage(ComponentStorage storage) {
+  public SystemResourcesBuilder setStorage(Storage storage) {
     Preconditions.checkState(!sealed, "Builder's build method has already been called");
     this.storage = storage;
     return this;

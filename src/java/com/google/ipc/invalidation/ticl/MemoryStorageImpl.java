@@ -17,8 +17,8 @@
 package com.google.ipc.invalidation.ticl;
 
 import com.google.ipc.invalidation.external.client.SystemResources;
-import com.google.ipc.invalidation.external.client.SystemResources.ComponentStorage;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
+import com.google.ipc.invalidation.external.client.SystemResources.Storage;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.external.client.types.Status;
@@ -31,10 +31,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Map-based in-memory implementation of {@link ComponentStorage}.
+ * Map-based in-memory implementation of {@link Storage}.
  *
  */
-public class MemoryStorageImpl extends InternalBase implements ComponentStorage {
+public class MemoryStorageImpl extends InternalBase implements Storage {
   private SystemResources systemResources;
   private Map<String, byte[]> ticlPersistentState = new HashMap<String, byte[]>();
 

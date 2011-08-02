@@ -16,11 +16,12 @@
 
 package com.google.ipc.invalidation.ticl;
 
+import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.DigestFunction;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
-import com.google.ipc.invalidation.external.client.types.SimplePair;
+import com.google.ipc.invalidation.util.InternalBase;
 import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
@@ -34,6 +35,38 @@ import java.util.Collection;
  */
 public interface TestableInvalidationClient extends InvalidationClient {
 
+  /** The state of the registration manager exposed for testing. */
+  public class RegistrationManagerState extends InternalBase {
+
+    /** The registration summary of all objects registered by the client (known at the client). */
+    private final RegistrationSummary clientSummary;
+
+    /** The last known registration summary from the server. */
+    private final RegistrationSummary serverSummary;
+
+    /** The objects registered by the client (as known at the client). */
+    private final Collection<ObjectIdP> registeredObjects;
+
+    public RegistrationManagerState(RegistrationSummary clientSummary,
+        RegistrationSummary serverSummary, Collection<ObjectIdP> registeredObjects) {
+      this.clientSummary = Preconditions.checkNotNull(clientSummary);
+      this.serverSummary = Preconditions.checkNotNull(serverSummary);
+      this.registeredObjects = Preconditions.checkNotNull(registeredObjects);
+    }
+
+    public RegistrationSummary getClientSummary() {
+      return clientSummary;
+    }
+
+    public RegistrationSummary getServerSummary() {
+      return serverSummary;
+    }
+
+    public Collection<ObjectIdP> getRegisteredObjects() {
+      return registeredObjects;
+    }
+  }
+
   /** Returns the system resources. */
   SystemResources getResourcesForTest();
 
@@ -44,13 +77,11 @@ public interface TestableInvalidationClient extends InvalidationClient {
   DigestFunction getDigestFunctionForTest();
 
   /**
-   * Returns a copy of the registration manager's state (the reg summary and all the registered
-   * objects).
+   * Returns a copy of the registration manager's state
    * <p>
    * REQUIRES: This method is called on the internal scheduler.
    */
-  SimplePair<RegistrationSummary, ? extends Collection<ObjectIdP>>
-      getRegistrationManagerStateCopyForTest();
+  RegistrationManagerState getRegistrationManagerStateCopyForTest();
 
   /**
    * Changes the existing delay for the network timeout delay in the operation scheduler to be
@@ -85,4 +116,7 @@ public interface TestableInvalidationClient extends InvalidationClient {
 
   /** Returns the next time a message is allowed to be sent to the server (could be in the past). */
   long getNextMessageSendTimeMsForTest();
+
+  /** Returns the configuration used by the client. */
+  InvalidationClientImpl.Config getConfigForTest();
 }

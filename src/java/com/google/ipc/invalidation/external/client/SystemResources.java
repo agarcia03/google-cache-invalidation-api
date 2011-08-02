@@ -32,10 +32,10 @@ import com.google.ipc.invalidation.util.BaseLogger;
 public interface SystemResources {
 
   /** Interface specifying the logging functionality provided by {@link SystemResources}. */
-  public interface Logger extends BaseLogger {}
+  public interface Logger extends BaseLogger, ResourceComponent {}
 
   /** Interface specifying the scheduling functionality provided by {@link SystemResources}. */
-  public interface Scheduler {
+  public interface Scheduler extends ResourceComponent {
 
     /** Symbolic constant representing no scheduling delay, for readability. */
     static final int NO_DELAY = 0;
@@ -57,7 +57,7 @@ public interface SystemResources {
   }
 
   /** Interface specifying the network functionality provided by {@link SystemResources}. */
-  public interface NetworkChannel {
+  public interface NetworkChannel extends ResourceComponent {
 
     /** Sends {@code outgoingMessage} to the data center. */
     // Implementation note: this is currently a serialized ClientToServerMessage protocol buffer.
@@ -88,7 +88,7 @@ public interface SystemResources {
    * Interface specifying the storage functionality provided by {@link SystemResources}. Basically,
    * the required functionality is a small subset of the method of a regular hash map.
    */
-  public interface Storage {
+  public interface Storage extends ResourceComponent {
 
     /**
      * Attempts to persist {@code value} for the given {@code key}. Invokes {@code done} when
@@ -146,24 +146,6 @@ public interface SystemResources {
 
     /** Supplies a {@link SystemResources} instance to the component. */
     void setSystemResources(SystemResources resources);
-  }
-
-  // Interfaces that combine a resource and {@link ResourceComponent}.
-
-  /** Network channel that also implements {@link ResourceComponent}. */
-  public interface ComponentNetworkChannel extends NetworkChannel, ResourceComponent {
-  }
-
-  /** Storage that also implements {@link ResourceComponent}. */
-  public interface ComponentStorage extends Storage, ResourceComponent {
-  }
-
-  /** Logger that also implements {@link ResourceComponent}. */
-  public interface ComponentLogger extends Logger, ResourceComponent {
-  }
-
-  /** Scheduler that also implements {@link ResourceComponent}. */
-  public interface ComponentScheduler extends Scheduler, ResourceComponent {
   }
 
   //

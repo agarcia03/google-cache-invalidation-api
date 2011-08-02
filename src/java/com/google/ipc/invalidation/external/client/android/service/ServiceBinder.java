@@ -86,6 +86,11 @@ public abstract class ServiceBinder<BoundService> {
     this.serviceClass = serviceClass;
   }
 
+  /** Returns the intent used to bind to the service */
+  public Intent getIntent() {
+    return serviceIntent;
+  }
+
   /**
    * Binds to the service associated with the binder within the provided context.
    */

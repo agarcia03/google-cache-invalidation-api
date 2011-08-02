@@ -47,9 +47,8 @@ public class BasicSystemResources implements SystemResources {
    * @param network implementation of the network
    * @param storage implementation of storage
    */
-   public BasicSystemResources(ComponentLogger logger, ComponentScheduler internalScheduler,
-      ComponentScheduler listenerScheduler, ComponentNetworkChannel network,
-      ComponentStorage storage) {
+   public BasicSystemResources(Logger logger, Scheduler internalScheduler,
+      Scheduler listenerScheduler, NetworkChannel network, Storage storage) {
     this.logger = logger;
     this.storage = storage;
     this.network = network;

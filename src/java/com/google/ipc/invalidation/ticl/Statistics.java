@@ -58,6 +58,7 @@ public class Statistics extends InternalBase {
     REGISTRATION_SYNC_REQUEST,
     TOKEN_CONTROL,
     ERROR,
+    CONFIG_CHANGE,
     TOTAL, // Refers to the actual ServerToClientMessage messages received from the network.
   }
 

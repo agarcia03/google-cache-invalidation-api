@@ -27,6 +27,7 @@ import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -64,8 +65,9 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
    */
   public static Intent getEventIntent(Context context) {
     Intent eventIntent = new Intent(Event.LISTENER_INTENT);
-    eventIntent.setClass(context, InvalidationTestListener.class);
-    eventIntent.setPackage(context.getPackageName());
+    ComponentName component = new ComponentName(context.getPackageName(),
+        InvalidationTestListener.class.getName());
+    eventIntent.setComponent(component);
     return eventIntent;
   }
 

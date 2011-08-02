@@ -29,8 +29,10 @@ import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
+import com.google.protos.ipc.invalidation.AndroidState.ClientState;
 
 import android.accounts.Account;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.util.Log;
 
@@ -178,62 +180,60 @@ class AndroidClientProxy implements AndroidInvalidationClient {
   /** The service associated with this proxy */
   final AndroidInvalidationService service;
 
+  /** the client key for this client proxy */
+  final String clientKey;
+
   /** The invalidation client to delegate requests to */
-  private final InvalidationClient delegate;
+  final InvalidationClient delegate;
 
   /** The reverse listener proxy for this client proxy */
-   final AndroidListenerProxy listener;
+  final AndroidListenerProxy listener;
 
-  /** The client key */
-  private final String clientKey;
-
-  /** The account for this client */
-  private final Account account;
+  /** The stored state associated with this client */
+  final ClientState state;
 
   /** The channel for this client */
-  private final AndroidChannel channel;
+  final AndroidChannel channel;
 
   /** The system resources for this client */
-  private final SystemResources resources;
+  final SystemResources resources;
 
   /**
-   * Creates a new client proxy instance.
    *
-   * @param service invalidation service associated with the proxy
-   * @param c2dmRegistrationId the current C2DM registration ID
-   * @param clientKey the client key
-   * @param clientType the client type
-   * @param account the client account (or @code null}
-   * @param eventIntent the event listener intent to bind for callbacks
+   * @param storage
    */
   AndroidClientProxy(AndroidInvalidationService service, String c2dmRegistrationId,
-      String clientKey, int clientType, Account account, Intent eventIntent) {
+      AndroidStorage storage) {
     this.service = service;
-    this.clientKey = clientKey;
-    this.account = account;
+    this.state = storage.getClientState();
+    this.clientKey = state.getClientKey();
+
+    String applicationPkg = state.getListenerPkg();
+    Intent eventIntent = new Intent();
+    eventIntent.setComponent(
+        new ComponentName(applicationPkg, state.getListenerClass()));
     this.listener = new AndroidListenerProxy(eventIntent);
+
     this.channel = new AndroidChannel(this, new NetHttpTransport(), c2dmRegistrationId);
-    resources =
-        AndroidResourcesFactory.createResourcesBuilder(clientKey, channel).build();
-    delegate = createClient(
-        resources, clientType, clientKey.getBytes(), eventIntent.getPackage(), listener);
+    this.resources =
+        AndroidResourcesFactory.createResourcesBuilder(clientKey, channel, storage).build();
+    this.delegate = createClient(
+        resources, state.getClientType(), clientKey.getBytes(), applicationPkg, listener);
   }
 
   @Override
   public Account getAccount() {
-    return account;
+    return new Account(state.getAccountName(), state.getAccountType());
+  }
+
+  @Override
+  public String getAuthType() {
+    return state.getAuthType();
   }
 
   @Override
   public String getClientKey() {
-    return clientKey;
-  }
-
-  /**
-   * Returns the network channel for this client proxy.
-   */
-  AndroidChannel getChannel() {
-    return channel;
+    return state.getClientKey();
   }
 
   @Override

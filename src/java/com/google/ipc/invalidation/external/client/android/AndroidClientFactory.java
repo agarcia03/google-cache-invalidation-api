@@ -60,13 +60,17 @@ public class AndroidClientFactory {
    *        application. May be {@code null} if there is only a single invalidation client/listener
    *        for the application.
    * @param account user account that is registering the invalidations.
+   * @param authType the authentication token type that should be used to authenticate the client.
    * @param listenerClass the {@link AndroidInvalidationListener} subclass that is registered to
    *        receive the broadcast intents for invalidation events.
    */
   public static AndroidInvalidationClient create(Context context, String clientKey, int clientType,
-      Account account, Class<? extends AndroidInvalidationListener> listenerClass) {
+      Account account, String authType,
+      Class<? extends AndroidInvalidationListener> listenerClass) {
     Preconditions.checkNotNull(context, "context");
     Preconditions.checkNotNull(account, "account");
+    Preconditions.checkArgument((authType != null) && (authType.length() != 0),
+        "authType must be a non-empty string value");
     Preconditions.checkNotNull(listenerClass, "listenerClass");
 
     AndroidInvalidationClientImpl client = null;
@@ -74,8 +78,8 @@ public class AndroidClientFactory {
       return resume(context, clientKey);
     }
     if (client == null) {
-      client =
-          new AndroidInvalidationClientImpl(context, clientKey, clientType, account, listenerClass);
+      client = new AndroidInvalidationClientImpl(context, clientKey, clientType, account, authType,
+          listenerClass);
       client.initialize();
       clientMap.put(clientKey, new WeakReference<AndroidInvalidationClient>(client));
     }

@@ -17,10 +17,9 @@
 package com.google.ipc.invalidation.util;
 
 /**
- * {@code InternalBase} is a class from which all other classes in the Bigset
- * package derive. This is a convention that forces having an efficient
- * toString implementation for logging/debugging purposes in all classes of the
- * bigset system.
+ * {@code InternalBase} is a class from which other classes can derive that allows an efficient
+ * toString implementation for logging/debugging purposes for those classes. The class is abstract
+ * so that it is never instantiated explicitly.
  *
  */
 public abstract class InternalBase {
@@ -30,7 +29,10 @@ public abstract class InternalBase {
    *
    * @param builder the builder in which the string representation is added
    */
-  public abstract void toCompactString(TextBuilder builder);
+  public void toCompactString(TextBuilder builder) {
+    builder.appendFormat("%s: ", getClass().getSimpleName());
+    TextBuilder.outputFieldsToBuilder(builder, this);
+  }
 
   /**
    * Adds a verbose representation of this object to {@code builder}. The

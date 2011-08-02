@@ -19,8 +19,8 @@ package com.google.ipc.invalidation.ticl;
 import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.common.DigestFunction;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
-import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
+import com.google.ipc.invalidation.ticl.TestableInvalidationClient.RegistrationManagerState;
 import com.google.ipc.invalidation.util.InternalBase;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
@@ -69,21 +69,21 @@ class RegistrationManager extends InternalBase {
   }
 
   /**
-   * Returns a copy of the registration manager's state (the reg summary and all the registered
-   * objects).
+   * Returns a copy of the registration manager's state
    * <p>
    * Direct test code MUST not call this method on a random thread. It must be called on the
    * InvalidationClientImpl's internal thread.
    */
   
-  SimplePair<RegistrationSummary, ? extends Collection<ObjectIdP>>
-      getRegistrationManagerStateCopyForTest(DigestFunction digestFunction) {
+  RegistrationManagerState getRegistrationManagerStateCopyForTest(DigestFunction digestFunction) {
     List<ObjectIdP> registeredObjects = new ArrayList<ObjectIdP>();
     for (ObjectIdP oid : desiredRegistrations.getElements(EMPTY_PREFIX, 0)) {
       registeredObjects.add(oid);
     }
-    return SimplePair.of(
-        RegistrationSummary.newBuilder(getRegistrationSummary()).build(), registeredObjects);
+    return new RegistrationManagerState(
+        RegistrationSummary.newBuilder(getRegistrationSummary()).build(),
+        RegistrationSummary.newBuilder(lastKnownServerSummary).build(),
+        registeredObjects);
   }
 
   /**

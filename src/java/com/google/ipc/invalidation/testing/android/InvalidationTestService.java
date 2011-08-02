@@ -55,10 +55,12 @@ public class InvalidationTestService extends AbstractInvalidationService {
 
   private static class ClientState {
     final Account account;
+    final String authType;
     final Intent eventIntent;
 
-    private ClientState(Account account, Intent eventIntent) {
+    private ClientState(Account account, String authType, Intent eventIntent) {
       this.account = account;
+      this.authType = authType;
       this.eventIntent = eventIntent;
     }
   }
@@ -214,10 +216,12 @@ public class InvalidationTestService extends AbstractInvalidationService {
         Request.Parameter.CLIENT,
         Request.Parameter.CLIENT_TYPE,
         Request.Parameter.ACCOUNT,
+        Request.Parameter.AUTH_TYPE,
         Request.Parameter.INTENT);
     Log.i(TAG, "Creating client " + request.getClientKey() + ":" + clientMap.keySet());
     clientMap.put(
-        request.getClientKey(), new ClientState(request.getAccount(), request.getIntent()));
+        request.getClientKey(), new ClientState(request.getAccount(), request.getAuthType(),
+            request.getIntent()));
     response.setStatus(Response.Status.SUCCESS);
   }
 
@@ -230,6 +234,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
       Log.i(TAG, "Resuming client " + request.getClientKey() + ":" + clientMap.keySet());
       response.setStatus(Response.Status.SUCCESS);
       response.setAccount(state.account);
+      response.setAuthType(state.authType);
     } else {
       Log.w(TAG, "Cannot resume client " + request.getClientKey() + ":" + clientMap.keySet());
       response.setStatus(Response.Status.INVALID_CLIENT);

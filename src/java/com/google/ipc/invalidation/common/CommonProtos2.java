@@ -205,13 +205,16 @@ public class CommonProtos2 {
   // Methods to create ServerToClientMessages.
 
   public static ServerHeader newServerHeader(ByteString clientToken, long currentTimeMs,
-      RegistrationSummary registrationSummary) {
+      RegistrationSummary registrationSummary, String messageId) {
     ServerHeader.Builder builder = ServerHeader.newBuilder()
         .setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION)
         .setClientToken(clientToken)
         .setServerTimeMs(currentTimeMs);
     if (registrationSummary != null) {
       builder.setRegistrationSummary(registrationSummary);
+    }
+    if (messageId != null) {
+      builder.setMessageId(messageId);
     }
     return builder.build();
   }
@@ -248,6 +251,12 @@ public class CommonProtos2 {
 
   public static ConfigChangeMessage newConfigChangeMessage(long nextMessageDelayMs) {
     return ConfigChangeMessage.newBuilder().setNextMessageDelayMs(nextMessageDelayMs).build();
+  }
+
+  public static ServerToClientMessage newServerToClientMessage(ServerHeader scHeader) {
+    return ServerToClientMessage.newBuilder()
+        .setHeader(scHeader)
+        .build();
   }
 
   public static ServerToClientMessage newServerToClientMessage(ServerHeader scHeader,

@@ -28,6 +28,7 @@ import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 
 import android.accounts.Account;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -73,6 +74,11 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   private Account account;
 
   /**
+   * The authentication type that is used to authenticate the client.
+   */
+  private String authType;
+
+  /**
    * A service binder used to bind to the invalidation service.
    */
   private static final InvalidationBinder serviceBinder = new InvalidationBinder();
@@ -95,11 +101,12 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    *        will handle invalidation events.
    */
   AndroidInvalidationClientImpl(Context context, String clientKey, int clientType, Account account,
-      Class<? extends AndroidInvalidationListener> listenerClass) {
+      String authType, Class<? extends AndroidInvalidationListener> listenerClass) {
     this.context = context;
     this.clientKey = clientKey;
     this.clientType = clientType;
     this.account = account;
+    this.authType = authType;
     this.listenerClass = listenerClass;
   }
 
@@ -115,6 +122,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
     this.clientKey = clientKey;
     this.context = context;
     this.account = null;
+    this.authType = null;
     this.listenerClass = null;
     this.clientType = -1;
   }
@@ -134,6 +142,11 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   @Override
   public Account getAccount() {
     return account;
+  }
+
+  @Override
+  public String getAuthType() {
+    return authType;
   }
 
   /**
@@ -234,16 +247,18 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    */
   void initialize() {
     // Create an intent that can be used to fire listener events back to the
-    // provided listener service.
+    // provided listener service.   Use setComponent and not setPackage/setClass so the
+    // intent is guaranteed to be valid even if the service is not in the same application
     Intent eventIntent = new Intent(Event.LISTENER_INTENT);
-    eventIntent.setClass(context, listenerClass);
-    eventIntent.setPackage(context.getPackageName());
+    ComponentName component = new ComponentName(context.getPackageName(), listenerClass.getName());
+    eventIntent.setComponent(component);
 
     Request request = Request
         .newBuilder(Action.CREATE)
         .setClientKey(clientKey)
         .setClientType(clientType)
         .setAccount(account)
+        .setAuthType(authType)
         .setIntent(eventIntent)
         .build();
     executeServiceRequest(request);
@@ -261,6 +276,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
 
     // Save the account associated with the resumed client
     account = response.getAccount();
+    authType = response.getAuthType();
   }
 
   /**

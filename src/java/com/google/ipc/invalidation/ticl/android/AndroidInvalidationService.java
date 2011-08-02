@@ -240,8 +240,9 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     String clientKey = request.getClientKey();
     int clientType = request.getClientType();
     Account account = request.getAccount();
+    String authType = request.getAuthType();
     Intent eventIntent = request.getIntent();
-    clientManager.create(clientKey, clientType, account, eventIntent);
+    clientManager.create(clientKey, clientType, account, authType, eventIntent);
     response.setStatus(Status.SUCCESS);
   }
 
@@ -251,6 +252,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     AndroidInvalidationClient client = clientManager.get(clientKey);
     response.setStatus(Status.SUCCESS);
     response.setAccount(client.getAccount());
+    response.setAuthType(client.getAuthType());
   }
 
   @Override
@@ -308,6 +310,11 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     return channelUrl;
   }
 
+  /** Returns the client manager for this service */
+  AndroidClientManager getClientManager() {
+    return clientManager;
+  }
+
   private void handleC2dmMessage(Intent intent) {
     String clientKey = intent.getStringExtra(MESSAGE_CLIENT_KEY);
     AndroidClientProxy proxy = clientManager.get(clientKey);
@@ -317,7 +324,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     }
     byte [] message = intent.getByteArrayExtra(MESSAGE_DATA);
     if (message != null) {
-      proxy.getChannel().receiveMessage(message);
+      proxy.channel.receiveMessage(message);
     } else {
       // TODO: Handle mailbox case
     }

@@ -27,7 +27,7 @@ import com.google.api.client.http.HttpTransport;
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources;
-import com.google.ipc.invalidation.external.client.SystemResources.ComponentNetworkChannel;
+import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
 
@@ -55,7 +55,7 @@ import java.util.List;
  * outbound messages and send them when the registration ID is eventually assigned.
  *
  */
-class AndroidChannel implements ComponentNetworkChannel {
+class AndroidChannel implements NetworkChannel {
 
   private static final String TAG = "AndroidChannel";
 
@@ -158,7 +158,7 @@ class AndroidChannel implements ComponentNetworkChannel {
       // once available.
       final AndroidChannel theChannel = this;
       AccountManager accountManager = AccountManager.get(proxy.service);
-      accountManager.getAuthToken(proxy.getAccount(), AndroidHttpConstants.SERVICE, true,
+      accountManager.getAuthToken(proxy.getAccount(), proxy.getAuthType(), true,
           new AccountManagerCallback<Bundle>() {
             @Override
             public void run(AccountManagerFuture<Bundle> future) {
@@ -227,7 +227,7 @@ class AndroidChannel implements ComponentNetworkChannel {
     // If there is no registration id, we cannot compute a network endpoint id. If there is no
     // auth token, then we cannot authenticate the send request.  Defer sending messages until both
     // are received.
-    if (registrationId == null || authToken == null) {
+    if ((registrationId == null) || (authToken == null)) {
       if (pendingMessages == null) {
         pendingMessages = new ArrayList<byte[]>();
       }
@@ -252,10 +252,18 @@ class AndroidChannel implements ComponentNetworkChannel {
       CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey());
 
   StringBuilder target = new StringBuilder();
+
+  // Build base URL that targets the inbound request service with the encoded network endpoint id
   target.append(proxy.service.getChannelUrl());
   target.append(AndroidHttpConstants.REQUEST_URL);
   target.append(Base64.encodeToString(networkEndpointId.toByteArray(),
       Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING));
+
+  // Add query parameter indicating the service to authenticate against
+  target.append('?');
+  target.append(AndroidHttpConstants.SERVICE_PARAMETER);
+  target.append('=');
+  target.append(proxy.getAuthType());
   GenericUrl url = new GenericUrl(target.toString());
 
   ByteArrayContent content = createByteArrayContent(outgoingMessage);
@@ -277,7 +285,7 @@ class AndroidChannel implements ComponentNetworkChannel {
    * any pending messages are flushed.
    */
   private synchronized void checkReady() {
-    if (registrationId != null && authToken != null) {
+    if ((registrationId != null) && (authToken != null)) {
 
       // Notify the status receiver that we are now network enabled
       if (statusReceiver != null) {
@@ -308,10 +316,17 @@ class AndroidChannel implements ComponentNetworkChannel {
       Log.e(TAG, "Unable to retrieve mailbox.  No auth token");
       return;
     }
+    // Create URL that targets the mailbox retrieval service with the target mailbox id
     StringBuilder target = new StringBuilder();
     target.append(proxy.service.getChannelUrl());
     target.append(AndroidHttpConstants.MAILBOX_URL);
     target.append(mailboxId);
+
+    // Add query parameter indicating the service to authenticate against
+    target.append('?');
+    target.append(AndroidHttpConstants.SERVICE_PARAMETER);
+    target.append('=');
+    target.append(proxy.getAuthType());
     GenericUrl url = new GenericUrl(target.toString());
     try {
       HttpRequest request = requestFactory.buildPostRequest(url, null);

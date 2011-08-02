@@ -348,7 +348,7 @@ message InfoMessage {
   optional ClientVersion client_version = 1;
 
   // Config parameters used by the client.
-  repeated PropertyRecord config_paramter = 2;
+  repeated PropertyRecord config_parameter = 2;
 
   // Performance counters from the client.
   repeated PropertyRecord performance_counter = 3;
@@ -376,6 +376,8 @@ message ServerHeader {
 
   // Current token that the server expects the client to have. Clients must
   // ignore messages where this token field does not match their current token.
+  // During initialization, the client's "token" is the nonce that it generates
+  // and sends in the InitializeMessage.
   optional bytes client_token = 2;
 
   // Summary of registration state held by the server for the client.
