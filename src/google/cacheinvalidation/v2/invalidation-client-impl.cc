@@ -158,6 +158,12 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     set_client_token(persistent_state.client_token());
     should_send_registrations_ = false;
     SendInfoMessageToServer(false, true);
+
+    // We need to ensure that heartbeats are sent, regardless of whether we
+    // start fresh or from persistent state.  The line below ensures that they
+    // are scheduled in the persistent startup case.  For the other case, the
+    // task is scheduled when we acquire a token.
+    operation_scheduler_.Schedule(heartbeat_task_.get());
   } else {
     // If we had no persistent state or couldn't deserialize the state that we
     // had, start fresh.  Request a new client identifier.
