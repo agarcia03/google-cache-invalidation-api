@@ -69,6 +69,7 @@ public abstract class AbstractInvalidationService extends Service {
   protected void handleRequest(Bundle input, Bundle output) {
     Request request = new Request(input);
     Response.Builder response = Response.newBuilder(request.getAction(), output);
+    Log.d(TAG, "Request: " + request.getAction() + " from " + request.getClientKey());
     try {
       String action = request.getAction();
       if (Action.CREATE.equals(action)) {

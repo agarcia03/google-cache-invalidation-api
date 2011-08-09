@@ -23,8 +23,8 @@ import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.external.client.types.Status;
 import com.google.protobuf.ByteString;
+import com.google.protos.ipc.invalidation.AndroidState.ClientMetadata;
 import com.google.protos.ipc.invalidation.AndroidState.ClientProperty;
-import com.google.protos.ipc.invalidation.AndroidState.ClientState;
 import com.google.protos.ipc.invalidation.AndroidState.StoredState;
 import com.google.protos.ipc.invalidation.ClientProtocol.Version;
 
@@ -72,7 +72,7 @@ public class AndroidStorage implements Storage {
       Version.newBuilder().setMajorVersion(1).setMinorVersion(0).build();
 
   /** The name of the subdirectory in the application files store where state files are stored */
-   static String STATE_DIRECTORY = "InvalidationClient";
+   static final String STATE_DIRECTORY = "InvalidationClient";
 
   /** A simple success constant */
   private static final Status SUCCESS = Status.newInstance(Status.Code.SUCCESS, "");
@@ -95,8 +95,8 @@ public class AndroidStorage implements Storage {
   /** The client key associated with this storage instance */
    final String key;
 
-  /** the client state associated with the storage instance (or {@code null} if not loaded */
-  private ClientState state;
+  /** the client metadata associated with the storage instance (or {@code null} if not loaded */
+  private ClientMetadata metadata;
 
   /** Stores the client properties for a client */
   private final Map<String, byte []> properties = new ConcurrentHashMap<String, byte[]>();
@@ -117,8 +117,8 @@ public class AndroidStorage implements Storage {
     this.context = context;
   }
 
-  ClientState getClientState() {
-    return state;
+  ClientMetadata getClientMetadata() {
+    return metadata;
   }
 
   @Override
@@ -207,7 +207,7 @@ public class AndroidStorage implements Storage {
       Intent eventIntent) {
     ComponentName component = eventIntent.getComponent();
     Preconditions.checkNotNull(component, "No component found in event intent");
-    state = ClientState.newBuilder()
+    metadata = ClientMetadata.newBuilder()
         .setVersion(CURRENT_VERSION)
         .setClientKey(key)
         .setClientType(clientType)
@@ -232,14 +232,16 @@ public class AndroidStorage implements Storage {
       // Load the state from internal storage and parse it the protocol
       inputStream = getStateInputStream();
       StoredState fullState = StoredState.parseFrom(inputStream);
-      state = fullState.getState();
-      if (!key.equals(state.getClientKey())) {
-        Log.e(TAG, "Unexpected client key mismatch:" + key + "," + state.getClientKey());
+      metadata = fullState.getMetadata();
+      if (!key.equals(metadata.getClientKey())) {
+        Log.e(TAG, "Unexpected client key mismatch:" + key + "," + metadata.getClientKey());
         return false;
       }
+      Log.d(TAG, "Loaded metadata:" + metadata);
 
       // Unpack the client properties into a map for easy lookup / iteration / update
       for (ClientProperty clientProperty : fullState.getPropertyList()) {
+        Log.d(TAG, "Loaded property: " + clientProperty);
         properties.put(clientProperty.getKey(), clientProperty.getValue().toByteArray());
       }
       Log.i(TAG, "Loaded state for " + key);
@@ -269,7 +271,7 @@ public class AndroidStorage implements Storage {
   private void store() {
     StoredState.Builder stateBuilder =
         StoredState.newBuilder()
-            .mergeState(state);
+            .mergeMetadata(metadata);
     for (Map.Entry<String, byte []> entry : properties.entrySet()) {
       stateBuilder.addProperty(
           ClientProperty.newBuilder()
@@ -282,6 +284,7 @@ public class AndroidStorage implements Storage {
     try {
       outputStream = getStateOutputStream();
       state.writeTo(outputStream);
+      Log.i(TAG, "State written for " + key);
     } catch (FileNotFoundException e) {
       // This should not happen when opening to create / replace
       Log.e(TAG, "Unable to open state file", e);

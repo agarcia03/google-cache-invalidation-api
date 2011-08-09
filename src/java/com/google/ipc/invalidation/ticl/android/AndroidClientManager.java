@@ -22,9 +22,10 @@ import com.google.ipc.invalidation.external.client.android.service.Response.Stat
 import android.accounts.Account;
 import android.content.Context;
 import android.content.Intent;
+import android.util.Log;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages active client instances for the Android invalidation service. The client manager contains
@@ -34,15 +35,21 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 class AndroidClientManager {
 
+  /** Logging tag */
+  private static final String TAG = "AndroidClientManager";
+
   /** The invalidation service associated with this manager */
   private final AndroidInvalidationService service;
 
   /** A map from client key to client proxy instances for in-memory client instances */
   private final Map<String, AndroidClientProxy> clientMap =
-      new ConcurrentHashMap<String, AndroidClientProxy>();
+      new HashMap<String, AndroidClientProxy>();
 
   /** The C2DM registration ID that should be used for all managed clients */
   private String registrationId;
+
+  /** All client manager operations are synchronized on this lock */
+  private Object lock = new Object();
 
   /** Creates a new client manager instance associated with the provided service */
   AndroidClientManager(AndroidInvalidationService service, String registrationId) {
@@ -54,7 +61,9 @@ class AndroidClientManager {
    * Returns the number of managed clients.
    */
   int getClientCount() {
-    return clientMap.size();
+    synchronized (lock) {
+      return clientMap.size();
+    }
   }
 
   /**
@@ -75,23 +84,26 @@ class AndroidClientManager {
    */
   AndroidClientProxy create(String clientKey, int clientType, Account account, String authType,
       Intent eventIntent) throws AndroidClientException {
+    synchronized (lock) {
 
-    // First check to see if an existing client is found
-    AndroidClientProxy proxy = lookup(clientKey);
-    if (proxy != null) {
-      if (!proxy.getAccount().equals(account) || !proxy.getAuthType().equals(authType)) {
-        throw new AndroidClientException(
-            Status.INVALID_CLIENT, "Account does not match existing client");
+      // First check to see if an existing client is found
+      AndroidClientProxy proxy = lookup(clientKey);
+      if (proxy != null) {
+        if (!proxy.getAccount().equals(account) || !proxy.getAuthType().equals(authType)) {
+          throw new AndroidClientException(
+              Status.INVALID_CLIENT, "Account does not match existing client");
+        }
+        return proxy;
       }
+
+      // If not found, create a new client proxy instance to represent the client.
+      AndroidStorage store = createAndroidStorage(service, clientKey);
+      store.create(clientType, account, authType, eventIntent);
+      proxy = new AndroidClientProxy(service, registrationId, store);
+      clientMap.put(clientKey, proxy);
+      Log.d(TAG, "Client " + clientKey + " created");
       return proxy;
     }
-
-    // If not found, create a new client proxy instance to represent the client.
-    AndroidStorage store = createAndroidStorage(service, clientKey);
-    store.create(clientType, account, authType, eventIntent);
-    proxy = new AndroidClientProxy(service, registrationId, store);
-    clientMap.put(clientKey, proxy);
-    return proxy;
   }
 
   /**
@@ -103,11 +115,13 @@ class AndroidClientManager {
    * @throws AndroidClientException if no matching client can be found.
    */
   AndroidClientProxy get(String clientKey) throws AndroidClientException {
-    AndroidClientProxy client = lookup(clientKey);
-    if (client != null) {
-      return client;
+    synchronized (lock) {
+      AndroidClientProxy client = lookup(clientKey);
+      if (client != null) {
+        return client;
+      }
+      throw new AndroidClientException(Status.INVALID_CLIENT, "No client for key:" + clientKey);
     }
-    throw new AndroidClientException(Status.INVALID_CLIENT, "Unknown client key:" + clientKey);
   }
 
   /**
@@ -117,7 +131,9 @@ class AndroidClientManager {
    * @param clientKey the client key of the instance to remove from memory.
    */
   void remove(String clientKey) {
-    clientMap.remove(clientKey);
+    synchronized (lock) {
+      clientMap.remove(clientKey);
+    }
   }
 
   /**
@@ -129,30 +145,34 @@ class AndroidClientManager {
    */
   
   AndroidClientProxy lookup(String clientKey) {
-
-    // See if the client is already resident in memory
-    AndroidClientProxy client = clientMap.get(clientKey);
-    if (client == null) {
-      // Attempt to load the client from the store
-      AndroidStorage storage = createAndroidStorage(service, clientKey);
-      if (storage.load()) {
-        client = new AndroidClientProxy(service, registrationId, storage);
+    synchronized (lock) {
+      // See if the client is already resident in memory
+      AndroidClientProxy client = clientMap.get(clientKey);
+      if (client == null) {
+        // Attempt to load the client from the store
+        AndroidStorage storage = createAndroidStorage(service, clientKey);
+        if (storage.load()) {
+          Log.d(TAG, "Client " + clientKey + " loaded from disk");
+          client = new AndroidClientProxy(service, registrationId, storage);
+          clientMap.put(clientKey, client);
+        }
       }
+      return client;
     }
-    return client;
   }
 
   /**
    * Sets the C2DM registration ID that should be used for all managed clients (new and existing).
    */
   void setRegistrationId(String registrationId) {
+    synchronized (lock) {
+      // Set the value used for new clients
+      this.registrationId = registrationId;
 
-    // Set the value used for new clients
-    this.registrationId = registrationId;
-
-    // Propagate the value to all existing clients
-    for (AndroidClientProxy proxy : clientMap.values()) {
-      proxy.channel.setRegistrationId(registrationId);
+      // Propagate the value to all existing clients
+      for (AndroidClientProxy proxy : clientMap.values()) {
+        proxy.getChannel().setRegistrationId(registrationId);
+      }
     }
   }
 
@@ -167,10 +187,12 @@ class AndroidClientManager {
    * Releases all managed clients and drops them from the managed set.
    */
   void releaseAll() {
-    for (AndroidClientProxy clientProxy : clientMap.values()) {
-      clientProxy.release();
+    synchronized (lock) {
+      for (AndroidClientProxy clientProxy : clientMap.values()) {
+        clientProxy.release();
+      }
+      clientMap.clear();
     }
-    clientMap.clear();
   }
 
   /**
@@ -178,6 +200,8 @@ class AndroidClientManager {
    */
   
   protected AndroidStorage createAndroidStorage(Context context, String clientKey) {
-    return new AndroidStorage(context, clientKey);
+    synchronized (lock) {
+      return new AndroidStorage(context, clientKey);
+    }
   }
 }

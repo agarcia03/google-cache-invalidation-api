@@ -18,15 +18,15 @@
 
 syntax = "proto2";
 
-
 package com.google.protos.ipc.invalidation;
 
 
+// TODO: Factor out Version and remove this dependency
 import "proto/client_protocol.proto";
 
-// Base state for an Android client instance.  All of these values
-// are constant for the life of the client.
-message ClientState {
+// Base metadata for an Android client instance.  All of these values
+// are required and invariant for the life of the client.
+message ClientMetadata {
 
   // The version of this state.
   optional Version version = 1;
@@ -65,9 +65,9 @@ message ClientProperty {
   optional bytes value = 2;
 }
 
-// The stored state of the client combining base state and internal properties.
+// The stored state of the client combining base metadata and internal properties.
 message StoredState {
-  optional ClientState state = 1;
+  optional ClientMetadata metadata = 1;
 
   // TICL properties stored for this client.
   repeated ClientProperty property = 9;

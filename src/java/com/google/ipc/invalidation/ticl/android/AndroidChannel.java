@@ -118,7 +118,7 @@ class AndroidChannel implements NetworkChannel {
     requestFactory = transport.createRequestFactory(new HttpRequestInitializer() {
       @Override
       public void initialize(HttpRequest request) {
-        setGoogleAuthHeader(request, authToken);
+        request.getHeaders().setAuthorization("GoogleLogin auth=" + authToken);
       }
     });
   }
@@ -157,7 +157,7 @@ class AndroidChannel implements NetworkChannel {
       // Ask the AccountManager for the token, with a pending future to store it on the channel
       // once available.
       final AndroidChannel theChannel = this;
-      AccountManager accountManager = AccountManager.get(proxy.service);
+      AccountManager accountManager = AccountManager.get(proxy.getService());
       accountManager.getAuthToken(proxy.getAccount(), proxy.getAuthType(), true,
           new AccountManagerCallback<Bundle>() {
             @Override
@@ -195,6 +195,7 @@ class AndroidChannel implements NetworkChannel {
   synchronized void setRegistrationId(String updatedRegistrationId) {
     // Synchronized to avoid concurrent access to pendingMessages
     if (registrationId != updatedRegistrationId) {
+      Log.i(TAG, "Setting registration ID for " + proxy.getClientKey());
       registrationId = updatedRegistrationId;
       if (pendingMessages != null) {
         checkReady();
@@ -211,6 +212,7 @@ class AndroidChannel implements NetworkChannel {
    * @param authToken the authentication token
    */
   synchronized void setAuthToken(String authToken) {
+    Log.i(TAG, "Auth token received for " + proxy.getClientKey());
     this.authToken = authToken;
     checkReady();
   }
@@ -231,6 +233,7 @@ class AndroidChannel implements NetworkChannel {
       if (pendingMessages == null) {
         pendingMessages = new ArrayList<byte[]>();
       }
+      Log.i(TAG, "Buffering outbound message: " + registrationId + ", " + authToken);
       // TODO: Put some limit on maximum amount of requests buffered
       pendingMessages.add(outgoingMessage);
       return;
@@ -251,10 +254,11 @@ class AndroidChannel implements NetworkChannel {
     NetworkEndpointId networkEndpointId =
       CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey());
 
+  Log.d(TAG, "Delivering outbound message:" + outgoingMessage.length + " bytes");
   StringBuilder target = new StringBuilder();
 
   // Build base URL that targets the inbound request service with the encoded network endpoint id
-  target.append(proxy.service.getChannelUrl());
+  target.append(proxy.getService().getChannelUrl());
   target.append(AndroidHttpConstants.REQUEST_URL);
   target.append(Base64.encodeToString(networkEndpointId.toByteArray(),
       Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING));
@@ -266,7 +270,8 @@ class AndroidChannel implements NetworkChannel {
   target.append(proxy.getAuthType());
   GenericUrl url = new GenericUrl(target.toString());
 
-  ByteArrayContent content = createByteArrayContent(outgoingMessage);
+  ByteArrayContent content =
+      new ByteArrayContent(AndroidHttpConstants.PROTO_CONTENT_TYPE, outgoingMessage);
   try {
     HttpRequest request = requestFactory.buildPostRequest(url, content);
     request.execute();
@@ -310,15 +315,15 @@ class AndroidChannel implements NetworkChannel {
   void retrieveMailbox(String mailboxId) {
 
     // It's highly unlikely that we'll start receiving events before we have an auth token, but
-    // if that is the case then we cannot retrieve mailbox contents
-    // TODO: Should we buffer and flush these like outbound requests?
+    // if that is the case then we cannot retrieve mailbox contents.   The events should be
+    // redelivered later.
     if (authToken == null) {
       Log.e(TAG, "Unable to retrieve mailbox.  No auth token");
       return;
     }
     // Create URL that targets the mailbox retrieval service with the target mailbox id
     StringBuilder target = new StringBuilder();
-    target.append(proxy.service.getChannelUrl());
+    target.append(proxy.getService().getChannelUrl());
     target.append(AndroidHttpConstants.MAILBOX_URL);
     target.append(mailboxId);
 
@@ -333,7 +338,7 @@ class AndroidChannel implements NetworkChannel {
       HttpResponse response = request.execute();
 
       // Retrieve and validate the Content-Length header
-      String contentLengthHeader = getContentLength(response);
+      String contentLengthHeader = response.getHeaders().getContentLength();
       int contentLength = 0;
       try {
         contentLength = Integer.parseInt(contentLengthHeader);
@@ -388,28 +393,5 @@ class AndroidChannel implements NetworkChannel {
   @Override
   public void setSystemResources(SystemResources resources) {
     this.resources = resources;
-  }
-
-  // It is necessary to use some versions of deprecated Google API Client apis to maintain
-  // backwards compatibility with the open source version of the api client.   These are
-  // isolated below in private methods to minimize the scope of deprecation suppression
-  // TODO: Remove the methods and replace with non-deprecated usage once the open
-  // source project is updated to version 1.5.
-
-  @SuppressWarnings("deprecation")
-  private String getContentLength(HttpResponse response) {
-    return response.headers.contentLength;
-  }
-
-  @SuppressWarnings("deprecation")
-  private ByteArrayContent createByteArrayContent(byte [] data) {
-    ByteArrayContent content = new ByteArrayContent(data);
-    content.type = AndroidHttpConstants.PROTO_CONTENT_TYPE;
-    return content;
-  }
-
-  @SuppressWarnings("deprecation")
-  private void setGoogleAuthHeader(HttpRequest request, String token) {
-    request.headers.authorization = "GoogleLogin auth=" + token;
   }
 }

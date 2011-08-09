@@ -362,6 +362,7 @@ class ProtocolHandler {
     // Note that checking for the presence of a TokenControlMessage is *not* sufficient: it might
     // be a token-assign with the wrong nonce or a token-destroy message, for example.
     if (listener.getClientToken() == null) {
+      logger.warning("Ignoring incoming message because no client token: %s", message);
       return;
     }
 

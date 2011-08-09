@@ -87,7 +87,7 @@ class AndroidLogger implements Logger {
   @Override
   public void fine(String template, Object...args) {
     String tag = getTag();
-    if (Log.isLoggable(tag, Log.VERBOSE)) {
+    if (Log.isLoggable(tag, Log.DEBUG)) {
       Log.v(tag, format(template, args));
     }
   }
@@ -106,7 +106,7 @@ class AndroidLogger implements Logger {
     } else if (level == Level.SEVERE) {
       return android.util.Log.ERROR;
     } else if (level == Level.FINE) {
-      return android.util.Log.VERBOSE;
+      return android.util.Log.DEBUG;
     } else {
       throw new RuntimeException("Unsupported level: " + level);
     }

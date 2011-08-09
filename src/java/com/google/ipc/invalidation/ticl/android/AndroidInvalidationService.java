@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.ticl.android;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
+import com.google.ipc.invalidation.external.client.android.service.AndroidClientException;
 import com.google.ipc.invalidation.external.client.android.service.InvalidationService;
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
@@ -317,16 +318,27 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
 
   private void handleC2dmMessage(Intent intent) {
     String clientKey = intent.getStringExtra(MESSAGE_CLIENT_KEY);
-    AndroidClientProxy proxy = clientManager.get(clientKey);
-    if (proxy == null) {
-      Log.w(TAG, "Dropping C2DM message for non-existant client:" + clientKey);
+    AndroidClientProxy proxy;
+    try {
+      proxy = clientManager.get(clientKey);
+      if (!proxy.isStarted()) {
+        Log.w(TAG, "Dropping C2DM message for unstarted client:" + clientKey);
+        return;
+      }
+    } catch (AndroidClientException e) {
+      Log.w(TAG, "Unable to find client: ", e);
       return;
     }
     byte [] message = intent.getByteArrayExtra(MESSAGE_DATA);
     if (message != null) {
-      proxy.channel.receiveMessage(message);
+      proxy.getChannel().receiveMessage(message);
     } else {
-      // TODO: Handle mailbox case
+      String mailboxId = intent.getStringExtra(AndroidC2DMConstants.MAILBOX_ID_PARAM);
+      if (mailboxId == null) {
+        Log.e(TAG, "Missing mailbox ID on message");
+        return;
+      }
+      proxy.getChannel().retrieveMailbox(mailboxId);
     }
   }
 
