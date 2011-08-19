@@ -16,34 +16,30 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
-import com.google.ipc.invalidation.ticl.android.c2dm.C2DMBaseReceiver;
+import com.google.ipc.invalidation.ticl.android.c2dm.BaseC2DMReceiver;
 
 import android.content.Context;
 import android.content.Intent;
 import android.util.Base64;
 import android.util.Log;
 
-import java.io.IOException;
-
 /**
- * Service that handles system C2DM messages (with support from the {@link C2DMBaseReceiver} base
+ * Service that handles system C2DM messages (with support from the {@link BaseC2DMReceiver} base
  * class. It receives intents for C2DM registration, errors and message delivery. It does some basic
  * processing and then forwards the messages to the {@link AndroidInvalidationService} for handling.
  *
  */
-public class AndroidC2DMReceiver extends C2DMBaseReceiver {
+public class AndroidC2DMReceiver extends BaseC2DMReceiver {
 
   /** Logging tag */
   private static final String TAG = "AndroidC2DMReceiver";
 
   public AndroidC2DMReceiver() {
-    super(AndroidC2DMConstants.SENDER_ID);
+    super(TAG, true);
   }
 
   @Override
-  public void onRegistered(Context context, String registrationId) throws IOException {
-    super.onRegistered(context, registrationId);
-
+  public void onRegistered(Context context, String registrationId) {
     Log.i(TAG, "Registration received: " + registrationId);
 
     // Upon receiving a new updated c2dm ID, notify the invalidation service
@@ -54,7 +50,6 @@ public class AndroidC2DMReceiver extends C2DMBaseReceiver {
 
   @Override
   public void onUnregistered(Context context) {
-    super.onUnregistered(context);
     Log.w(TAG, "Registraiton revoked");
 
     // If the c2dm registration ID is revoked, also notify the invalidation service
@@ -63,7 +58,7 @@ public class AndroidC2DMReceiver extends C2DMBaseReceiver {
   }
 
   @Override
-  public void onError(Context context, String errorId) {
+  public void onRegistrationError(Context context, String errorId) {
     // Send any registration error to the invalidation service
     Intent serviceIntent = AndroidInvalidationService.createErrorIntent(context, errorId);
     context.startService(serviceIntent);

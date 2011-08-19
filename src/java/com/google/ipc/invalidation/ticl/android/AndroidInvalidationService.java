@@ -42,7 +42,7 @@ import java.util.List;
  * between the {@link InvalidationService} interface and invalidation client service instances
  * executing within the scope of that service. The invalidation service will have an associated
  * {@link AndroidClientManager} that is managing the set of active (in memory) clients associated
- * with the service.   It process requests from invalidation applications (as invocations on
+ * with the service.  It processes requests from invalidation applications (as invocations on
  * the {@link InvalidationService} bound service interface along with C2DM registration and
  * activity (from {@link AndroidC2DMReceiver}.
  *
@@ -196,10 +196,6 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     // Retrieve the current registration ID and normalize the empty string value (for none)
     // to null
     String registrationId = C2DMessaging.getRegistrationId(this);
-    if (registrationId.length() == 0) {
-      registrationId = null;
-    }
-
     Log.i(TAG, "Creating:" + registrationId);
 
     if (clientManager == null) {
@@ -210,8 +206,8 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
 
     // If there is no C2DM registration associated with the application than register.
     if (registrationId == null) {
-      Log.i(TAG, "Registering for C2DM events for " + AndroidC2DMConstants.SENDER_ID);
-      C2DMessaging.register(this, AndroidC2DMConstants.SENDER_ID);
+      Log.i(TAG, "Registering for C2DM events");
+      C2DMessaging.register(this, AndroidC2DMReceiver.class, null, null, false);
     }
   }
 

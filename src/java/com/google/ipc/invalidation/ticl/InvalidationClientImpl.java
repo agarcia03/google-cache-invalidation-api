@@ -29,6 +29,7 @@ import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
+import com.google.ipc.invalidation.external.client.SystemResources.Storage;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
@@ -40,6 +41,7 @@ import com.google.ipc.invalidation.ticl.ProtocolHandler.ProtocolListener;
 import com.google.ipc.invalidation.ticl.ProtocolHandler.ServerMessageHeader;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
 import com.google.ipc.invalidation.ticl.Statistics.IncomingOperationType;
+import com.google.ipc.invalidation.util.Box;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.ipc.invalidation.util.InternalBase;
@@ -64,6 +66,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 
 
 /**
@@ -279,15 +283,13 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   
-  public SystemResources getResourcesForTest() {
-    return this.resources;
-  }
-
-  @Override
-  
   public Statistics getStatisticsForTest() {
-    Preconditions.checkState(internalScheduler.isRunningOnThread());
-    return this.statistics;
+    return callSafelyForTest(new Callable<Statistics>() {
+      @Override
+      public Statistics call() throws Exception {
+        return statistics;
+      }
+    });
   }
 
   @Override
@@ -299,16 +301,24 @@ public class InvalidationClientImpl extends InternalBase
   @Override
   
   public long getNextMessageSendTimeMsForTest() {
-    Preconditions.checkState(internalScheduler.isRunningOnThread());
-    return protocolHandler.getNextMessageSendTimeMsForTest();
+    return callSafelyForTest(new Callable<Long>() {
+      @Override
+      public Long call() throws Exception {
+        return protocolHandler.getNextMessageSendTimeMsForTest();
+      }
+    });
   }
 
   @Override
   
   public RegistrationManagerState getRegistrationManagerStateCopyForTest() {
-    Preconditions.checkState(internalScheduler.isRunningOnThread());
-    return registrationManager.getRegistrationManagerStateCopyForTest(
-        new ObjectIdDigestUtils.Sha1DigestFunction());
+    return callSafelyForTest(new Callable<RegistrationManagerState>() {
+      @Override
+      public RegistrationManagerState call() throws Exception {
+        return registrationManager.getRegistrationManagerStateCopyForTest(
+            new ObjectIdDigestUtils.Sha1DigestFunction());
+      }
+    });
   }
 
   @Override
@@ -340,6 +350,60 @@ public class InvalidationClientImpl extends InternalBase
   
   public String getClientTokenKeyForTest() {
     return CLIENT_TOKEN_KEY;
+  }
+
+  @Override
+  public boolean areResourcesStarted() {
+    return resources.isStarted();
+  }
+
+  @Override
+  public void stopResources() {
+    resources.stop();
+  }
+
+  @Override
+  public long getResourcesTimeMs() {
+    return resources.getInternalScheduler().getCurrentTimeMs();
+  }
+
+  @Override
+  public Storage getStorage() {
+    return resources.getStorage();
+  }
+
+  /** Invokes {@code callable} on the internal scheduler thread. */
+  private <T> T callSafelyForTest(final Callable<T> callable) {
+    if (resources.getInternalScheduler().isRunningOnThread()) {
+      try {
+        return callable.call();
+      } catch (Exception exception) {
+        throw new RuntimeException(exception);
+      }
+    } else {
+      final CountDownLatch doneLatch = new CountDownLatch(1);
+      final Box<T> result = Box.of(null);
+      internalScheduler.schedule(0, new Runnable() {
+        @Override
+        public void run() {
+          try {
+            result.set(callable.call());
+          } catch (Exception exception) {
+            throw new RuntimeException(exception);
+          }
+          doneLatch.countDown();
+        }
+      });
+      while (true) {
+        try {
+          doneLatch.await();
+          break;
+        } catch (InterruptedException exception) {
+          // Nothing to do.
+        }
+      }
+      return result.get();
+    }
   }
 
   // End of methods for TestableInvalidationClient

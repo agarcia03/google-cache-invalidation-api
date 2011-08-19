@@ -67,8 +67,17 @@ public interface TestableInvalidationClient extends InvalidationClient {
     }
   }
 
-  /** Returns the system resources. */
-  SystemResources getResourcesForTest();
+  /** Returns whether the system resources are started. */
+  boolean areResourcesStarted();
+
+  /** Stops the system resources. */
+  void stopResources();
+
+  /** Returns the current time on the client. */
+  long getResourcesTimeMs();
+
+  /** Returns the client storage. */
+  SystemResources.Storage getStorage();
 
   /** Returns the performance counters/statistics . */
   Statistics getStatisticsForTest();
