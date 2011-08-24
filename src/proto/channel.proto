@@ -64,6 +64,18 @@ message AddressedMessage {
   optional string caller_info = 5;
 }
 
+// Response to AddressedMessage
 message AddressedMessageResponse {
-  optional StatusP status = 1;
+}
+
+// Message batched from the client to the server and vice-versa via the
+// delivery service.
+message AddressedMessageBatch {
+  repeated AddressedMessage requests = 1;
+}
+
+// Responses to AddressedMessageBatch, containing batched responses to
+// each of AddressedMessage
+message AddressedMessageBatchResponse {
+  repeated AddressedMessageResponse responses = 1;
 }

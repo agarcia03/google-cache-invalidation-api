@@ -65,38 +65,42 @@ public class C2DMessaging {
    * The device can't read the response, or there was a 500/503 from the server that can be retried
    * later. The C2DMManager will automatically use exponential back off and retry.
    */
-  static final String ERR_SERVICE_NOT_AVAILABLE = "SERVICE_NOT_AVAILABLE";
+  public static final String ERR_SERVICE_NOT_AVAILABLE = "SERVICE_NOT_AVAILABLE";
 
   /**
    * There is no Google account on the phone. The application should ask the user to open the
    * account manager and add a Google account. Fix on the device side.
    */
-  static final String ERR_ACCOUNT_MISSING = "ACCOUNT_MISSING";
+  public static final String ERR_ACCOUNT_MISSING = "ACCOUNT_MISSING";
 
   /**
    * Bad password. The application should ask the user to enter his/her password, and let user retry
    * manually later. Fix on the device side.
    */
-  static final String ERR_AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED";
+  public static final String ERR_AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED";
 
   /**
    * The user has too many applications registered. The application should tell the user to
    * uninstall some other applications, let user retry manually. Fix on the device side.
    */
-  static final String ERR_TOO_MANY_REGISTRATIONS = "TOO_MANY_REGISTRATIONS";
+  public static final String ERR_TOO_MANY_REGISTRATIONS = "TOO_MANY_REGISTRATIONS";
 
   /**
    * Invalid parameters found in C2DM registration or message.
    */
-  static final String ERR_INVALID_PARAMETERS = "INVALID_PARAMETERS";
+  public static final String ERR_INVALID_PARAMETERS = "INVALID_PARAMETERS";
 
   /**
    * The sender account is not recognized.
    */
-  static final String ERR_INVALID_SENDER = "INVALID_SENDER";
+  public static final String ERR_INVALID_SENDER = "INVALID_SENDER";
 
   /** Incorrect phone registration with Google. This phone doesn't currently support C2DM. */
-  static final String ERR_PHONE_REGISTRATION_ERROR = "PHONE_REGISTRATION_ERROR";
+  public static final String ERR_PHONE_REGISTRATION_ERROR = "PHONE_REGISTRATION_ERROR";
+
+  public static String getSenderId(Context context) {
+    return C2DMManager.readSenderIdFromMetaData(context);
+  }
 
   /**
    * Returns the current C2DM registration ID for the application or {@code null} if not yet full

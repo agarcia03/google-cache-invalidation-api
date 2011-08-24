@@ -38,6 +38,9 @@ message EndpointId {
 
   // A key identifying a specific client on a device.
   optional string client_key = 3;
+
+  // The C2DM sender ID to use to deliver messages to the endpoint.
+  optional string sender_id = 4;
 }
 
 // Configuration proto for the Android delivery service.

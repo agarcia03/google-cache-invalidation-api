@@ -113,6 +113,6 @@ public class WakeLockManager {
   }
 
   private static void log(Object key, String action) {
-    Log.v(TAG, " WakeLock " + action + " by {" + key + "}");
+    Log.v(TAG, " WakeLock " + action + " for key: {" + key + "}");
   }
 }

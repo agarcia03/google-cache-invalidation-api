@@ -252,7 +252,8 @@ class AndroidChannel implements NetworkChannel {
 
   private void deliverOutboundMessage(final byte [] outgoingMessage) {
     NetworkEndpointId networkEndpointId =
-      CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey());
+      CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey(),
+          proxy.getService().getSenderId());
 
   Log.d(TAG, "Delivering outbound message:" + outgoingMessage.length + " bytes");
   StringBuilder target = new StringBuilder();

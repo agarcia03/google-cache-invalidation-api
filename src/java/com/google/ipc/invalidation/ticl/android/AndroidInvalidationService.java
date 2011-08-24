@@ -157,7 +157,12 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
    * The HTTP URL of the channel service.  This value is retrieved from the {@code channel-url}
    * metadata attribute of the service.
    */
-  String channelUrl;
+  private String channelUrl;
+
+  /**
+   * The C2DM sender ID used to send messages to the service.
+   */
+  private String senderId;
 
   /**
    * Resets the state of the service to destroy any existing clients
@@ -190,6 +195,13 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     } else {
       Log.e(TAG, "No meta-data elements found on the service declaration. One with a name of " +
           CHANNEL_URL + "must have a value that is the invalidation channel frontend url.");
+      stopSelf();
+    }
+
+    // Retrieve the C2DM sender ID
+    senderId = C2DMessaging.getSenderId(this);
+    if (senderId == null) {
+      Log.e(TAG, "No C2DM sender ID is available");
       stopSelf();
     }
 
@@ -303,8 +315,14 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     response.setStatus(Status.SUCCESS);
   }
 
+  /** Returns the base URL used to send messages to the outbound network channel */
   String getChannelUrl() {
     return channelUrl;
+  }
+
+  /** Returns the C2DM sender ID used to communicate back to the inbound network channel */
+  String getSenderId() {
+    return senderId;
   }
 
   /** Returns the client manager for this service */

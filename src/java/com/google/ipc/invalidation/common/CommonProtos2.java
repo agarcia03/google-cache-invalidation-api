@@ -316,13 +316,15 @@ public class CommonProtos2 {
   }
 
   /**
-   * Constructs a network endpoint id for an Android client with the given {@code registrationId}
-   * and {@code clientKey}.
+   * Constructs a network endpoint id for an Android client with the given {@code registrationId},
+   * {@code clientKey}, and {@code senderId}.
    */
-  public static NetworkEndpointId newAndroidEndpointId(String registrationId, String clientKey) {
+  public static NetworkEndpointId newAndroidEndpointId(String registrationId, String clientKey,
+      String senderId) {
     AndroidChannel.EndpointId androidEndpointId = AndroidChannel.EndpointId.newBuilder()
         .setC2DmRegistrationId(registrationId)
         .setClientKey(clientKey)
+        .setSenderId(senderId)
         .setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION)
         .build();
     return newNetworkEndpointId(NetworkAddress.ANDROID, androidEndpointId.toByteString());

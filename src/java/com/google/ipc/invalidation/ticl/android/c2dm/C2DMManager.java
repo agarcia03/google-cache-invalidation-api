@@ -121,12 +121,6 @@ public class C2DMManager extends IntentService {
   static final String SENDER_ID_METADATA_FIELD = "sender_id";
 
   /**
-   * When this field is true, this service uses WakeLocks during processing.   Always
-   * {@code true} except during tests that disable wake locks to simplify.
-   */
-  private static boolean useWakeLock = true;
-
-  /**
    * The sender ID we have read from the meta-data in AndroidManifest.xml for this service.
    */
   private String senderId;
@@ -135,17 +129,6 @@ public class C2DMManager extends IntentService {
    * Observers to dispatch messages from C2DM to
    */
   private Set<C2DMObserver> observers;
-
-  /**
-   * Previously registered observers that has requested to unregister from C2DM.
-   *
-   */
-  private Set<C2DMObserver> unregisteringObservers;
-
-  /**
-   * A field used by tests to specify a mock context instead of the real one
-   */
-  private static Context mockContext;
 
   /**
    * A field which is set to true whenever a C2DM registration is in progress. It is set to false
@@ -179,23 +162,10 @@ public class C2DMManager extends IntentService {
    * @param intent the intent received
    */
   static void runIntentInService(Context context, Intent intent) {
-    if (useWakeLock) {
-      // This is called from C2DMBroadcastReceiver and C2DMessaging, there is no init.
-      WakeLockManager.getInstance(context).acquire(C2DMManager.class);
-    }
+    // This is called from C2DMBroadcastReceiver and C2DMessaging, there is no init.
+    WakeLockManager.getInstance(context).acquire(C2DMManager.class);
     intent.setClassName(context, C2DMManager.class.getCanonicalName());
     context.startService(intent);
-  }
-
-  /**
-   * A method to override the context to use in this IntentService. Must be called before
-   * onCreate().
-   *
-   * @param context the context to use in the test
-   */
-  
-  static void setMockContextForTest(Context context) {
-    mockContext = context;
   }
 
   public C2DMManager() {
@@ -205,13 +175,15 @@ public class C2DMManager extends IntentService {
   @Override
   public void onCreate() {
     super.onCreate();
-    context = (mockContext == null) ? getApplicationContext() : mockContext;
+    context = getApplicationContext();
     wakeLockManager = WakeLockManager.getInstance(context);
-    readSenderIdFromMetaData();
     observers = C2DMSettings.getObservers(context);
-    unregisteringObservers = C2DMSettings.getUnregisteringObservers(context);
     registrationInProcess = C2DMSettings.isRegistering(context);
     unregistrationInProcess = C2DMSettings.isUnregistering(context);
+    senderId = readSenderIdFromMetaData(this);
+    if (senderId == null) {
+      stopSelf();
+    }
   }
 
   @Override
@@ -228,31 +200,14 @@ public class C2DMManager extends IntentService {
       } else if (intent.getAction().equals(C2DMessaging.ACTION_UNREGISTER)) {
         unregisterObserver(intent);
       } else {
-        Log.w(TAG, "Receieved unknown action:" + intent.getAction());
+        Log.w(TAG, "Receieved unknown action: " + intent.getAction());
       }
     } finally {
-      if (useWakeLock) {
-        // Release the power lock, so device can get back to sleep.
-        // The lock is reference counted by default, so multiple
-        // messages are ok.
-        wakeLockManager.release(C2DMManager.class);
-      }
+      // Release the power lock, so device can get back to sleep.
+      // The lock is reference counted by default, so multiple
+      // messages are ok.
+      wakeLockManager.release(C2DMManager.class);
     }
-  }
-
-  /**
-   * Some tests need to call in to the C2DMManager, and at they might not want to handle the burden
-   * of releasing the wakelock. As such, this method is offered to tests so they can disable the
-   * handling of wakelocks.
-   *
-   * Setting this to false will make sure the C2DMManager does not ask for the PowerManager system
-   * service, does not acquire the wakelock, and does not release it.
-   *
-   * @param value true if the wakelock should be used, false otherwise
-   */
-  
-  public static void setUseWakelockForTest(boolean value) {
-    useWakeLock = value;
   }
 
   /**
@@ -320,11 +275,6 @@ public class C2DMManager extends IntentService {
     for (C2DMObserver observer : observers) {
       onUnregisteredSingleObserver(observer);
     }
-    for (C2DMObserver observer : unregisteringObservers) {
-      onUnregisteredSingleObserver(observer);
-    }
-    unregisteringObservers.clear();
-    C2DMSettings.setUnregisteringObservers(context, unregisteringObservers);
   }
 
   /**
@@ -380,8 +330,7 @@ public class C2DMManager extends IntentService {
     C2DMObserver observer = C2DMObserver.createFromIntent(intent);
     if (observers.remove(observer)) {
       C2DMSettings.setObservers(context, observers);
-      unregisteringObservers.add(observer);
-      C2DMSettings.setUnregisteringObservers(context, unregisteringObservers);
+      onUnregisteredSingleObserver(observer);
     }
     if (observers.isEmpty()) {
       // No more observers, need to unregister
@@ -504,24 +453,24 @@ public class C2DMManager extends IntentService {
    * Reads the meta-data to find the field specified in SENDER_ID_METADATA_FIELD. The value of that
    * field is used when registering towards C2DM.
    */
-  private void readSenderIdFromMetaData() {
-    List<ResolveInfo> resolveInfos = getPackageManager().queryIntentServices(
+  static String readSenderIdFromMetaData(Context context) {
+    List<ResolveInfo> resolveInfos = context.getPackageManager().queryIntentServices(
         new Intent(context, C2DMManager.class), PackageManager.GET_META_DATA);
     Preconditions.checkState(!resolveInfos.isEmpty(), "Cannot find service metadata");
     ServiceInfo serviceInfo = resolveInfos.get(0).serviceInfo;
+    String senderId = null;
     if (serviceInfo.metaData != null) {
       senderId = serviceInfo.metaData.getString(SENDER_ID_METADATA_FIELD);
       if (senderId == null) {
         Log.e(TAG, "No meta-data element with the name " + SENDER_ID_METADATA_FIELD
             + " found on the service declaration.  An element with this name "
             + "must have a value that is the server side account in use for C2DM");
-        stopSelf();
       }
     } else {
       Log.e(TAG, "No meta-data elements found on the service declaration. One with a name of "
           + SENDER_ID_METADATA_FIELD
           + " must have a value that is the server side account in use for C2DM");
-      stopSelf();
     }
+    return senderId;
   }
 }

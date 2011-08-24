@@ -41,7 +41,6 @@ import com.google.ipc.invalidation.ticl.ProtocolHandler.ProtocolListener;
 import com.google.ipc.invalidation.ticl.ProtocolHandler.ServerMessageHeader;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
 import com.google.ipc.invalidation.ticl.Statistics.IncomingOperationType;
-import com.google.ipc.invalidation.util.Box;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.ipc.invalidation.util.InternalBase;
@@ -66,8 +65,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 
 
 /**
@@ -281,15 +278,16 @@ public class InvalidationClientImpl extends InternalBase
     return this.listener.getDelegate();
   }
 
+  
+  public SystemResources getResourcesForTest() {
+    return resources;
+  }
+
   @Override
   
   public Statistics getStatisticsForTest() {
-    return callSafelyForTest(new Callable<Statistics>() {
-      @Override
-      public Statistics call() throws Exception {
-        return statistics;
-      }
-    });
+    Preconditions.checkState(resources.getInternalScheduler().isRunningOnThread());
+    return statistics;
   }
 
   @Override
@@ -301,24 +299,16 @@ public class InvalidationClientImpl extends InternalBase
   @Override
   
   public long getNextMessageSendTimeMsForTest() {
-    return callSafelyForTest(new Callable<Long>() {
-      @Override
-      public Long call() throws Exception {
-        return protocolHandler.getNextMessageSendTimeMsForTest();
-      }
-    });
+    Preconditions.checkState(resources.getInternalScheduler().isRunningOnThread());
+    return protocolHandler.getNextMessageSendTimeMsForTest();
   }
 
   @Override
   
   public RegistrationManagerState getRegistrationManagerStateCopyForTest() {
-    return callSafelyForTest(new Callable<RegistrationManagerState>() {
-      @Override
-      public RegistrationManagerState call() throws Exception {
-        return registrationManager.getRegistrationManagerStateCopyForTest(
-            new ObjectIdDigestUtils.Sha1DigestFunction());
-      }
-    });
+    Preconditions.checkState(resources.getInternalScheduler().isRunningOnThread());
+    return registrationManager.getRegistrationManagerStateCopyForTest(
+        new ObjectIdDigestUtils.Sha1DigestFunction());
   }
 
   @Override
@@ -370,40 +360,6 @@ public class InvalidationClientImpl extends InternalBase
   @Override
   public Storage getStorage() {
     return resources.getStorage();
-  }
-
-  /** Invokes {@code callable} on the internal scheduler thread. */
-  private <T> T callSafelyForTest(final Callable<T> callable) {
-    if (resources.getInternalScheduler().isRunningOnThread()) {
-      try {
-        return callable.call();
-      } catch (Exception exception) {
-        throw new RuntimeException(exception);
-      }
-    } else {
-      final CountDownLatch doneLatch = new CountDownLatch(1);
-      final Box<T> result = Box.of(null);
-      internalScheduler.schedule(0, new Runnable() {
-        @Override
-        public void run() {
-          try {
-            result.set(callable.call());
-          } catch (Exception exception) {
-            throw new RuntimeException(exception);
-          }
-          doneLatch.countDown();
-        }
-      });
-      while (true) {
-        try {
-          doneLatch.await();
-          break;
-        } catch (InterruptedException exception) {
-          // Nothing to do.
-        }
-      }
-      return result.get();
-    }
   }
 
   // End of methods for TestableInvalidationClient

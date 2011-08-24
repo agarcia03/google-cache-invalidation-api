@@ -22,7 +22,10 @@ package com.google.ipc.invalidation.ticl.android;
  */
 public class AndroidC2DMConstants {
 
-  /** Account name associated with delivered C2DM messages */
+  /**
+   * The default account name associated with delivered C2DM messages.  Alternate sender IDs
+   * may be used when sharing C2DM within an application.
+   */
   public static final  String SENDER_ID = "ipc.invalidation@gmail.com";
 
   /**

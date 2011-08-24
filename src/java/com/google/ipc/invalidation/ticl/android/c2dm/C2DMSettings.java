@@ -48,8 +48,6 @@ class C2DMSettings {
 
   private static final String OBSERVERS = "observers";
 
-  private static final String UNREGISTERING_OBSERVERS = "unregisteringObservers";
-
   private static final String REGISTERING = "registering";
 
   private static final String UNREGISTERING = "unregistering";
@@ -147,21 +145,10 @@ class C2DMSettings {
     storeField(context, OBSERVERS, createJsonObserversFromC2DMObservers(observers));
   }
 
-  /**
-   * Returns the set of unregistering observers.
-   */
-  static Set<C2DMObserver> getUnregisteringObservers(Context context) {
-    return createC2DMObserversFromJSON(retrieveField(context, UNREGISTERING_OBSERVERS, null));
-  }
-
-  /**
-   * Returns the set of of unregistering observers.
-   */
-  static void setUnregisteringObservers(Context context, Set<C2DMObserver> observers) {
-    storeField(context, UNREGISTERING_OBSERVERS, createJsonObserversFromC2DMObservers(observers));
-  }
-
   private static Set<C2DMObserver> createC2DMObserversFromJSON(String jsonString) {
+    // The observer set is stored in a json array of objects that contain the
+    // observer json representation produced by C2DMObserver.toJSON.   Iterate over
+    // this array and recreate observers from the objects.
     Set<C2DMObserver> observers = new HashSet<C2DMObserver>();
     if (jsonString == null) {
       return observers;
@@ -183,6 +170,8 @@ class C2DMSettings {
   }
 
   private static String createJsonObserversFromC2DMObservers(Set<C2DMObserver> observers) {
+    // Stores the observers as an array of json objects in the format produced by
+    // C2DMObserver.toJSON
     JSONArray array = new JSONArray();
     for (C2DMObserver observer : observers) {
       JSONObject json = observer.toJSON();
