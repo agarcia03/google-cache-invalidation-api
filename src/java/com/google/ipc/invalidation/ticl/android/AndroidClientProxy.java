@@ -277,6 +277,10 @@ class AndroidClientProxy implements AndroidInvalidationClient {
     Preconditions.checkState(started);
     delegate.stop();
     started = false;
+
+    // Remove any cached instance for this client.  Any subsequent create or resume operations
+    // will then have a clean, unstarted instance.
+    service.getClientManager().remove(clientKey);
   }
 
   @Override
