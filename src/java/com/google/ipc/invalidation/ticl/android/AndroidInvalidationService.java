@@ -208,7 +208,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     // Retrieve the current registration ID and normalize the empty string value (for none)
     // to null
     String registrationId = C2DMessaging.getRegistrationId(this);
-    Log.i(TAG, "Creating:" + registrationId);
+    Log.i(TAG, "C2DM Registration ID:" + registrationId);
 
     if (clientManager == null) {
       clientManager = new AndroidClientManager(this, registrationId);
@@ -216,11 +216,10 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       clientManager.setRegistrationId(registrationId);
     }
 
-    // If there is no C2DM registration associated with the application than register.
-    if (registrationId == null) {
-      Log.i(TAG, "Registering for C2DM events");
-      C2DMessaging.register(this, AndroidC2DMReceiver.class, null, null, false);
-    }
+    // Register for C2DM events related to the invalidation client
+    Log.i(TAG, "Registering for C2DM events");
+    C2DMessaging.register(this, AndroidC2DMReceiver.class, AndroidC2DMConstants.CLIENT_KEY_PARAM,
+        null, false);
   }
 
   @Override
