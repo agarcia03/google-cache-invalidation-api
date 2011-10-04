@@ -102,7 +102,7 @@ class RegistrationManager extends InternalBase {
     return desiredRegistrations.getElements(EMPTY_PREFIX, 0);
   }
 
-  /** {@code (un)registers} for {@code objectId}. */
+  /** Perform registration/unregistation for all objects in {@code objectIds}. */
   void performOperations(Collection<ObjectIdP> objectIds, RegistrationP.OpType regOpType) {
     if (regOpType == RegistrationP.OpType.REGISTER) {
       desiredRegistrations.add(objectIds);
@@ -125,10 +125,11 @@ class RegistrationManager extends InternalBase {
   }
 
   /**
-   * Handles registration operation statuses from the server.
-   *
-   * @param registrationStatuses a list of local-processing status codes, one per element of
-   *                             {@code registrationStatuses}.
+   * Handles registration operation statuses from the server. Returns a list of booleans, one per
+   * registration status that indicates if the registration manager considered the registration
+   * operation to be successful or not (e.g., if the object was registered and the server
+   * sent back a reply of successful unregistration, the registration manager will consider that
+   * as failure since the application's intent is to register that object).
    */
   List<Boolean> handleRegistrationStatus(List<RegistrationStatus> registrationStatuses) {
 
@@ -188,6 +189,12 @@ class RegistrationManager extends InternalBase {
   void informServerRegistrationSummary(RegistrationSummary regSummary) {
     if (regSummary != null) {
       this.lastKnownServerSummary = regSummary;
+      if (this.isStateInSyncWithServer()) {
+        logger.fine("The registration summary matches %s", this.lastKnownServerSummary);
+      } else {
+        logger.fine("The registration summary mismatches: server %s, local %s",
+            this.lastKnownServerSummary, getRegistrationSummary());
+      }
     }
   }
 

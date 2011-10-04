@@ -67,8 +67,8 @@ public interface TestableInvalidationClient extends InvalidationClient {
     }
   }
 
-  /** Returns whether the system resources are started. */
-  boolean areResourcesStarted();
+  /** Returns whether the Ticl is started. */
+  boolean isStartedForTest();
 
   /** Stops the system resources. */
   void stopResources();
@@ -79,7 +79,7 @@ public interface TestableInvalidationClient extends InvalidationClient {
   /** Returns the client storage. */
   SystemResources.Storage getStorage();
 
-  /** Returns the performance counters/statistics . */
+  /** Returns a snapshot of the performance counters/statistics . */
   Statistics getStatisticsForTest();
 
   /** Returns the digest function used for computing digests for object registrations. */

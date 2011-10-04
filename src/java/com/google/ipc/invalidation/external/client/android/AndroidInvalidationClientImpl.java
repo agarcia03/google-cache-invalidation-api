@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.external.client.android;
 
+import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.android.service.Event;
@@ -36,15 +37,15 @@ import android.os.RemoteException;
 import android.util.Log;
 
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Implementation of the {@link InvalidationClient} interface for Android.
- * Instances of the class are obtained using {@link AndroidClientFactory#create}
- * or {@link AndroidClientFactory#resume}.
+ * Implementation of the {@link InvalidationClient} interface for Android. Instances of the class
+ * are obtained using {@link AndroidClientFactory#create} or {@link AndroidClientFactory#resume}.
  * <p>
- * The class provides implementations of the {@link InvalidationClient} methods
- * that delegate to the  invalidation service running on the device using
- * the bound service model defined in {@link InvalidationService}.
+ * The class provides implementations of the {@link InvalidationClient} methods that delegate to the
+ *  invalidation service running on the device using the bound service model defined in
+ * {@link InvalidationService}.
  *
  */
 final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
@@ -68,8 +69,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   private final int clientType;
 
   /**
-   * The Account associated with this client. May be {@code null} for resumed
-   * clients.
+   * The Account associated with this client. May be {@code null} for resumed clients.
    */
   private Account account;
 
@@ -81,27 +81,37 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   /**
    * A service binder used to bind to the invalidation service.
    */
-  private static final InvalidationBinder serviceBinder = new InvalidationBinder();
+  private final InvalidationBinder serviceBinder = new InvalidationBinder();
 
   /**
-   * The {@link InvalidationListener} service class that handles events for
-   * this client. May be {@code null} for resumed clients.
+   * The {@link InvalidationListener} service class that handles events for this client. May be
+   * {@code null} for resumed clients.
    */
   private final Class<? extends AndroidInvalidationListener> listenerClass;
 
   /**
-   * Creates a new invalidation client with the provided client key and
-   * account that sends invalidation events to the specified component.
+   * The number of callers that are sharing a reference to this client instance. Used to decide when
+   * the service binding can be safely released.
+   */
+  private AtomicInteger refcnt = new AtomicInteger(0);
+
+  /**
+   * Creates a new invalidation client with the provided client key and account that sends
+   * invalidation events to the specified component.
    *
    * @param context the execution context for the client.
-   * @param clientKey a unique id that identifies the created client within the
-   *        scope of the application.
+   * @param clientKey a unique id that identifies the created client within the scope of the
+   *        application.
    * @param account the user account associated with the client.
-   * @param listenerClass the {@link AndroidInvalidationListener} subclass that
-   *        will handle invalidation events.
+   * @param listenerClass the {@link AndroidInvalidationListener} subclass that will handle
+   *        invalidation events.
    */
-  AndroidInvalidationClientImpl(Context context, String clientKey, int clientType, Account account,
-      String authType, Class<? extends AndroidInvalidationListener> listenerClass) {
+  AndroidInvalidationClientImpl(Context context,
+      String clientKey,
+      int clientType,
+      Account account,
+      String authType,
+      Class<? extends AndroidInvalidationListener> listenerClass) {
     this.context = context;
     this.clientKey = clientKey;
     this.clientType = clientType;
@@ -111,12 +121,10 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   }
 
   /**
-   * Constructs a resumed invalidation client with the provided client key
-   * and context.
+   * Constructs a resumed invalidation client with the provided client key and context.
    *
    * @param context the application context for the client.
-   * @param clientKey a unique id that identifies the resumed client within the
-   *        scope of the device.
+   * @param clientKey a unique id that identifies the resumed client within the scope of the device.
    */
   AndroidInvalidationClientImpl(Context context, String clientKey) {
     this.clientKey = clientKey;
@@ -150,8 +158,8 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   }
 
   /**
-   * Returns the event listener class associated with the client or {@code null}
-   * if unknown (when resumed).
+   * Returns the event listener class associated with the client or {@code null} if unknown (when
+   * resumed).
    */
   Class<? extends AndroidInvalidationListener> getListenerClass() {
     return listenerClass;
@@ -159,19 +167,13 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
 
   @Override
   public void start() {
-    Request request = Request
-        .newBuilder(Action.START)
-        .setClientKey(clientKey)
-        .build();
+    Request request = Request.newBuilder(Action.START).setClientKey(clientKey).build();
     executeServiceRequest(request);
   }
 
   @Override
   public void stop() {
-    Request request = Request
-        .newBuilder(Action.STOP)
-        .setClientKey(clientKey)
-        .build();
+    Request request = Request.newBuilder(Action.STOP).setClientKey(clientKey).build();
     executeServiceRequest(request);
   }
 
@@ -181,11 +183,8 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    * @param objectId object id.
    */
   public void register(ObjectId objectId) {
-    Request request = Request
-        .newBuilder(Action.REGISTER)
-        .setClientKey(clientKey)
-        .setObjectId(objectId)
-        .build();
+    Request request =
+        Request.newBuilder(Action.REGISTER).setClientKey(clientKey).setObjectId(objectId).build();
     executeServiceRequest(request);
   }
 
@@ -195,11 +194,8 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    * @param objectIds object id collection.
    */
   public void register(Collection<ObjectId> objectIds) {
-    Request request = Request
-        .newBuilder(Action.REGISTER)
-        .setClientKey(clientKey)
-        .setObjectIds(objectIds)
-        .build();
+    Request request =
+        Request.newBuilder(Action.REGISTER).setClientKey(clientKey).setObjectIds(objectIds).build();
     executeServiceRequest(request);
   }
 
@@ -209,11 +205,8 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    * @param objectId object id.
    */
   public void unregister(ObjectId objectId) {
-    Request request = Request
-        .newBuilder(Action.UNREGISTER)
-        .setClientKey(clientKey)
-        .setObjectId(objectId)
-        .build();
+    Request request =
+        Request.newBuilder(Action.UNREGISTER).setClientKey(clientKey).setObjectId(objectId).build();
     executeServiceRequest(request);
   }
 
@@ -241,13 +234,25 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
     executeServiceRequest(request);
   }
 
+  @Override
+  public void release() {
+    Preconditions.checkState(refcnt.get() > 0, "No current references");
+
+    // Release the binding and remove from the client factory when the the service when the last
+    // reference is released.
+    int numReferences = refcnt.decrementAndGet();
+    if (numReferences == 0) {
+      AndroidClientFactory.release(clientKey);
+      serviceBinder.unbind(context);
+    }
+  }
+
   /**
-   * Called to initialize a newly created client instance with the invalidation
-   * service.
+   * Called to initialize a newly created client instance with the invalidation service.
    */
   void initialize() {
     // Create an intent that can be used to fire listener events back to the
-    // provided listener service.   Use setComponent and not setPackage/setClass so the
+    // provided listener service. Use setComponent and not setPackage/setClass so the
     // intent is guaranteed to be valid even if the service is not in the same application
     Intent eventIntent = new Intent(Event.LISTENER_INTENT);
     ComponentName component = new ComponentName(context.getPackageName(), listenerClass.getName());
@@ -262,31 +267,55 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
         .setIntent(eventIntent)
         .build();
     executeServiceRequest(request);
+
+    addReference();
   }
 
   /**
    * Called to resume an existing client instance with the invalidation service.
    */
   void initResumed() {
-    Request request = Request
-        .newBuilder(Action.RESUME)
-        .setClientKey(clientKey)
-        .build();
+    Request request = Request.newBuilder(Action.RESUME).setClientKey(clientKey).build();
     Response response = executeServiceRequest(request);
 
     // Save the account associated with the resumed client
     account = response.getAccount();
     authType = response.getAuthType();
+
+    addReference();
   }
 
   /**
-   * Ensures that the invalidation service has been started and that the
-   * client has a bound service connection to it.
+   * Called to indicate that a client instance is being returned as a reference.
+   */
+  void addReference() {
+    refcnt.incrementAndGet();
+  }
+
+  /**
+   * Returns the number of references to this client instance.
+   */
+  
+  int getReferenceCountForTest() {
+    return refcnt.get();
+  }
+
+  /**
+   * Returns {@code true} if the client has a binding to the invalidation service.
+   */
+  
+  boolean hasServiceBindingForTest() {
+    return serviceBinder.isBound();
+  }
+
+  /**
+   * Ensures that the invalidation service has been started and that the client has a bound service
+   * connection to it.
    */
   private InvalidationService ensureService() {
     if (!serviceBinder.isBound()) {
 
-      // Start the service if not currently bound.  The invalidation service
+      // Start the service if not currently bound. The invalidation service
       // is responsible for stopping itself when no work remains to be done.
       if (context.startService(Request.SERVICE_INTENT) == null) {
         Log.e(TAG, "Unable to start invalidation service");
@@ -297,24 +326,23 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   }
 
   /**
-   * Executes a request against the invalidation service and does common error
-   * processing against the resulting response.  If unable to connect to the
-   * service or an error status is received from it, a runtime exception will
-   * be thrown.
+   * Executes a request against the invalidation service and does common error processing against
+   * the resulting response. If unable to connect to the service or an error status is received from
+   * it, a runtime exception will be thrown.
    *
    * @param request the request to execute.
    * @return the resulting response if the request was successful.
    */
   private Response executeServiceRequest(Request request) {
     try {
-        InvalidationService service = ensureService();
-        Bundle outBundle = new Bundle();
-        service.handleRequest(request.getBundle(), outBundle);
-        Response response = new Response(outBundle);
-        response.throwOnFailure();
-        return response;
-      } catch (RemoteException re) {
-        throw new RuntimeException("Unable to contact invalidation service", re);
-      }
+      InvalidationService service = ensureService();
+      Bundle outBundle = new Bundle();
+      service.handleRequest(request.getBundle(), outBundle);
+      Response response = new Response(outBundle);
+      response.throwOnFailure();
+      return response;
+    } catch (RemoteException re) {
+      throw new RuntimeException("Unable to contact invalidation service", re);
+    }
   }
 }

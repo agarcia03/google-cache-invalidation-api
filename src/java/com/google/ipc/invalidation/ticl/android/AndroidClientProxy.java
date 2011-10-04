@@ -255,6 +255,12 @@ class AndroidClientProxy implements AndroidInvalidationClient {
     return channel;
   }
 
+  /** Returns the underlying invalidation client instance or {@code null} */
+  
+  final InvalidationClient getDelegate() {
+    return delegate;
+  }
+
   /** Returns the invalidation listener for this proxy */
   
   final AndroidListenerProxy getListener() {
@@ -268,6 +274,7 @@ class AndroidClientProxy implements AndroidInvalidationClient {
   @Override
   public void start() {
     Preconditions.checkState(!started);
+    resources.start();
     delegate.start();
     started = true;
   }

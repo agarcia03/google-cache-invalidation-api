@@ -33,11 +33,13 @@ public interface InvalidationClient {
    * application.
    * <p>
    * REQUIRES: {@link #start} has not already been called.
+   * Also, the resources given to the client must have been started by the caller.
    */
   void start();
 
   /**
    * Stops the client. After this method has been called, it is an error to call any other method.
+   * Does not stop the resources bound to this client.
    * <p>
    * REQUIRES: {@link #start} has already been called.
    */

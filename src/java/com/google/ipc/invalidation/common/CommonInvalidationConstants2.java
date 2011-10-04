@@ -74,5 +74,4 @@ public class CommonInvalidationConstants2 {
       .setName(ByteString.EMPTY)
       .setSource(INTERNAL_OBJECT_SOURCE_TYPE)
       .build();
-
 }

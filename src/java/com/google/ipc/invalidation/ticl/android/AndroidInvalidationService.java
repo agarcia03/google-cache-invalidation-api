@@ -204,6 +204,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       Log.e(TAG, "No C2DM sender ID is available");
       stopSelf();
     }
+    Log.i(TAG, "C2DM Sender ID:" + senderId);
 
     // Retrieve the current registration ID and normalize the empty string value (for none)
     // to null

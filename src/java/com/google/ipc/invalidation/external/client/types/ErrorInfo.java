@@ -29,12 +29,7 @@ public final class ErrorInfo {
    * context object. We describe the type and meaning of the context for each named constant below.
    */
   public static class ErrorReason {
-    /**
-     * The provided authentication/authorization token is not valid for use with a particular
-     * object invalidation source. This can happen because the token is not valid or has expired.
-     * {@code context} is an Integer that indicates the invalidation source type w.r.t. which the
-     * auth problem occurred.
-     */
+    /** The provided authentication/authorization token is not valid for use. */
     public static final int AUTH_FAILURE = 1;
 
     /** An unknown failure - more human-readable information is in the error message. */
@@ -63,12 +58,12 @@ public final class ErrorInfo {
    * permanent, a helpful error message and extra context about the error.
    */
   public static ErrorInfo newInstance(int errorReason, boolean isTransient,
-      String errorMessage, Object context) {
+      String errorMessage, ErrorContext context) {
     return new ErrorInfo(errorReason, isTransient, errorMessage, context);
   }
 
   private ErrorInfo(int errorReason, boolean isTransient, String errorMessage,
-      Object context) {
+      ErrorContext context) {
     this.errorReason = errorReason;
     this.isTransient = isTransient;
     this.errorMessage = errorMessage;

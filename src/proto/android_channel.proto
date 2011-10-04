@@ -42,10 +42,3 @@ message EndpointId {
   // The C2DM sender ID to use to deliver messages to the endpoint.
   optional string sender_id = 4;
 }
-
-// Configuration proto for the Android delivery service.
-message AndroidDeliveryServiceConfigP {
-
-  // Auth token required to send messages via c2dm.
-  optional string auth_token = 1;
-}

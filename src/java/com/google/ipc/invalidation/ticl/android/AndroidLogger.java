@@ -28,9 +28,10 @@ import java.util.logging.Level;
 /**
  * Provides the implementation of {@link Logger} for Android. The logging tag will be based upon the
  * top-level class name containing the code invoking the logger (the outer class, not an inner or
- * anonymous class name).
+ * anonymous class name).   For severe and warning level messages, the Android logger will also
+ * dump the stack trace of the first argument if it is a throwable.
  */
-class AndroidLogger implements Logger {
+public class AndroidLogger implements Logger {
 
   /**
    * The maximum length of an Android logging tag. There's no formal constants but the constraint is
@@ -42,7 +43,7 @@ class AndroidLogger implements Logger {
   private final String logPrefix;
 
   /** Creates a logger that prefixes every logging stmt with {@code logPrefix}. */
-  AndroidLogger(String logPrefix) {
+  public AndroidLogger(String logPrefix) {
     this.logPrefix = logPrefix;
   }
 
@@ -64,7 +65,12 @@ class AndroidLogger implements Logger {
   public void severe(String template, Object...args) {
     String tag = getTag();
     if (Log.isLoggable(tag, Log.ERROR)) {
-      Log.e(tag, format(template, args));
+      // If the first argument is an exception, use the form of Log that will dump a stack trace
+      if ((args.length > 0) && (args[0] instanceof Throwable)) {
+        Log.e(tag, format(template, args), (Throwable) args[0]);
+      } else {
+        Log.e(tag, format(template, args));
+      }
     }
   }
 
@@ -72,7 +78,12 @@ class AndroidLogger implements Logger {
   public void warning(String template, Object...args) {
     String tag = getTag();
     if (Log.isLoggable(tag, Log.WARN)){
-      Log.w(tag, format(template, args));
+      // If the first argument is an exception, use the form of Log that will dump a stack trace
+      if ((args.length > 0) && (args[0] instanceof Throwable)) {
+        Log.w(tag, format(template, args), (Throwable) args[0]);
+      } else {
+        Log.w(tag, format(template, args));
+      }
     }
   }
 

@@ -29,7 +29,8 @@ import com.google.protos.ipc.invalidation.Client.PersistentTiclState;
  * Utility methods for handling the Ticl persistent state.
  *
  */
-class PersistenceUtils {
+
+public class PersistenceUtils {
 
   /** Serializes a Ticl state blob. */
   

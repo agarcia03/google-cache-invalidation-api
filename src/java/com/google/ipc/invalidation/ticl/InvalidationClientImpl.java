@@ -76,6 +76,11 @@ public class InvalidationClientImpl extends InternalBase
 
   /** Configuration for client. */
   public static class Config extends InternalBase {
+    /**
+     * Initial delay for a heartbeat after restarting from persistent state. We use this so that
+     * the application has a chance to respond to the reissueRegistrations call.
+     */
+    private static final int INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS = 2000;
 
     /** The delay after which a network message sent to the server is considered timed out. */
     public int networkTimeoutDelayMs = 60 * 1000;
@@ -110,7 +115,7 @@ public class InvalidationClientImpl extends InternalBase
 
     @Override
     public void toCompactString(TextBuilder builder) {
-      builder.appendFormat("Network delay: %s, write retry delay: %s, heartbeat: %s ",
+      builder.appendFormat("Network timeout delay: %s, write retry delay: %s, heartbeat: %s ",
           networkTimeoutDelayMs, writeRetryDelayMs, heartbeatIntervalMs);
       protocolHandlerConfig.toCompactString(builder);
     }
@@ -127,7 +132,8 @@ public class InvalidationClientImpl extends InternalBase
   }
 
   /** The single key used to write all the Ticl state. */
-  private static final String CLIENT_TOKEN_KEY = "ClientToken";
+  
+  public static final String CLIENT_TOKEN_KEY = "ClientToken";
 
   /** Resources for the Ticl. */
   private final SystemResources resources;
@@ -343,8 +349,8 @@ public class InvalidationClientImpl extends InternalBase
   }
 
   @Override
-  public boolean areResourcesStarted() {
-    return resources.isStarted();
+  public boolean isStartedForTest() {
+    return ticlState.isStarted();
   }
 
   @Override
@@ -366,7 +372,8 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   public void start() {
-    resources.start();
+    Preconditions.checkState(resources.isStarted(), "Resources must be started before starting " +
+        "the Ticl");
 
     // Initialize the nonce so that we can maintain the invariant that exactly one of
     // "nonce" and "clientToken" is non-null.
@@ -379,8 +386,8 @@ public class InvalidationClientImpl extends InternalBase
 
   /**
    * Implementation of {@link #start} on the internal thread with the persistent
-   * {@code serializedState} if any. Starts the TICL protocol and makes the TICL ready to received
-   * registration, invalidations, etc
+   * {@code serializedState} if any. Starts the TICL protocol and makes the TICL ready to receive
+   * registrations, invalidations, etc.
    */
   private void startInternal(byte[] serializedState) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
@@ -411,7 +418,16 @@ public class InvalidationClientImpl extends InternalBase
       setNonce(null);
       setClientToken(persistentState.getClientToken());
       shouldSendRegistrations = false;
-      sendInfoMessageToServer(false, true);
+
+      // Schedule an info message for the near future. We delay a little bit to allow the
+      // application to reissue its registrations locally and avoid triggering registration
+      // sync with the data center due to a hash mismatch.
+      internalScheduler.schedule(Config.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS, new Runnable() {
+        @Override
+        public void run() {
+          sendInfoMessageToServer(false, true);
+        }
+      });
 
       // We need to ensure that heartbeats are sent, regardless of whether we
       // start fresh or from persistent state.  The line below ensures that they
@@ -434,18 +450,10 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   public void stop() {
-    internalScheduler.schedule(NO_DELAY, new Runnable() {
-      @Override
-      public void run() {
-        logger.warning("Ticl being stopped: %s", InvalidationClientImpl.this);
-        if (ticlState.isStarted()) {
-          ticlState.stop();
-        }
-        if (resources.isStarted()) {
-          resources.stop();
-        }
-      }
-    });
+    logger.warning("Ticl being stopped: %s", InvalidationClientImpl.this);
+    if (ticlState.isStarted()) {  // RunState is thread-safe.
+      ticlState.stop();
+    }
   }
 
   @Override
@@ -505,6 +513,11 @@ public class InvalidationClientImpl extends InternalBase
           statistics.recordIncomingOperation(opType);
           logger.info("Register %s, %s", objectIdProto, regOpType);
           objectIdProtos.add(objectIdProto);
+          // Inform immediately of success so that the application is informed even if the reply
+          // message from the server is lost. When we get a real ack from the server, we do
+          // not need to inform the application.
+          InvalidationListener.RegistrationState regState = convertOpTypeToRegState(regOpType);
+          listener.informRegistrationStatus(InvalidationClientImpl.this, objectId, regState);
         }
 
         // Update the registration manager state, then have the protocol client send a message.
@@ -515,6 +528,7 @@ public class InvalidationClientImpl extends InternalBase
         if (shouldSendRegistrations) {
           protocolHandler.sendRegistrations(objectIdProtos, regOpType);
         }
+
         operationScheduler.schedule(timeoutTask);
       }
     });
@@ -666,15 +680,19 @@ public class InvalidationClientImpl extends InternalBase
       boolean wasSuccess = localProcessingStatuses.get(i);
       logger.fine("Process reg status: %s", regStatus);
 
+      // Only inform in the case of failure since the success path has already
+      // been dealt with (the ticl issued informRegistrationStatus immediately
+      // after receiving the register/unregister call).
       ObjectId objectId = ProtoConverter.convertFromObjectIdProto(
         regStatus.getRegistration().getObjectId());
-      if (wasSuccess) {
-        InvalidationListener.RegistrationState regState = convertOpTypeToRegState(regStatus);
-        listener.informRegistrationStatus(InvalidationClientImpl.this, objectId, regState);
-      } else {
+      if (!wasSuccess) {
+        String description = CommonProtos2.isSuccess(regStatus.getStatus()) ?
+            "Registration discrepancy detected" : regStatus.getStatus().getDescription();
+
+        // Note "success" shows up as transient failure in this scenario.
         boolean isPermanent = CommonProtos2.isPermanentFailure(regStatus.getStatus());
         listener.informRegistrationFailure(InvalidationClientImpl.this, objectId, !isPermanent,
-            regStatus.getStatus().getDescription());
+            description);
       }
     }
   }
@@ -800,7 +818,7 @@ public class InvalidationClientImpl extends InternalBase
      * 1) Request to obtain an token does not receive a reply.
      * 2) Registration state is not in sync with the server.
      *
-     * We simply check for both conditions and taken corrective action when needed.
+     * We simply check for both conditions and take corrective action when needed.
      */
     // If we have no token, send a message for one.
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
@@ -865,7 +883,7 @@ public class InvalidationClientImpl extends InternalBase
           });
         } else {
           // Write succeeded - reset the backoff delay.
-          persistenceExponentialBackoff.reset(config.writeRetryDelayMs);
+          persistenceExponentialBackoff.reset();
         }
       }
     });
@@ -895,22 +913,16 @@ public class InvalidationClientImpl extends InternalBase
   }
 
   /**
-   * Converts an operation type {@code regStatus} to a
+   * Converts an operation type {@code regOpType} to a
    * {@code InvalidationListener.RegistrationState}.
    */
   private static InvalidationListener.RegistrationState convertOpTypeToRegState(
-      RegistrationStatus regStatus) {
+      RegistrationP.OpType regOpType) {
     InvalidationListener.RegistrationState regState =
-        regStatus.getRegistration().getOpType() == RegistrationP.OpType.REGISTER ?
+        regOpType == RegistrationP.OpType.REGISTER ?
             InvalidationListener.RegistrationState.REGISTERED :
               InvalidationListener.RegistrationState.UNREGISTERED;
     return regState;
-  }
-
-  @Override
-  public void toCompactString(TextBuilder builder) {
-    builder.appendFormat("Client: %s, %s", applicationClientId,
-        CommonProtoStrings2.toLazyCompactString(clientToken));
   }
 
   /**
@@ -946,7 +958,7 @@ public class InvalidationClientImpl extends InternalBase
     if (newClientToken != null) {
       // Token control message succeeded - reset the network delay so that the next time we acquire
       // a token, the delay starts from the original value.
-      tokenExponentialBackoff.reset(config.networkTimeoutDelayMs);
+      tokenExponentialBackoff.reset();
     }
 
     if (finishStartingTicl) {
@@ -965,5 +977,11 @@ public class InvalidationClientImpl extends InternalBase
     // its registrations.
     listener.reissueRegistrations(InvalidationClientImpl.this, RegistrationManager.EMPTY_PREFIX, 0);
     logger.info("Ticl started: %s", this);
+  }
+
+  @Override
+  public void toCompactString(TextBuilder builder) {
+    builder.appendFormat("Client: %s, %s", applicationClientId,
+        CommonProtoStrings2.toLazyCompactString(clientToken));
   }
 }

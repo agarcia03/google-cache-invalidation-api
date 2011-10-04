@@ -70,7 +70,7 @@ import java.util.Set;
 
 
 /**
- * Client for interacting with low-level protocol messages.
+ * A layer for interacting with low-level protocol messages.
  *
  */
 class ProtocolHandler {
@@ -248,7 +248,7 @@ class ProtocolHandler {
   /**
    * Creates an instance.
    *
-   * @param config configuration for the client
+   * @param config configuration for the protocol handler
    * @param resources resources to use
    * @param statistics track information about messages sent/received, etc
    * @param applicationName name of the application using the library (for debugging/monitoring)
@@ -588,7 +588,7 @@ class ProtocolHandler {
     messageId++;
     ClientToServerMessage message = builder.build();
     if (!msgValidator.isValid(message)) {
-      logger.severe("Tried to send invalid message: ", message);
+      logger.severe("Tried to send invalid message: %s", message);
       statistics.recordError(ClientErrorType.OUTGOING_MESSAGE_FAILURE);
       return;
     }

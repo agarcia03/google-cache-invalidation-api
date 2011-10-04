@@ -29,14 +29,14 @@ public class InvalidationClientTestHelper {
    * Constructs an invalidation client library instance with parameters set for unit tests.
    *
    * @param clientType client type code as assigned by the notification system's backend
-   * @param appClientId id of the client in the application's own naming scheme
+   * @param clientName id/name of the client in the application's own naming scheme
    * @param applicationName name of the application using the library (for debugging/monitoring)
    * @param listener callback object for invalidation events
    */
   public static InvalidationClient createForTest(SystemResources resources,
-      int clientType, byte[] appClientId, String applicationName, InvalidationListener listener) {
+      int clientType, byte[] clientName, String applicationName, InvalidationListener listener) {
     InvalidationClientImpl.Config config = InvalidationClientImpl.Config.createConfigForTest();
-    return new InvalidationClientImpl(resources, clientType, appClientId, config, applicationName,
+    return new InvalidationClientImpl(resources, clientType, clientName, config, applicationName,
         listener);
   }
 }

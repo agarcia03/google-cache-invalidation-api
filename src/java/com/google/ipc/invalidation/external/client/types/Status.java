@@ -84,6 +84,11 @@ public final class Status {
     return message;
   }
 
+  /** Returns the code for this status message. */
+  public Code getCode() {
+    return code;
+  }
+
   @Override
   public String toString() {
     return String.format("Code: %s, %s", code, message);

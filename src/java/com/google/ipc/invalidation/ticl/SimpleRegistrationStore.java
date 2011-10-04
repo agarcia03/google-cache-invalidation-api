@@ -20,7 +20,6 @@ import com.google.ipc.invalidation.common.DigestFunction;
 import com.google.ipc.invalidation.common.ObjectIdDigestUtils;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.InternalBase;
-import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 
 import java.util.ArrayList;
@@ -34,7 +33,7 @@ import java.util.TreeMap;
  */
 class SimpleRegistrationStore extends InternalBase implements DigestStore<ObjectIdP> {
 
-  /** All the registrations in the store mappd from the digest to the Object Id. */
+  /** All the registrations in the store mapped from the digest to the Object Id. */
   private final SortedMap<Bytes, ObjectIdP> registrations = new TreeMap<Bytes, ObjectIdP>();
 
   /** The function used to compute digests of objects. */
@@ -103,11 +102,6 @@ class SimpleRegistrationStore extends InternalBase implements DigestStore<Object
   public Collection<ObjectIdP> getElements(byte[] oidDigestPrefix, int prefixLen) {
     // We always return all the registrations and let the Ticl sort it out.
     return registrations.values();
-  }
-
-  @Override
-  public void toCompactString(TextBuilder builder) {
-    builder.appendFormat("SimpleRegistrationStore: %s", registrations);
   }
 
   /** Recomputes the digests over all objects and sets {@code this.digest}. */

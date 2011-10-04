@@ -33,9 +33,8 @@ import java.util.Map;
 public class Statistics extends InternalBase {
 
   // Implementation: To classify the statistics a bit better, we have a few enums to track different
-  // different types of statistics, e.g., sent message types, errors, etc. For each statistic type,
-  // we create a map and provide a method to record an event for each
-  // type of statistic.
+  // types of statistics, e.g., sent message types, errors, etc. For each statistic type, we create
+  // a map and provide a method to record an event for each type of statistic.
 
   /** Types of messages sent to the server: {@code ClientToServerMessage} for their description. */
   public enum SentMessageType {
@@ -164,7 +163,7 @@ public class Statistics extends InternalBase {
     return TypedUtil.mapGet(sentMessageTypes, sentMessageType);
   }
 
-/** Returns the counter value for {@code receivedMessageType}. */
+  /** Returns the counter value for {@code receivedMessageType}. */
   int getReceivedMessageCounterForTest(ReceivedMessageType receivedMessageType) {
     return TypedUtil.mapGet(receivedMessageTypes, receivedMessageType);
   }
@@ -202,7 +201,7 @@ public class Statistics extends InternalBase {
    * has the name of the statistic event and the number of times that event has occurred since the
    * client started.
    */
-  void getNonZeroStatistics(List<SimplePair<String, Integer>> performanceCounters) {
+  public void getNonZeroStatistics(List<SimplePair<String, Integer>> performanceCounters) {
     // Add the non-zero values from the different maps to performanceCounters.
     fillWithNonZeroStatistics(sentMessageTypes, performanceCounters);
     fillWithNonZeroStatistics(receivedMessageTypes, performanceCounters);

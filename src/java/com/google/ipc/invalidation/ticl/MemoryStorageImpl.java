@@ -102,13 +102,9 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
         for (String key : ticlPersistentState.keySet()) {
           done.accept(SimplePair.of(successStatus, key));
         }
+        done.accept(null);
       }
     });
-  }
-
-  /** Copies the storage from {@code storage} into this. */
-  void copyForTest(MemoryStorageImpl storage) {
-    ticlPersistentState.putAll(storage.ticlPersistentState);
   }
 
   /**

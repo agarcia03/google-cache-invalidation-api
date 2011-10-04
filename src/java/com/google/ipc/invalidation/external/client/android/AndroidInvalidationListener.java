@@ -106,14 +106,14 @@ public abstract class AndroidInvalidationListener extends Service
     String clientKey = event.getClientKey();
     Log.d(TAG, "Received " + action + " event for " + clientKey);
 
+    AndroidInvalidationClient client = null;
     try {
-
       if (clientKey == null) {
         throw new IllegalStateException("Missing client id:" + event);
       }
 
       // Obtain the client instance for the client receiving the event
-      AndroidInvalidationClient client = AndroidClientFactory.resume(this, clientKey);
+      client = AndroidClientFactory.resume(this, clientKey);
 
       // Determine the event type based upon the request action, extract parameters
       // from extras, and invoke the listener event handler method.
@@ -164,6 +164,12 @@ public abstract class AndroidInvalidationListener extends Service
       Log.e(TAG, "Failure in handleEvent", re);
       response.setException(re);
       throw re;
+    } finally {
+      // Listeners will only use a client reference for the life of the event and release
+      // it immediately since there is no way to know if additional events are coming.
+      if (client != null) {
+        client.release();
+      }
     }
   }
 }

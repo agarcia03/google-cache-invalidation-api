@@ -33,8 +33,14 @@ public class ExponentialBackoffDelayGenerator {
   /** Maximum allowed delay time. */
   private final int maxDelay;
 
+  /** Initial allowed delay time.*/
+  private final int initialMaxDelay;
+
   /** Next delay time to use. */
   private int currentMaxDelay;
+
+  /** If the first call to {@code getNextDelay} has been made after reset. */
+  private boolean inRetryMode;
 
   private final Random random;
 
@@ -43,29 +49,36 @@ public class ExponentialBackoffDelayGenerator {
     Preconditions.checkArgument(maxDelay > 0, "max delay must be positive");
     this.random = Preconditions.checkNotNull(random);
     this.maxDelay = maxDelay;
-    reset(initialMaxDelay);
+    this.initialMaxDelay = initialMaxDelay;
+    Preconditions.checkArgument(initialMaxDelay > 0, "initial delay must be positive");
+    Preconditions.checkArgument(initialMaxDelay <= maxDelay,
+        "initial delay cannot be more than max delay");
+    reset();
   }
 
-  /** Resets the exponential backoff generator to start delays at the given delay. */
-  public void reset(int delay) {
-    Preconditions.checkArgument(delay > 0, "initial delay must be positive");
-    Preconditions.checkArgument(delay <= maxDelay, "initial delay cannot be more than max delay");
-    this.currentMaxDelay = delay;
+  /** Resets the exponential backoff generator to start delays at the initial delay. */
+  public void reset() {
+    this.currentMaxDelay = initialMaxDelay;
+    this.inRetryMode = false;
   }
 
   /** Gets the next delay interval to use. */
   public int getNextDelay() {
+    int delay = 0;  // After a reset, the delay is 0.
+    if (inRetryMode) {
 
-    // Generate the delay.
-    int delay = (int) random.nextDouble() * currentMaxDelay;
+      // Generate the delay.
+      delay = (int) (random.nextDouble() * currentMaxDelay);
 
-    // Adjust the max for the next run.
-    if (currentMaxDelay <= maxDelay) { // Guard against overflow.
-      currentMaxDelay *= 2;
-      if (currentMaxDelay > maxDelay) {
-        currentMaxDelay = maxDelay;
+      // Adjust the max for the next run.
+      if (currentMaxDelay <= maxDelay) { // Guard against overflow.
+        currentMaxDelay *= 2;
+        if (currentMaxDelay > maxDelay) {
+          currentMaxDelay = maxDelay;
+        }
       }
     }
+    inRetryMode = true;
     return delay;
   }
 }

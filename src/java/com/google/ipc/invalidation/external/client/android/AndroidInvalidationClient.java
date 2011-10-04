@@ -37,10 +37,16 @@ public interface AndroidInvalidationClient extends InvalidationClient {
    */
   String getAuthType();
 
-  /*
+  /**
    * Returns the client key that uniquely identifies this client.   The client key can be passed
    * to {@link AndroidClientFactory#resume} to resume processing with the client instance that
    * is identified by this.
    */
   public String getClientKey();
+
+  /**
+   * Releases any transient resources associated with the client such as connections to bound
+   * services.
+   */
+  public void release();
 }

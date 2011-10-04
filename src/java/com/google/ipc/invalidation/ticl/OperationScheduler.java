@@ -73,6 +73,7 @@ class OperationScheduler {
 
   /**
    * Changes the existing delay for {@code operation} to be {@code delayMs}.
+   * Must be called before the Ticl is started.
    * <p>
    * REQUIRES: an entry for {@code operation} already exists.
    */
@@ -84,7 +85,7 @@ class OperationScheduler {
   }
 
   /**
-   * Scheduled the operation represented by {@code opType}. If the operation is already pending,
+   * Schedules the operation represented by {@code operation}. If the operation is already pending,
    * does nothing.
    * <p>
    * REQUIRES: {@link #setOperation(int, Runnable)} has previously been called for this

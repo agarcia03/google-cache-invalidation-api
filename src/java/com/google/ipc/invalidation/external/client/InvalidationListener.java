@@ -88,10 +88,6 @@ public interface InvalidationListener {
   /**
    * Indicates that the registration state of an object has changed.
    *
-   * The application should acknowledge this event by calling
-   * {@link InvalidationClient#acknowledge(AckHandle)} with the provided {@code
-   * ackHandle}; otherwise the event may be redelivered.
-   *
    * @param client the {@link InvalidationClient} invoking the listener
    * @param objectId the id of the object whose state changed
    * @param regState the new state
@@ -101,10 +97,6 @@ public interface InvalidationListener {
 
   /**
    * Indicates that an object registration or unregistration operation may have failed.
-   *
-   * The application should acknowledge this event by calling
-   * {@link InvalidationClient#acknowledge(AckHandle)} with the provided {@code ackHandle};
-   * otherwise the event may be redelivered.
    * <p>
    * For transient failures, the application can retry the registration later - if it chooses to do
    * so, it must use a sensible backoff policy such as exponential backoff. For permanent failures,
@@ -138,11 +130,6 @@ public interface InvalidationListener {
    * IMPORTANT: A client can always register for more objects than what is requested here. For
    * example, in response to this call, the client can ignore the prefix parameters and register for
    * all its objects.
-   * <p>
-   * The application should acknowledge this event by calling
-   * {@link InvalidationClient#acknowledge(AckHandle)} with the provided {@code ackHandle} otherwise
-   * the event may be redelivered. The acknowledge using {@code ackHandle} must be called after all
-   * the {@code InvalidationClient.register} calls have been made.
    *
    * @param client the {@link InvalidationClient} invoking the listener
    * @param prefix prefix of the object ids as described above.

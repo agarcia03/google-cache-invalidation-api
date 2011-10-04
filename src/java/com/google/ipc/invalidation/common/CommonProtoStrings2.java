@@ -20,9 +20,11 @@ import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
+import com.google.protos.ipc.invalidation.ClientProtocol.ClientToServerMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
+import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 
 import java.util.Collection;
 
@@ -228,6 +230,14 @@ public class CommonProtoStrings2 {
     toCompactString(builder, applicationClientId.getClientName());
     builder.append(')');
     return builder;
+  }
+
+  public static String toCompactString(ClientToServerMessage msg) {
+    return "CSMessage: <" + msg.getHeader().getMessageId() + ">";
+  }
+
+  public static String toCompactString(ServerToClientMessage msg) {
+    return "SCMessage: <" + msg.getHeader().getMessageId() + ">";
   }
 
   private CommonProtoStrings2() { // To prevent instantiation
