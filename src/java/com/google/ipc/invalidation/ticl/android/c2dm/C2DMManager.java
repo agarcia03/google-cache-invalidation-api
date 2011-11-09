@@ -205,8 +205,12 @@ public class C2DMManager extends IntentService {
     } finally {
       // Release the power lock, so device can get back to sleep.
       // The lock is reference counted by default, so multiple
-      // messages are ok.
-      wakeLockManager.release(C2DMManager.class);
+      // messages are ok, but because sometimes Android reschedules
+      // services we need to handle the case that the wakelock should
+      // never be underlocked.
+      if (wakeLockManager.isHeld(C2DMManager.class)) {
+        wakeLockManager.release(C2DMManager.class);
+      }
     }
   }
 
