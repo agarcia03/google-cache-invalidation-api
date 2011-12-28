@@ -247,6 +247,11 @@ class InvalidationClientImpl : public InvalidationClient,
 
   void AcknowledgeInternal(const AckHandle& acknowledge_handle);
 
+  /* Sends a heartbeat message to the server requesting its digest so that a
+   * reg sync can occur if needed.
+   */
+  void SendHeartbeatSync();
+
   /* Set client_token to NULL and schedule acquisition of the token. */
   void ScheduleAcquireToken(const string& debug_string);
 
@@ -362,6 +367,11 @@ class InvalidationClientImpl : public InvalidationClient,
 
   /* Exponential backoff generator for acquire-token timeouts. */
   ExponentialBackoffDelayGenerator token_exponential_backoff_;
+
+ /* Exponential backoff generator for heartbeat timeouts if registrations
+  * are out of sync.
+  */
+  ExponentialBackoffDelayGenerator reg_sync_heartbeat_exponential_backoff_;
 
   /* Exponential backoff generator for persistence timeouts. */
   ExponentialBackoffDelayGenerator persistence_exponential_backoff_;

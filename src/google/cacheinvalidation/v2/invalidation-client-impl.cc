@@ -87,6 +87,12 @@ InvalidationClientImpl::InvalidationClientImpl(
           config.max_exponential_backoff_factor *
               config.network_timeout_delay,
           config.network_timeout_delay),
+      reg_sync_heartbeat_exponential_backoff_(
+          new Random(InvalidationClientUtil::GetCurrentTimeMs(
+              resources->internal_scheduler())),
+          config.max_exponential_backoff_factor *
+              config.network_timeout_delay,
+          config.network_timeout_delay),
       persistence_exponential_backoff_(
           new Random(InvalidationClientUtil::GetCurrentTimeMs(
               resources->internal_scheduler())),
@@ -586,9 +592,19 @@ void InvalidationClientImpl::CheckNetworkTimeouts() {
   if (!registration_manager_.IsStateInSyncWithServer()) {
     TLOG(logger_, INFO, "Registration state not in sync with server: %s",
          registration_manager_.ToString().c_str());
-    SendInfoMessageToServer(false, true);
-    operation_scheduler_.Schedule(timeout_task_.get());
+
+    // Send the info message while respecting exponential backoff.
+    internal_scheduler_->Schedule(token_exponential_backoff_.GetNextDelay(),
+        NewPermanentCallback(this, &InvalidationClientImpl::SendHeartbeatSync));
   }
+}
+
+void InvalidationClientImpl::SendHeartbeatSync() {
+  SendInfoMessageToServer(false, true /* request server summary */);
+
+  // Schedule a timeout after sending the message to make sure that we get
+  // into sync.
+  operation_scheduler_.Schedule(timeout_task_.get());
 }
 
 void InvalidationClientImpl::HandleIncomingHeader(
@@ -598,11 +614,19 @@ void InvalidationClientImpl::HandleIncomingHeader(
       "Cannot process server header " << header.ToString() <<
       " with non-empty nonce " << nonce_;
 
-  // We've received a summary from the server, so if we were suppressing
-  // registrations, we should now allow them to go to the registrar.
-  should_send_registrations_ = true;
-  registration_manager_.InformServerRegistrationSummary(
-      header.registration_summary);
+  if (header.registration_summary.has_num_registrations()) {
+    // We've received a summary from the server, so if we were suppressing
+    // registrations, we should now allow them to go to the registrar.
+    should_send_registrations_ = true;
+    registration_manager_.InformServerRegistrationSummary(
+        header.registration_summary);
+  }
+
+  // Check and reset the exponential back off for the reg sync-based heartbeats
+  // on receipt of a message.
+  if (registration_manager_.IsStateInSyncWithServer()) {
+    reg_sync_heartbeat_exponential_backoff_.Reset();
+  }
 }
 
 void InvalidationClientImpl::SendInfoMessageToServer(
