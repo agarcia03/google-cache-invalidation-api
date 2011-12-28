@@ -36,19 +36,22 @@ class ExponentialBackoffDelayGenerator {
    */
   ExponentialBackoffDelayGenerator(Random* random, TimeDelta max_delay,
                                    TimeDelta initial_max_delay) :
-    max_delay_(max_delay), random_(random) {
+    max_delay_(max_delay), initial_max_delay_(initial_max_delay),
+    random_(random) {
     CHECK(max_delay > TimeDelta()) << "max delay must be positive";
     CHECK(random_ != NULL);
-    Reset(initial_max_delay);
+    CHECK(initial_max_delay > TimeDelta()) << "initial delay must be positive";
+    CHECK(initial_max_delay <= max_delay_) << "initial delay cannot be more "
+        "than max delay";
+    Reset();
   }
 
-  /* Resets the exponential backoff generator to start delays at the given
+  /* Resets the exponential backoff generator to start delays at the initial
    * delay.
    */
-  void Reset(TimeDelta delay) {
-    CHECK(delay > TimeDelta()) << "initial delay must be positive";
-    CHECK(delay <= max_delay_) << "initial delay cannot be more than max delay";
-    current_max_delay_ = delay;
+  void Reset() {
+    current_max_delay_ = initial_max_delay_;
+    in_retry_mode = false;
   }
 
   /* Gets the next delay interval to use. */
@@ -58,8 +61,14 @@ class ExponentialBackoffDelayGenerator {
   /* Maximum allowed delay time. */
   TimeDelta max_delay_;
 
+  /* Initial delay time to use. */
+  TimeDelta initial_max_delay_;
+
   /* Next delay time to use. */
   TimeDelta current_max_delay_;
+
+  /* If the first call to getNextDelay has been made after reset. */
+  bool in_retry_mode;
 
   scoped_ptr<Random> random_;
 };

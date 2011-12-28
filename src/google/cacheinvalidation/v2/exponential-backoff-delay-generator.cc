@@ -17,16 +17,19 @@
 namespace invalidation {
 
 TimeDelta ExponentialBackoffDelayGenerator::GetNextDelay() {
-  // Generate the delay.
-  TimeDelta delay = random_->RandDouble() * current_max_delay_;
+  TimeDelta delay = TimeDelta();  // After a reset, delay is zero.
+  if (in_retry_mode) {
+    delay = random_->RandDouble() * current_max_delay_;
 
-  // Adjust the max for the next run.
-  if (current_max_delay_ <= max_delay_) {  // Guard against overflow.
-    current_max_delay_ *= 2;
-    if (current_max_delay_ > max_delay_) {
+    // Adjust the max for the next run.
+    if (current_max_delay_ <= max_delay_) {  // Guard against overflow.
+      current_max_delay_ *= 2;
+      if (current_max_delay_ > max_delay_) {
         current_max_delay_ = max_delay_;
+      }
     }
   }
+  in_retry_mode = true;
   return delay;
 }
 }

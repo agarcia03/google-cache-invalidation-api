@@ -683,7 +683,7 @@ void InvalidationClientImpl::set_client_token(const string& new_client_token) {
   if (!new_client_token.empty()) {
     // Token control message succeeded - reset the network delay so that the
     // next time we acquire a token, the delay starts from the original value.
-    token_exponential_backoff_.Reset(config_.network_timeout_delay);
+    token_exponential_backoff_.Reset();
   }
 
   if (finish_starting_ticl) {
@@ -715,7 +715,7 @@ void InvalidationClientImpl::WriteCallback(Status status) {
         NewPermanentCallback(this, &InvalidationClientImpl::WriteStateBlob));
   } else {
     // Write succeeded - reset the backoff delay.
-    persistence_exponential_backoff_.Reset(config_.write_retry_delay);
+    persistence_exponential_backoff_.Reset();
   }
 }
 
