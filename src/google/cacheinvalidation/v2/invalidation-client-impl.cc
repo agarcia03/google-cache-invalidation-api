@@ -600,11 +600,15 @@ void InvalidationClientImpl::CheckNetworkTimeouts() {
 }
 
 void InvalidationClientImpl::SendHeartbeatSync() {
-  SendInfoMessageToServer(false, true /* request server summary */);
+  if (registration_manager_.IsStateInSyncWithServer()) {
+    TLOG(logger_, INFO, "Not sending message since state is now in sync");
+  } else {
+    SendInfoMessageToServer(false, true /* request server summary */);
 
-  // Schedule a timeout after sending the message to make sure that we get
-  // into sync.
-  operation_scheduler_.Schedule(timeout_task_.get());
+    // Schedule a timeout after sending the message to make sure that we get
+    // into sync.
+    operation_scheduler_.Schedule(timeout_task_.get());
+  }
 }
 
 void InvalidationClientImpl::HandleIncomingHeader(
