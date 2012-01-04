@@ -34,6 +34,9 @@ namespace invalidation {
 
 using ::ipc::invalidation::RegistrationManagerStateP;
 
+const int64
+InvalidationClientImpl::Config::kInitialPersistentHeartbeatDelayMs = 2000;
+
 /* Modifies configParams to contain the list of configuration parameter
  * names and their values.
  */
@@ -163,7 +166,14 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     set_nonce("");
     set_client_token(persistent_state.client_token());
     should_send_registrations_ = false;
-    SendInfoMessageToServer(false, true);
+
+    // Schedule an info message for the near future. We delay a little bit to
+    // allow the application to reissue its registrations locally and avoid
+    // triggering registration sync with the data center due to a hash mismatch.
+    internal_scheduler_->Schedule(
+        TimeDelta::FromMilliseconds(Config::kInitialPersistentHeartbeatDelayMs),
+        NewPermanentCallback(this,
+            &InvalidationClientImpl::SendInfoMessageToServer, false, true));
 
     // We need to ensure that heartbeats are sent, regardless of whether we
     // start fresh or from persistent state.  The line below ensures that they

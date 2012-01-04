@@ -38,6 +38,12 @@ class InvalidationClientImpl : public InvalidationClient,
                                public ProtocolListener {
  public:
   struct Config {
+    /* Initial delay for a heartbeat after restarting from persistent state.
+     * We use this so that the application has a chance to respond to the
+     * reissueRegistrations call.
+     */
+    static const int64 kInitialPersistentHeartbeatDelayMs;
+
     Config() : network_timeout_delay(TimeDelta::FromMinutes(1)),
                write_retry_delay(TimeDelta::FromSeconds(10)),
                heartbeat_interval(TimeDelta::FromMinutes(20)),
