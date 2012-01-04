@@ -217,7 +217,7 @@ class InvalidationClientImpl : public InvalidationClient,
 
   virtual void HandleInfoMessage(
       const ServerMessageHeader& header,
-      const RepeatedField<int>& info_types);
+      const RepeatedField<InfoRequestMessage_InfoType>& info_types);
 
   virtual void HandleErrorMessage(
       const ServerMessageHeader& header,

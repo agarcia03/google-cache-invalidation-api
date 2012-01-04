@@ -372,6 +372,8 @@ message ServerHeader {
 
   // Current token that the server expects the client to have. Clients must
   // ignore messages where this token field does not match their current token.
+  // During initialization, the client's "token" is the nonce that it generates
+  // and sends in the InitializeMessage.
   optional bytes client_token = 2;
 
   // Summary of registration state held by the server for the client.

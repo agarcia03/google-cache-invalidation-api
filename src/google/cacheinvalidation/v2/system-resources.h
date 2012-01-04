@@ -46,10 +46,38 @@ typedef INVALIDATION_CALLBACK1_TYPE(Status) WriteKeyCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(bool) DeleteKeyCallback;
 typedef INVALIDATION_CALLBACK1_TYPE(StatusStringPair) ReadAllKeysCallback;
 
+/* Interface for a component of a SystemResources implementation constructed by
+ * calls to set* methods of SystemResourcesBuilder.
+ *
+ * The SystemResourcesBuilder allows applications to create a single
+ * SystemResources implementation by composing individual building blocks, each
+ * of which implements one of the four required interfaces (Logger, Storage,
+ * NetworkChannel, Scheduler).
+ *
+ * However, each interface implementation may require functionality from
+ * another. For example, the network implementation may need to do logging. In
+ * order to allow this, we require that the interface implementations also
+ * implement ResourceComponent, which specifies the single method
+ * SetSystemResources. It is guaranteed that this method will be invoked exactly
+ * once on each interface implementation and before any other calls are
+ * made. Implementations can then save a reference to the provided resources for
+ * later use.
+ *
+ * Note: for the obvious reasons of infinite recursion, implementations should
+ * not attempt to access themselves through the provided SystemResources.
+ */
+class ResourceComponent {
+ public:
+  virtual ~ResourceComponent() {}
+
+  /* Supplies a |SystemResources| instance to the component. */
+  virtual void SetSystemResources(SystemResources* resources) = 0;
+};
+
 /* Interface specifying the logging functionality provided by
  * SystemResources.
  */
-class Logger {
+class Logger : public ResourceComponent {
  public:
   enum LogLevel {
     FINE_LEVEL,
@@ -76,7 +104,7 @@ class Logger {
 /* Interface specifying the scheduling functionality provided by
  * SystemResources.
  */
-class Scheduler {
+class Scheduler : public ResourceComponent {
  public:
   virtual ~Scheduler() {}
 
@@ -104,7 +132,7 @@ class Scheduler {
 /* Interface specifying the network functionality provided by
  * SystemResources.
  */
-class NetworkChannel {
+class NetworkChannel : public ResourceComponent {
  public:
   virtual ~NetworkChannel() {}
 
@@ -113,13 +141,12 @@ class NetworkChannel {
   // protocol buffer.  Implementors MAY NOT rely on this fact.
   virtual void SendMessage(const string& outgoing_message) = 0;
 
-  /* Sets the receiver to which messages from the data center will be
-   * delivered.
+  /* Sets the receiver to which messages from the data center will be delivered.
+   * Ownership of |incoming_receiver| is transferred to the network channel.
    */
   // Implementation note: this is currently a serialized ServerToClientMessage
   // protocol buffer.  Implementors MAY NOT rely on this fact.
-  virtual void SetMessageReceiver(
-      MessageCallback* incoming_receiver) = 0;
+  virtual void SetMessageReceiver(MessageCallback* incoming_receiver) = 0;
 
   /* Informs the network channel that network_status_receiver be informed about
    * changes to network status changes. If the network is connected, the channel
@@ -133,6 +160,8 @@ class NetworkChannel {
    * incorrectly that the network is connected can result in unnecessary calls
    * for SendMessage. Incorrect information that the network is disconnected can
    * result in messages not being sent by the client library.
+   *
+   * Ownership of network_status_receiver is transferred to the network channel.
    */
   virtual void AddNetworkStatusReceiver(
       NetworkStatusCallback* network_status_receiver) = 0;
@@ -142,7 +171,7 @@ class NetworkChannel {
  * SystemResources. Basically, the required functionality is a small subset of
  * the method of a regular hash map.
  */
-class Storage {
+class Storage : public ResourceComponent {
  public:
   virtual ~Storage() {}
 
@@ -174,33 +203,6 @@ class Storage {
    * indicate a failed status, in which case the iteration stops.
    */
   virtual void ReadAllKeys(ReadAllKeysCallback* key_callback) = 0;
-};
-
-/* Interface for a component of a SystemResources implementation constructed by
- * calls to set* methods of SystemResourcesBuilder.
- *
- * The SystemResourcesBuilder allows applications to create a single
- * SystemResources implementation by composing individual building blocks, each
- * of which implements one of the four required interfaces (Logger, Storage,
- * NetworkChannel, Scheduler).
- *
- * However, each interface implementation may require functionality from
- * another. For example, the network implementation may need to do logging. In
- * order to allow this, we require that the interface implementations also
- * implement ResourceComponent, which specifies the single method
- * SetSystemResources. It is guaranteed that this method will be invoked exactly
- * once on each interface implementation and before any other calls are
- * made. Implementations can then save a reference to the provided resources for
- * later use.
- *
- * Note: for the obvious reasons of infinite recursion, implementations should
- * not attempt to access themselves through the provided SystemResources.
- */
-class ResourceComponent {
-  virtual ~ResourceComponent() {}
-
-  /* Supplies a {@link SystemResources} instance to the component. */
-  virtual void SetSystemResources(SystemResources* resources) = 0;
 };
 
 class SystemResources {

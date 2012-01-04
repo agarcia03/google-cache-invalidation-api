@@ -19,6 +19,7 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_RUN_STATE_H_
 #define GOOGLE_CACHEINVALIDATION_V2_RUN_STATE_H_
 
+#include "google/cacheinvalidation/v2/logging.h"
 #include "google/cacheinvalidation/v2/mutex.h"
 
 namespace invalidation {
@@ -50,14 +51,14 @@ class RunState {
   /* Returns true iff Start has been called on this but Stop has not been
    * called.
    */
-  bool IsStarted() {
-    MutexLock m(&lock_);
+  bool IsStarted() const {
+    MutexLock m((Mutex *) &lock_);  // Don't treat locking a mutex as mutation.
     return current_state_ == STARTED;
   }
 
   /* Returns true iff Start and Stop have been called on this object. */
-  bool IsStopped() {
-    MutexLock m(&lock_);
+  bool IsStopped() const {
+    MutexLock m((Mutex *) &lock_);  // Don't treat locking a mutex as mutation.
     return current_state_ == STOPPED;
   }
 

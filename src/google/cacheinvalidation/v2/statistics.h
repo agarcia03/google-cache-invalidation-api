@@ -64,6 +64,7 @@ class Statistics {
     ReceivedMessageType_REGISTRATION_SYNC_REQUEST,
     ReceivedMessageType_TOKEN_CONTROL,
     ReceivedMessageType_ERROR,
+    ReceivedMessageType_CONFIG_CHANGE,
     ReceivedMessageType_TOTAL,  // Refers to the actual ServerToClientMessage
                                 // messages received from the network.
   };
@@ -165,6 +166,12 @@ class Statistics {
   /* Returns the counter value for sent_message_type. */
   int GetSentMessageCounterForTest(SentMessageType sent_message_type) {
     return sent_message_types_[sent_message_type];
+  }
+
+  /* Returns the counter value for received_message_type. */
+  int GetReceivedMessageCounterForTest(
+      ReceivedMessageType received_message_type) {
+    return received_message_types_[received_message_type];
   }
 
   /* Records the fact that a message of type sent_message_type has been sent. */

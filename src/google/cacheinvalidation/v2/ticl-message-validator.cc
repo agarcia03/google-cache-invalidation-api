@@ -92,7 +92,7 @@ namespace invalidation {
 // |message|.  If so, validates |message.field()|; otherwise, does nothing.
 #define ALLOW(field)                                                    \
   if (message.has_##field()) {                                          \
-    Validate(message.field(), result);                                   \
+    Validate(message.field(), result);                                  \
     if (!*result) {                                                     \
       TLOG(logger_, SEVERE, "field " #field " failed validation in %s", \
            ProtoHelpers::ToString(message).c_str());                    \
@@ -128,10 +128,10 @@ namespace invalidation {
 // valid.
 #define ZERO_OR_MORE(field)                                             \
   for (int i = 0; i < message.field##_size(); ++i) {                    \
-    Validate(message.field(i), result);                                  \
+    Validate(message.field(i), result);                                 \
     if (!*result) {                                                     \
       TLOG(logger_, SEVERE, "field " #field " #%d failed validation in %s", \
-           ProtoHelpers::ToString(message).c_str());                    \
+           i, ProtoHelpers::ToString(message).c_str());                 \
       *result = false;                                                  \
       return;                                                           \
     }                                                                   \

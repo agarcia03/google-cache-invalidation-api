@@ -42,9 +42,9 @@ ProtocolHandler::ProtocolHandler(
     : resources_(resources),
       logger_(resources->logger()),
       internal_scheduler_(resources->internal_scheduler()),
-      throttled_message_sender_(config.rate_limits, internal_scheduler_,
-                NewPermanentCallback(
-                    this, &ProtocolHandler::SendMessageToServer)),
+      throttled_message_sender_(
+          config.rate_limits, internal_scheduler_,
+          NewPermanentCallback(this, &ProtocolHandler::SendMessageToServer)),
       listener_(listener),
       operation_scheduler_(new OperationScheduler(
           logger_, internal_scheduler_)),
@@ -77,7 +77,7 @@ ProtocolHandler::ProtocolHandler(
       NewPermanentCallback(this, &ProtocolHandler::NetworkStatusReceiver));
 }
 
-void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
+void ProtocolHandler::HandleIncomingMessage(const string& incoming_message) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   ServerToClientMessage message;
   message.ParseFromString(incoming_message);
@@ -124,6 +124,8 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
   if (message.has_config_change_message()) {
     const ConfigChangeMessage& config_change_msg =
         message.config_change_message();
+    statistics_->RecordReceivedMessage(
+        Statistics::ReceivedMessageType_CONFIG_CHANGE);
     if (config_change_msg.has_next_message_delay_ms()) {
       // Validator has ensured that it is positive.
       next_message_send_time_ms_ = GetCurrentTimeMs() +
@@ -190,7 +192,11 @@ void ProtocolHandler::HandleIncomingMessage(string incoming_message) {
     statistics_->RecordReceivedMessage(
         Statistics::ReceivedMessageType_INFO_REQUEST);
     listener_->HandleInfoMessage(
-        header, message.info_request_message().info_type());
+        header,
+        // Shouldn't have to do this, but the proto compiler generates bad code
+        // for repeated enum fields.
+        *reinterpret_cast<RepeatedField<InfoRequestMessage_InfoType>* >(
+            message.mutable_info_request_message()->mutable_info_type()));
   }
   if (message.has_error_message()) {
     statistics_->RecordReceivedMessage(
@@ -326,15 +332,15 @@ void ProtocolHandler::SendMessageToServer() {
   }
 
   // Note: Even if an initialize message is being sent, we can send additional
-  // messages such as regisration messages, etc to the server. But if there is
+  // messages such as registration messages, etc to the server. But if there is
   // no token and an initialize message is not being sent, we cannot send any
   // other message.
 
   if ((listener_->GetClientToken().empty()) &&
       !builder.has_initialize_message()) {
-    // Cannot send any message
+    // Cannot send any message.
     TLOG(logger_, WARNING,
-         "Cannot send message since no token and no initialze msg: %s",
+         "Cannot send message since no token and no initialize msg: %s",
          ProtoHelpers::ToString(builder).c_str());
     statistics_->RecordError(Statistics::ClientErrorType_TOKEN_MISSING_FAILURE);
     return;

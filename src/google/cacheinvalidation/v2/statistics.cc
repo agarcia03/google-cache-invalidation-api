@@ -35,6 +35,7 @@ const char* Statistics::ReceivedMessageType_names[] = {
   "REGISTRATION_SYNC_REQUEST",
   "TOKEN_CONTROL",
   "ERROR",
+  "CONFIG_CHANGE",
   "TOTAL",
 };
 

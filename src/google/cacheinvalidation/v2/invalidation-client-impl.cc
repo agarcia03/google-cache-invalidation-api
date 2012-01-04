@@ -466,7 +466,7 @@ void InvalidationClientImpl::HandleRegistrationSyncRequest(
 
 void InvalidationClientImpl::HandleInfoMessage(
     const ServerMessageHeader& header,
-    const RepeatedField<int>& info_types) {
+    const RepeatedField<InfoRequestMessage_InfoType>& info_types) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   HandleIncomingHeader(header);
   bool must_send_performance_counters = false;

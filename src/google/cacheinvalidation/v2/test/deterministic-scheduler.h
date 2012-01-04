@@ -54,8 +54,12 @@ class DeterministicScheduler : public Scheduler {
       : current_id_(0), started_(false), stopped_(false),
         running_internal_(false) {}
 
-  ~DeterministicScheduler() {
+  virtual ~DeterministicScheduler() {
     StopScheduler();
+  }
+
+  virtual void SetSystemResources(SystemResources* resources) {
+    // Nothing to do.
   }
 
   virtual Time GetCurrentTime() const {
@@ -66,81 +70,49 @@ class DeterministicScheduler : public Scheduler {
     started_ = true;
   }
 
-  void StopScheduler() {
-    stopped_ = true;
-    while (!work_queue_.empty()) {
-      TaskEntry top_elt = work_queue_.top();
-      work_queue_.pop();
-      // If the task has expired or was scheduled with ScheduleImmediately(),
-      // run it.
-      if (top_elt.immediate || (top_elt.time <= GetCurrentTime())) {
-        top_elt.task->Run();
-      }
-      delete top_elt.task;
-    }
-    while (!listener_work_queue_.empty()) {
-      // All listener tasks were to run immediately, so run them all.
-      Closure* task = listener_work_queue_.front();
-      listener_work_queue_.pop();
-      task->Run();
-      delete task;
-    }
-  }
+  void StopScheduler();
 
-  virtual void Schedule(TimeDelta delay, Closure* task) {
-    CHECK(IsCallbackRepeatable(task));
-    CHECK(started_);
-    if (!stopped_) {
-      work_queue_.push(TaskEntry(GetCurrentTime() + delay, false, current_id_++,
-                                 task));
-    } else {
-      delete task;
-    }
-  }
+  virtual void Schedule(TimeDelta delay, Closure* task);
 
   virtual bool IsRunningOnThread() const {
     return running_internal_;
   }
 
-  void SetTime(Time new_time) {
+  void SetInitialTime(Time new_time) {
     current_time_ = new_time;
+  }
+
+  // Passes |delta_time| in increments of at most |step|, executing all pending
+  // tasks during that interval.
+  void PassTime(TimeDelta delta_time, TimeDelta step);
+
+  // Passes |delta_time| in default-sized increments, executing all pending
+  // tasks.
+  void PassTime(TimeDelta delta_time) {
+    PassTime(delta_time, DefaultTimeStep());
+  }
+
+ private:
+  // Runs all the work in the queue that should be executed by the current time.
+  // Note that tasks run may enqueue additional immediate tasks, and this call
+  // won't return until they've completed as well.  While these tasks are
+  // running, the running_internal_ flag is set, so IsRunningOnInternalThread()
+  // will return true.
+  void RunReadyTasks();
+
+  // Default time step when simulating passage of time.  Chosen to be
+  // significantly smaller than any scheduling interval used by the client
+  // library.
+  static TimeDelta DefaultTimeStep() {
+    return TimeDelta::FromMilliseconds(10);
   }
 
   void ModifyTime(TimeDelta delta_time) {
     current_time_ += delta_time;
   }
 
-  // Runs all the work in the queue that should be executed by the current time.
-  // Note that tasks run may enqueue additional immediate tasks, and this call
-  // won't return until they've completed as well.  While these tasks are
-  // running, the running_internal_ flag is set, so IsRunningOnInternalThread()
-  // will return true.
-  void RunReadyTasks() {
-    running_internal_ = true;
-    while (RunNextTask()) {
-      continue;
-    }
-    running_internal_ = false;
-  }
-
- private:
   // Attempts to run a task, returning true is there was a task to run.
-  bool RunNextTask() {
-    if (!work_queue_.empty()) {
-      // The queue is not empty, so get the first task and see if its scheduled
-      // execution time has passed.
-      TaskEntry top_elt = work_queue_.top();
-      if (top_elt.time <= GetCurrentTime()) {
-        // The task is scheduled to run in the past or present, so remove it
-        // from the queue and run the task.
-        work_queue_.pop();
-        top_elt.task->Run();
-        delete top_elt.task;
-        return true;
-      }
-    }
-    return false;
-  }
+  bool RunNextTask();
 
   // The current time, which may be set by the test.
   Time current_time_;
@@ -160,9 +132,6 @@ class DeterministicScheduler : public Scheduler {
 
   // A priority queue on which the actual tasks are enqueued.
   std::priority_queue<TaskEntry> work_queue_;
-
-  // A simple queue for the listener tasks.
-  std::queue<Closure*> listener_work_queue_;
 };
 
 }  // namespace invalidation

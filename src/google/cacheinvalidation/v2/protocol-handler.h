@@ -61,6 +61,14 @@ struct ServerMessageHeader {
         ProtoHelpers::ToString(registration_summary).c_str());
   }
 
+  bool operator==(const ServerMessageHeader& other) const {
+    return (token == other.token) &&
+        (registration_summary.num_registrations() ==
+            other.registration_summary.num_registrations()) &&
+        (registration_summary.registration_digest() ==
+            other.registration_summary.registration_digest());
+  }
+
   string token;
   RegistrationSummary registration_summary;
 };
@@ -131,7 +139,7 @@ class ProtocolListener {
    */
   virtual void HandleInfoMessage(
       const ServerMessageHeader& header,
-      const RepeatedField<int>& info_types) = 0;
+      const RepeatedField<InfoRequestMessage_InfoType>& info_types) = 0;
 
    /* Handles an error message from the server.
     *
@@ -196,9 +204,8 @@ class ProtocolHandler {
                   ProtocolListener* listener,
                   TiclMessageValidator* msg_validator);
 
-
   /* Returns the next time a message is allowed to be sent to the server (could
-   *   be in the past).
+   * be in the past).
    */
   int64 GetNextMessageSendTimeMsForTest() {
     return next_message_send_time_ms_;
@@ -214,8 +221,8 @@ class ProtocolHandler {
    * debug_string - information to identify the caller
    */
   void SendInitializeMessage(
-      int client_type, const ApplicationClientIdP& applicationClientId,
-      const string& nonce, const string& debugString);
+      int client_type, const ApplicationClientIdP& application_client_id,
+      const string& nonce, const string& debug_string);
 
   /* Sends an info message to the server with the performance counters supplied
    * in performance_counters and the config supplies in config_params.
@@ -245,7 +252,7 @@ class ProtocolHandler {
 
  private:
   /* Handles a message from the server. */
-  void HandleIncomingMessage(string incoming_message);
+  void HandleIncomingMessage(const string& incoming_message);
 
   /* Verifies that the {@code serverToken} matches the token currently held by
    * the client.
