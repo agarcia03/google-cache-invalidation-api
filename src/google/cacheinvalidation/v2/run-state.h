@@ -52,13 +52,15 @@ class RunState {
    * called.
    */
   bool IsStarted() const {
-    MutexLock m((Mutex *) &lock_);  // Don't treat locking a mutex as mutation.
+    // Don't treat locking a mutex as mutation.
+    MutexLock m((Mutex *) &lock_);  // NOLINT
     return current_state_ == STARTED;
   }
 
   /* Returns true iff Start and Stop have been called on this object. */
   bool IsStopped() const {
-    MutexLock m((Mutex *) &lock_);  // Don't treat locking a mutex as mutation.
+    // Don't treat locking a mutex as mutation.
+    MutexLock m((Mutex *) &lock_);  // NOLINT
     return current_state_ == STOPPED;
   }
 
