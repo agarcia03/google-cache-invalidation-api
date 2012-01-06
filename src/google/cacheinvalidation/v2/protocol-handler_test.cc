@@ -30,6 +30,7 @@ namespace invalidation {
 using ::ipc::invalidation::ClientType_Type_TEST;
 using ::ipc::invalidation::ObjectSource_Type_TEST;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::DeleteArg;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
@@ -37,13 +38,21 @@ using ::testing::EqualsProto;
 using ::testing::Eq;
 using ::testing::Invoke;
 using ::testing::InvokeArgument;
+using ::testing::Matcher;
+using ::testing::Property;
 using ::testing::Return;
 using ::testing::ReturnPointee;
 using ::testing::SaveArg;
 using ::testing::SetArgPointee;
 using ::testing::StrictMock;
-using ::testing::proto::Partially;
-using ::testing::proto::WhenDeserialized;
+using ::testing::proto::WhenDeserializedAs;
+
+ACTION_TEMPLATE(
+    InvokeNetworkStatusCallback,
+    HAS_1_TEMPLATE_PARAMS(int, k),
+    AND_0_VALUE_PARAMS()) {
+  std::tr1::get<k>(args)->Run(true);
+}
 
 // A mock of the Scheduler interface.
 class MockScheduler : public Scheduler {
@@ -68,8 +77,8 @@ class MockStorage : public Storage {
  public:
   MOCK_METHOD3(WriteKey, void(const string&, const string&, WriteKeyCallback*));  // NOLINT
   MOCK_METHOD2(ReadKey, void(const string&, ReadKeyCallback*));  // NOLINT
-  MOCK_METHOD2(DeleteKey, void(const string&, Callback1<bool>*));  // NOLINT
-  MOCK_METHOD1(ReadAllKeys, void(Callback1<pair<Status, string> >*));  // NOLINT
+  MOCK_METHOD2(DeleteKey, void(const string&, DeleteKeyCallback*));  // NOLINT
+  MOCK_METHOD1(ReadAllKeys, void(ReadAllKeysCallback*));  // NOLINT
   MOCK_METHOD1(SetSystemResources, void(SystemResources*));  // NOLINT
 };
 
@@ -192,7 +201,7 @@ class ProtocolHandlerTest : public testing::Test {
   static void MakeInvalidationsFromObjectIds(
       const vector<ObjectIdP>& object_ids,
       vector<InvalidationP>* invalidations) {
-    for (int i = 0; i < object_ids.size(); ++i) {
+    for (uint32 i = 0; i < object_ids.size(); ++i) {
       InvalidationP invalidation;
       invalidation.mutable_object_id()->CopyFrom(object_ids[i]);
       invalidation.set_is_known_version(true);
@@ -211,7 +220,7 @@ class ProtocolHandlerTest : public testing::Test {
   static void MakeRegistrationStatusesFromObjectIds(
       const vector<ObjectIdP>& object_ids,
       vector<RegistrationStatus>* registration_statuses) {
-    for (int i = 0; i < object_ids.size(); ++i) {
+    for (uint32 i = 0; i < object_ids.size(); ++i) {
       RegistrationStatus registration_status;
       registration_status.mutable_registration()->mutable_object_id()->CopyFrom(
           object_ids[i]);
@@ -234,6 +243,18 @@ class ProtocolHandlerTest : public testing::Test {
     // Use arbitrary server time and message id, since they don't matter.
     header->set_server_time_ms(314159265);
     header->set_message_id("message-id-for-test");
+  }
+
+  // Creates a matcher for the parts of the header that the test can predict.
+  static Matcher<ClientHeader> ClientHeaderMatches(const ClientHeader* header) {
+    return AllOf(Property(&ClientHeader::protocol_version,
+                          EqualsProto(header->protocol_version())),
+                 Property(&ClientHeader::registration_summary,
+                          EqualsProto(header->registration_summary())),
+                 Property(&ClientHeader::max_known_server_time_ms,
+                          header->max_known_server_time_ms()),
+                 Property(&ClientHeader::message_id,
+                          header->message_id()));
   }
 
  private:
@@ -279,7 +300,7 @@ class ProtocolHandlerTest : public testing::Test {
     // ownership.  Invoke it once with |true| just to exercise that code path,
     // then delete it since we won't need it anymore.
     EXPECT_CALL(*network, AddNetworkStatusReceiver(_))
-        .WillOnce(DoAll(InvokeArgument<0>(true), DeleteArg<0>()));
+        .WillOnce(DoAll(InvokeNetworkStatusCallback<0>(), DeleteArg<0>()));
 
     // When the handler asks the listener for the client token, return whatever
     // |token| currently is.
@@ -399,7 +420,13 @@ TEST_F(ProtocolHandlerTest, SendInitializeOnly) {
   string actual_serialized;
   EXPECT_CALL(
       *network,
-      SendMessage(WhenDeserialized(Partially(EqualsProto(expected_message)))))
+      SendMessage(WhenDeserializedAs<ClientToServerMessage>(
+          // Check that the deserialized message has the initialize message and
+          // header fields we expect.
+          AllOf(Property(&ClientToServerMessage::initialize_message,
+                         EqualsProto(*initialize_message)),
+                Property(&ClientToServerMessage::header,
+                         ClientHeaderMatches(header))))))
       .WillOnce(SaveArg<0>(&actual_serialized));
 
   // The actual message won't be sent until after the batching delay, which is
@@ -560,12 +587,12 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
   InitClientVersion(info_message->mutable_client_version());
   info_message->set_server_registration_summary_requested(true);
   PropertyRecord* prop_rec;
-  for (int i = 0; i < config_params.size(); ++i) {
+  for (uint32 i = 0; i < config_params.size(); ++i) {
     prop_rec = info_message->add_config_parameter();
     prop_rec->set_name(config_params[i].first);
     prop_rec->set_value(config_params[i].second);
   }
-  for (int i = 0; i < perf_counters.size(); ++i) {
+  for (uint32 i = 0; i < perf_counters.size(); ++i) {
     prop_rec = info_message->add_performance_counter();
     prop_rec->set_name(perf_counters[i].first);
     prop_rec->set_value(perf_counters[i].second);
@@ -574,7 +601,18 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
   string actual_serialized;
   EXPECT_CALL(
       *network,
-      SendMessage(WhenDeserialized(Partially(EqualsProto(expected_message)))))
+      SendMessage(
+          WhenDeserializedAs<ClientToServerMessage>(
+              // Check that the deserialized message has the invalidation acks,
+              // registrations, info message, and header fields we expect.
+              AllOf(Property(&ClientToServerMessage::invalidation_ack_message,
+                             EqualsProto(*invalidation_message)),
+                    Property(&ClientToServerMessage::registration_message,
+                             EqualsProto(*reg_message)),
+                    Property(&ClientToServerMessage::info_message,
+                             EqualsProto(*info_message)),
+                    Property(&ClientToServerMessage::header,
+                             ClientHeaderMatches(header))))))
       .WillOnce(SaveArg<0>(&actual_serialized));
 
   TimeDelta wait_time = config.batching_delay * kMaxSmearMultiplier;
