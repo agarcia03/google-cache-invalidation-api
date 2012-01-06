@@ -154,8 +154,6 @@ TEST_F(ThrottleTest, ThrottlingScripted) {
   scheduler_->PassTime(time_to_send_again - scheduler_->GetCurrentTime());
 
   ASSERT_EQ(kMessagesPerMinute + 1, call_count_);
-
-  scheduler_->StopScheduler();
 }
 
 /* Test that if we keep calling fire() every millisecond, we never violate the

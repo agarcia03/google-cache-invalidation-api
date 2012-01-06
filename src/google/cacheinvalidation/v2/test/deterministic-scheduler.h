@@ -24,6 +24,7 @@
 
 #include "google/cacheinvalidation/callback.h"
 #include "google/cacheinvalidation/v2/logging.h"
+#include "google/cacheinvalidation/v2/run-state.h"
 #include "google/cacheinvalidation/v2/string_util.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 #include "google/cacheinvalidation/v2/time.h"
@@ -34,8 +35,8 @@ namespace invalidation {
 // scheduled time, and for a given time, they run in the order in which they
 // were enqueued.
 struct TaskEntry {
-  TaskEntry(Time time, bool immediate, int64 id, Closure* task)
-      : time(time), immediate(immediate), id(id), task(task) {}
+  TaskEntry(Time time, int64 id, Closure* task)
+      : time(time), id(id), task(task) {}
 
   bool operator<(const TaskEntry& other) const {
     // Priority queue returns *largest* element first.
@@ -43,7 +44,6 @@ struct TaskEntry {
         ((time == other.time) && (id > other.id));
   }
   Time time;  // the time at which to run
-  bool immediate;  // whether the task was scheduled "immediately"
   int64 id;  // the order in which this task was enqueued
   Closure* task;  // the task to be run
 };
@@ -51,8 +51,7 @@ struct TaskEntry {
 class DeterministicScheduler : public Scheduler {
  public:
   DeterministicScheduler()
-      : current_id_(0), started_(false), stopped_(false),
-        running_internal_(false) {}
+      : current_id_(0), running_internal_(false) {}
 
   virtual ~DeterministicScheduler() {
     StopScheduler();
@@ -67,7 +66,7 @@ class DeterministicScheduler : public Scheduler {
   }
 
   void StartScheduler() {
-    started_ = true;
+    run_state_.Start();
   }
 
   void StopScheduler();
@@ -120,11 +119,8 @@ class DeterministicScheduler : public Scheduler {
   // The id number of the next task.
   uint64 current_id_;
 
-  // Whether or not the scheduler has been started.
-  bool started_;
-
-  // Whether or not the scheduler has been stopped.
-  bool stopped_;
+  // Whether or not the scheduler has been started/stopped.
+  RunState run_state_;
 
   // Whether or not we're currently running internal tasks from the internal
   // queue.

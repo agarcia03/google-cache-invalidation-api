@@ -17,7 +17,7 @@
 namespace invalidation {
 
 void DeterministicScheduler::StopScheduler() {
-  stopped_ = true;
+  run_state_.Stop();
   // Delete any tasks that haven't been run.
   while (!work_queue_.empty()) {
     TaskEntry top_elt = work_queue_.top();
@@ -28,13 +28,8 @@ void DeterministicScheduler::StopScheduler() {
 
 void DeterministicScheduler::Schedule(TimeDelta delay, Closure* task) {
   CHECK(IsCallbackRepeatable(task));
-  CHECK(started_);
-  if (!stopped_) {
-    work_queue_.push(TaskEntry(GetCurrentTime() + delay, false, current_id_++,
-                               task));
-  } else {
-    delete task;
-  }
+  CHECK(run_state_.IsStarted());
+  work_queue_.push(TaskEntry(GetCurrentTime() + delay, current_id_++, task));
 }
 
 void DeterministicScheduler::PassTime(TimeDelta delta_time, TimeDelta step) {
@@ -43,7 +38,7 @@ void DeterministicScheduler::PassTime(TimeDelta delta_time, TimeDelta step) {
 
   // Advance in increments of |step| until doing so would cause us to go past
   // the requested |delta_time|.
-  while (cumulative + step < delta_time) {
+  while ((cumulative + step) < delta_time) {
     ModifyTime(step);
     cumulative += step;
     RunReadyTasks();

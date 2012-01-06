@@ -118,6 +118,10 @@ class MockProtocolListener : public ProtocolListener {
 // Tests the basic functionality of the protocol handler.
 class ProtocolHandlerTest : public testing::Test {
  public:
+  // The maximum amount by which smearing can increase a configuration
+  // parameter.
+  static const int kMaxSmearMultiplier = 2;
+
   virtual ~ProtocolHandlerTest() {}
 
   // Performs setup for protocol handler unit tests, e.g. creating resource
@@ -126,6 +130,7 @@ class ProtocolHandlerTest : public testing::Test {
     // Start time at an arbitrary point, just to make sure we don't depend on it
     // being 0.
     start_time = Time() + TimeDelta::FromDays(5742);
+    statistics.reset(new Statistics());
 
     InitSystemResources();  // Set up system resources
     InitCommonExpectations();  // Set up expectations for common mock operations
@@ -136,7 +141,7 @@ class ProtocolHandlerTest : public testing::Test {
     // Create the protocol handler object.
     protocol_handler.reset(
         new ProtocolHandler(
-            config, resources.get(), &statistics, "unit-test", &listener,
+            config, resources.get(), statistics.get(), "unit-test", &listener,
             validator.get()));
 
     // Start the scheduler and resources.
@@ -149,10 +154,6 @@ class ProtocolHandlerTest : public testing::Test {
     delete message_callback;
     message_callback = NULL;
   }
-
-  // The maximum amount by which smearing can increase a configuration
-  // parameter.
-  static const int kMaxSmearMultiplier = 2;
 
   // When "waiting" at the end of a test to make sure nothing happens, how long
   // to wait.
@@ -352,7 +353,7 @@ class ProtocolHandlerTest : public testing::Test {
   scoped_ptr<BasicSystemResources> resources;
 
   // Statistics object for counting occurrences of different types of events.
-  Statistics statistics;
+  scoped_ptr<Statistics> statistics;
 
   // A mock protocol listener.  We make this strict in order to have tight
   // control over the interactions between this and the protocol handler.
@@ -728,7 +729,7 @@ TEST_F(ProtocolHandlerTest, InvalidInboundMessage) {
   message_callback->Run(serialized);
   internal_scheduler->PassTime(EndOfTestWaitTime());
 
-  ASSERT_EQ(1, statistics.GetClientErrorCounterForTest(
+  ASSERT_EQ(1, statistics->GetClientErrorCounterForTest(
       Statistics::ClientErrorType_INCOMING_MESSAGE_FAILURE));
 }
 
@@ -741,7 +742,6 @@ TEST_F(ProtocolHandlerTest, MajorVersionMismatch) {
   ServerHeader* header = message.mutable_header();
   InitServerHeader(token, header);
   header->mutable_protocol_version()->mutable_version()->set_major_version(1);
-  header->mutable_protocol_version()->mutable_version()->set_minor_version(4);
 
   // Add an info request message to check that it doesn't get processed.
   message.mutable_info_request_message()->add_info_type(
@@ -752,7 +752,7 @@ TEST_F(ProtocolHandlerTest, MajorVersionMismatch) {
   message_callback->Run(serialized);
   internal_scheduler->PassTime(EndOfTestWaitTime());
 
-  ASSERT_EQ(1, statistics.GetClientErrorCounterForTest(
+  ASSERT_EQ(1, statistics->GetClientErrorCounterForTest(
       Statistics::ClientErrorType_PROTOCOL_VERSION_FAILURE));
 }
 
@@ -762,7 +762,9 @@ TEST_F(ProtocolHandlerTest, MinorVersionMismatch) {
   // Make a message with a different protocol minor version.
   ServerToClientMessage message;
   token = "test token";
-  InitServerHeader(token, message.mutable_header());
+  ServerHeader* header = message.mutable_header();
+  InitServerHeader(token, header);
+  header->mutable_protocol_version()->mutable_version()->set_minor_version(4);
 
   ServerMessageHeader expected_header(token, summary);
   EXPECT_CALL(listener, HandleIncomingHeader(Eq(expected_header)));
@@ -772,7 +774,7 @@ TEST_F(ProtocolHandlerTest, MinorVersionMismatch) {
   message_callback->Run(serialized);
   internal_scheduler->PassTime(EndOfTestWaitTime());
 
-  ASSERT_EQ(0, statistics.GetClientErrorCounterForTest(
+  ASSERT_EQ(0, statistics->GetClientErrorCounterForTest(
       Statistics::ClientErrorType_PROTOCOL_VERSION_FAILURE));
 }
 
@@ -796,7 +798,7 @@ TEST_F(ProtocolHandlerTest, ConfigMessage) {
 
   // Check that the protocol handler recorded receiving the config change
   // message, and that it has updated the next time it will send a message.
-  ASSERT_EQ(1, statistics.GetReceivedMessageCounterForTest(
+  ASSERT_EQ(1, statistics->GetReceivedMessageCounterForTest(
       Statistics::ReceivedMessageType_CONFIG_CHANGE));
   ASSERT_EQ(
       InvalidationClientUtil::GetTimeInMillis(
@@ -870,7 +872,7 @@ TEST_F(ProtocolHandlerTest, TokenMismatch) {
 
   // No listener calls should be made, and the handler should have recorded the
   // token mismatch.
-  ASSERT_EQ(1, statistics.GetClientErrorCounterForTest(
+  ASSERT_EQ(1, statistics->GetClientErrorCounterForTest(
       Statistics::ClientErrorType_TOKEN_MISMATCH));
 }
 
@@ -888,7 +890,7 @@ TEST_F(ProtocolHandlerTest, TokenMissing) {
 
   internal_scheduler->PassTime(config.batching_delay * kMaxSmearMultiplier);
 
-  ASSERT_EQ(1, statistics.GetClientErrorCounterForTest(
+  ASSERT_EQ(1, statistics->GetClientErrorCounterForTest(
       Statistics::ClientErrorType_TOKEN_MISSING_FAILURE));
 }
 
@@ -912,7 +914,7 @@ TEST_F(ProtocolHandlerTest, InvalidOutboundMessage) {
 
   internal_scheduler->PassTime(config.batching_delay * kMaxSmearMultiplier);
 
-  ASSERT_EQ(1, statistics.GetClientErrorCounterForTest(
+  ASSERT_EQ(1, statistics->GetClientErrorCounterForTest(
       Statistics::ClientErrorType_OUTGOING_MESSAGE_FAILURE));
 }
 
