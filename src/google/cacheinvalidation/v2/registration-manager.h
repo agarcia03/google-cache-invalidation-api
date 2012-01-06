@@ -59,11 +59,13 @@ class RegistrationManager {
   void GetRegistrations(const string& digest_prefix, int prefix_len,
                         RegistrationSubtree* builder);
 
-  /* Handles registration operation statuses from the server.
-   *
-   * Arguments:
-   * registration_statuses - a list of local-processing status codes, one per
-   *     element of registration_statuses.
+  /*
+   * Handles registration operation statuses from the server. Modifies |result|
+   * to contain one boolean per registration status that indicates if the
+   * registration manager considered the registration operation to be successful
+   * or not (e.g., if the object was registered and the server sent back a reply
+   * of successful unregistration, the registration manager will consider that
+   * as failure since the application's intent is to register that object).
    */
   void HandleRegistrationStatus(
       const RepeatedPtrField<RegistrationStatus>& registration_statuses,
