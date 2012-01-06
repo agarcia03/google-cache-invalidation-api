@@ -36,6 +36,9 @@ void DeterministicScheduler::PassTime(TimeDelta delta_time, TimeDelta step) {
   CHECK(delta_time >= TimeDelta()) << "cannot pass a negative amount of time";
   TimeDelta cumulative = TimeDelta();
 
+  // Run tasks that are ready to run now.
+  RunReadyTasks();
+
   // Advance in increments of |step| until doing so would cause us to go past
   // the requested |delta_time|.
   while ((cumulative + step) < delta_time) {
