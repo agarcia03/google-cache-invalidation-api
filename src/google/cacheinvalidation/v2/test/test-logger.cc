@@ -28,15 +28,15 @@ void TestLogger::Log(LogLevel level, const char* file, int line,
   switch (level) {
     case FINE_LEVEL:
     case INFO_LEVEL:
-      LogMessage(file, line, INFO).stream() << result;
+      LogMessage(file, line, logging::LOG_INFO).stream() << result;
       break;
 
     case WARNING_LEVEL:
-      LogMessage(file, line, WARNING).stream() << result;
+      LogMessage(file, line, logging::LOG_WARNING).stream() << result;
       break;
 
     case SEVERE_LEVEL:
-      LogMessage(file, line, ERROR).stream() << result;
+      LogMessage(file, line, logging::LOG_ERROR).stream() << result;
       break;
 
     default:
