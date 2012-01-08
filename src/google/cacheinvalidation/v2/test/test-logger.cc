@@ -40,7 +40,7 @@ void TestLogger::Log(LogLevel level, const char* file, int line,
       break;
 
     default:
-      CHECK(false) << "unknown log level: " << level;
+      LOG(FATAL) << "unknown log level: " << level;
       break;
   }
   va_end(ap);
