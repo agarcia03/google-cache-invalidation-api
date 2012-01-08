@@ -53,6 +53,8 @@ void InvalidationClientImpl::Config::GetConfigParams(
       make_pair("perfCounterDelay", perf_counter_delay.InMilliseconds()));
   config_params->push_back(
       make_pair("maxExponentialBackoffFactor", max_exponential_backoff_factor));
+  config_params->push_back(
+      make_pair("isTransient", is_transient));
   protocol_handler_config.GetConfigParams(config_params);
 }
 
@@ -60,7 +62,8 @@ string InvalidationClientImpl::Config::ToString() {
   std::stringstream stream;
   stream << "network delay: " << network_timeout_delay.InMilliseconds()
          << ", write retry delay: " << write_retry_delay.InMilliseconds()
-         << ", heartbeat: " << heartbeat_interval.InMilliseconds();
+         << ", heartbeat: " << heartbeat_interval.InMilliseconds()
+         << (is_transient ? ", transient" : ", persistent");
   return stream.str();
 }
 

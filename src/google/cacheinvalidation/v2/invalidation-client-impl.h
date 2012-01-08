@@ -48,7 +48,8 @@ class InvalidationClientImpl : public InvalidationClient,
                write_retry_delay(TimeDelta::FromSeconds(10)),
                heartbeat_interval(TimeDelta::FromMinutes(20)),
                perf_counter_delay(TimeDelta::FromHours(6)),
-               max_exponential_backoff_factor(500) {}
+               max_exponential_backoff_factor(500),
+               is_transient(false) {}
 
     /* The delay after which a network message sent to the server is considered
      * timed out.
@@ -68,6 +69,11 @@ class InvalidationClientImpl : public InvalidationClient,
      * timeouts.
      */
     int max_exponential_backoff_factor;
+
+    /* Whether the client is transient, that is, does not write its session
+     * token to durable storage.
+     */
+    bool is_transient;
 
     /* Configuration for the protocol client to control batching etc. */
     ProtocolHandler::Config protocol_handler_config;
