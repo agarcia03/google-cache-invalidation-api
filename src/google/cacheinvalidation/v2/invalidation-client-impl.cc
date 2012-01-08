@@ -134,6 +134,9 @@ void InvalidationClientImpl::Start() {
 void InvalidationClientImpl::StartInternal(const string& serialized_state) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
+  CHECK(resources_->IsStarted()) << "Resources must be started before starting "
+      "the Ticl";
+
   // Initialize the session manager using the persisted client token.
   PersistentTiclState persistent_state;
   bool deserialized = false;

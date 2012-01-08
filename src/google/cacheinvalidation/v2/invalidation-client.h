@@ -38,6 +38,7 @@ class InvalidationClient {
    * InvalidationListener::Ready has received by the application.
    *
    * REQUIRES: Start has not already been called.
+   * The resources given to the client must have been started by the caller.
    */
   virtual void Start() = 0;
 
@@ -45,6 +46,7 @@ class InvalidationClient {
    * any other method.
    *
    * REQUIRES: Start has already been called.
+   * Does not stop the resources bound to this client.
    */
   virtual void Stop() = 0;
 

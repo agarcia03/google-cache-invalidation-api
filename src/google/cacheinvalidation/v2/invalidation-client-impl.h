@@ -151,6 +151,11 @@ class InvalidationClientImpl : public InvalidationClient,
     return protocol_handler_.GetNextMessageSendTimeMsForTest();
   }
 
+  /* Returns true iff the client is currently started. */
+  bool IsStartedForTest() {
+    return ticl_state_.IsStarted();
+  }
+
   /* Sets the digest store to be digest_store for testing purposes.
    *
    * REQUIRES: This method is called before the Ticl has been started.
