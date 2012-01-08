@@ -260,7 +260,15 @@ void InvalidationClientImpl::PerformRegisterOperationsInternal(
     TLOG(logger_, INFO, "Register %s, %d",
          ProtoHelpers::ToString(object_id_proto).c_str(), reg_op_type);
     object_id_protos.push_back(object_id_proto);
+
+    // Inform immediately of success so that the application is informed even if
+    // the reply message from the server is lost. When we get a real ack from
+    // the server, we do not need to inform the application.
+    InvalidationListener::RegistrationState reg_state =
+        ConvertOpTypeToRegState(reg_op_type);
+    listener_->InformRegistrationStatus(this, object_id, reg_state);
   }
+
 
   // Update the registration manager state, then have the protocol client send a
   // message.
@@ -442,11 +450,10 @@ void InvalidationClientImpl::HandleRegistrationStatus(
     ObjectId object_id;
     ProtoConverter::ConvertFromObjectIdProto(
         reg_status.registration().object_id(), &object_id);
-    if (was_success) {
-      InvalidationListener::RegistrationState reg_state =
-          ConvertOpTypeToRegState(reg_status);
-      listener_->InformRegistrationStatus(this, object_id, reg_state);
-    } else {
+    // Only inform in the case of failure since the success path has already
+    // been dealt with (the ticl issued informRegistrationStatus immediately
+    // after receiving the register/unregister call).
+    if (!was_success) {
       string description =
           (reg_status.status().code() == StatusP_Code_SUCCESS) ?
               "Registration discrepancy detected" :
@@ -775,9 +782,10 @@ void InvalidationClientImpl::HeartbeatTask() {
 }
 
 InvalidationListener::RegistrationState
-InvalidationClientImpl::ConvertOpTypeToRegState(RegistrationStatus reg_status) {
+InvalidationClientImpl::ConvertOpTypeToRegState(RegistrationP::OpType
+    reg_op_type) {
   InvalidationListener::RegistrationState reg_state =
-      reg_status.registration().op_type() == RegistrationP_OpType_REGISTER ?
+      reg_op_type == RegistrationP_OpType_REGISTER ?
       InvalidationListener::REGISTERED :
       InvalidationListener::UNREGISTERED;
   return reg_state;

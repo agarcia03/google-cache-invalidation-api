@@ -325,7 +325,7 @@ class InvalidationClientImpl : public InvalidationClient,
    * InvalidationListener::RegistrationState.
    */
   static InvalidationListener::RegistrationState ConvertOpTypeToRegState(
-      RegistrationStatus reg_status);
+      RegistrationP::OpType reg_op_type);
 
  private:
   /* Resources for the Ticl. */
