@@ -88,11 +88,7 @@ class ApplicationClientId {
  */
 class ErrorReason {
  public:
-  /* The provided authentication/authorization token is not valid for use with a
-   * particular object invalidation source. This can happen because the token is
-   * not valid or has expired.  The context is an Integer that indicates the
-   * invalidation source type w.r.t. which the auth problem occurred.
-   */
+  /* The provided authentication/authorization token is not valid for use. */
   static const int AUTH_FAILURE = 1;
 
   /* An unknown failure - more human-readable information is in the error

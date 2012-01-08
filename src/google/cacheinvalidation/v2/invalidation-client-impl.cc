@@ -447,10 +447,16 @@ void InvalidationClientImpl::HandleRegistrationStatus(
           ConvertOpTypeToRegState(reg_status);
       listener_->InformRegistrationStatus(this, object_id, reg_state);
     } else {
+      string description =
+          (reg_status.status().code() == StatusP_Code_SUCCESS) ?
+              "Registration discrepancy detected" :
+              reg_status.status().description();
+
+      // Note "success" shows up as transient failure in this scenario.
       bool is_permanent =
           (reg_status.status().code() == StatusP_Code_PERMANENT_FAILURE);
       listener_->InformRegistrationFailure(
-          this, object_id, !is_permanent, reg_status.status().description());
+          this, object_id, !is_permanent, description);
     }
   }
 }
