@@ -271,6 +271,7 @@ DEFINE_TO_STRING(AckHandleP) {
 
 DEFINE_TO_STRING(ApplicationClientIdP) {
   BEGIN();
+  OPTIONAL(client_type);
   OPTIONAL(client_name);
   END();
 }

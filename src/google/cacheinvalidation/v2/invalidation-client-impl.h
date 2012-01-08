@@ -352,9 +352,6 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Configuration for this instance. */
   Config config_;
 
-  /* The client type code as assigned by the notification system's backend. */
-  int client_type_;
-
   /* Application identifier for this client. */
   ApplicationClientIdP application_client_id_;
 

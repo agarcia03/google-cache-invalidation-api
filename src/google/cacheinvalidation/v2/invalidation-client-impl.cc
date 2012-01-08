@@ -79,7 +79,6 @@ InvalidationClientImpl::InvalidationClientImpl(
           listener, statistics_.get(), internal_scheduler_,
           resources_->listener_scheduler(), logger_)),
       config_(config),
-      client_type_(client_type),
       digest_fn_(new Sha1DigestFunction()),
       registration_manager_(logger_, statistics_.get(), digest_fn_.get()),
       msg_validator_(new TiclMessageValidator(logger_)),
@@ -113,6 +112,7 @@ InvalidationClientImpl::InvalidationClientImpl(
           NewPermanentCallback(
               this, &InvalidationClientImpl::CheckNetworkTimeouts)) {
   application_client_id_.set_client_name(client_name);
+  application_client_id_.set_client_type(client_type);
   operation_scheduler_.SetOperation(
       config.network_timeout_delay, timeout_task_.get(), "[timeout task]");
   operation_scheduler_.SetOperation(
@@ -589,7 +589,7 @@ void InvalidationClientImpl::AcquireToken(const string& debug_string) {
     set_nonce(IntToString(
         internal_scheduler_->GetCurrentTime().ToInternalValue()));
     protocol_handler_.SendInitializeMessage(
-        client_type_, application_client_id_, nonce_, debug_string);
+        application_client_id_, nonce_, debug_string);
 
     // Schedule a timeout to retry if we don't receive a response.
     operation_scheduler_.Schedule(timeout_task_.get());

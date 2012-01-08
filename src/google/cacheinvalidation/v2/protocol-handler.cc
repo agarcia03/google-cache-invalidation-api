@@ -232,14 +232,15 @@ bool ProtocolHandler::CheckServerToken(const string& server_token) {
 }
 
 void ProtocolHandler::SendInitializeMessage(
-    int client_type, const ApplicationClientIdP& application_client_id,
+    const ApplicationClientIdP& application_client_id,
     const string& nonce, const string& debug_string) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   // Simply store the message in pending_initialize_message_ and send it
   // when the batching task runs.
   pending_initialize_message_.reset(new InitializeMessage());
-  pending_initialize_message_->set_client_type(client_type);
+  pending_initialize_message_->set_client_type(
+      application_client_id.client_type());
   pending_initialize_message_->mutable_application_client_id()->CopyFrom(
       application_client_id);
   pending_initialize_message_->set_nonce(nonce);

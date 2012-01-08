@@ -225,6 +225,7 @@ DEFINE_VALIDATOR(ClientHeader) {
 }
 
 DEFINE_VALIDATOR(ApplicationClientIdP) {
+  REQUIRE(client_type);
   REQUIRE(client_name);
   NON_EMPTY(client_name);
 }

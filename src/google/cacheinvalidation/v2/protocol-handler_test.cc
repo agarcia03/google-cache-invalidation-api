@@ -382,6 +382,7 @@ class ProtocolHandlerTest : public testing::Test {
 TEST_F(ProtocolHandlerTest, SendInitializeOnly) {
   ApplicationClientIdP app_client_id;
   app_client_id.set_client_name("unit-test-client-id");
+  app_client_id.set_client_type(ClientType_Type_TEST);
 
   // Client's token is initially empty.  Give it an arbitrary nonce.
   token = "";
@@ -393,7 +394,7 @@ TEST_F(ProtocolHandlerTest, SendInitializeOnly) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendInitializeMessage,
-          ClientType_Type_TEST, app_client_id, nonce, "Startup"));
+          app_client_id, nonce, "Startup"));
 
   ClientToServerMessage expected_message;
 

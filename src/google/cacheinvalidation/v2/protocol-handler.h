@@ -221,7 +221,7 @@ class ProtocolHandler {
    * debug_string - information to identify the caller
    */
   void SendInitializeMessage(
-      int client_type, const ApplicationClientIdP& application_client_id,
+      const ApplicationClientIdP& application_client_id,
       const string& nonce, const string& debug_string);
 
   /* Sends an info message to the server with the performance counters supplied

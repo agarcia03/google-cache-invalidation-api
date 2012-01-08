@@ -150,6 +150,8 @@ message ObjectIdP {
 // globally unique client_name for a given client_type so that the particular
 // instantation of the application can be identified.
 message ApplicationClientIdP {
+  // The type of the client.
+  optional int32 client_type = 1;
 
   // A client name or unique id assigned by the application.  Application should
   // choose a unique name for different client instances if it wants to squelch
