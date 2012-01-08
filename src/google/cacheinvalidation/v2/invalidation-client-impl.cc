@@ -121,6 +121,8 @@ InvalidationClientImpl::InvalidationClientImpl(
 }
 
 void InvalidationClientImpl::Start() {
+  CHECK(!ticl_state_.IsStarted()) << "Already started";
+
   // Initialize the nonce so that we can maintain the invariant that exactly
   // one of "nonce" and "clientToken" is non-null.
   set_nonce(IntToString(
