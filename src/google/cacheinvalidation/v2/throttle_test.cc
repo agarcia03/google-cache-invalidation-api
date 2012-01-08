@@ -38,7 +38,7 @@ class ThrottleTest : public testing::Test {
     ++call_count_;
     // Check that we haven't been called within the last one second.
     Time now = scheduler_->GetCurrentTime();
-    ASSERT_TRUE(now - last_call_time_ >= TimeDelta::FromSeconds(1));
+    ASSERT_TRUE((now - last_call_time_) >= TimeDelta::FromSeconds(1));
     // Update the last time we were called to now.
     last_call_time_ = now;
     // Check that enough time has passed to allow the number of calls we've
@@ -108,7 +108,7 @@ TEST_F(ThrottleTest, ThrottlingScripted) {
     ASSERT_EQ(1, call_count_);
   }
 
-  // (Time since first event is now fireCount * intervalBetweenFires.)
+  // Time since first event is now fireCount * intervalBetweenFires, i.e., 800.
 
   // ... until the short throttle interval passes, at which time it should be
   // called once more.
@@ -144,6 +144,7 @@ TEST_F(ThrottleTest, ThrottlingScripted) {
   int fire_attempts =
       ((start_time_ + TimeDelta::FromMinutes(1) - scheduler_->GetCurrentTime())
           / long_interval) - 1;
+  // This value should be 20.
   for (int i = 0; i < fire_attempts; ++i) {
     scheduler_->PassTime(long_interval);
     throttle->Fire();
@@ -188,7 +189,7 @@ TEST_F(ThrottleTest, ThrottlingStorm) {
   // Expect kMessagesPerMinute to be sent per minute for duration_minutes, plus
   // one extra because we end on the precise boundary at which the next message
   // is allowed to be sent.
-  ASSERT_EQ(kMessagesPerMinute * duration_minutes + 1, call_count_);
+  ASSERT_EQ((kMessagesPerMinute * duration_minutes) + 1, call_count_);
 }
 
 }  // namespace invalidation

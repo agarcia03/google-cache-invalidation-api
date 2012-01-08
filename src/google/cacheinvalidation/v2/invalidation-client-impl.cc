@@ -198,12 +198,6 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
 }
 
 void InvalidationClientImpl::Stop() {
-  internal_scheduler_->Schedule(
-      Scheduler::NoDelay(),
-      NewPermanentCallback(this, &InvalidationClientImpl::StopInternal));
-}
-
-void InvalidationClientImpl::StopInternal() {
   TLOG(logger_, WARNING, "Ticl being stopped: %s", ToString().c_str());
   if (ticl_state_.IsStarted()) {
     ticl_state_.Stop();

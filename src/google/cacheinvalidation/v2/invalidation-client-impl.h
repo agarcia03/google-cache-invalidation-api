@@ -254,8 +254,6 @@ class InvalidationClientImpl : public InvalidationClient,
    */
   void StartInternal(const string& serialized_state);
 
-  void StopInternal();
-
   void AcknowledgeInternal(const AckHandle& acknowledge_handle);
 
   /* Sends a heartbeat message to the server requesting its digest so that a
