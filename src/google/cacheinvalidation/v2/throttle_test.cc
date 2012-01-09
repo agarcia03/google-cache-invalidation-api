@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 // Tests the throttle.
 
-#include "google/cacheinvalidation/googletest.h"
+#include "google/cacheinvalidation/v2/googletest.h"
 #include "google/cacheinvalidation/v2/test/deterministic-scheduler.h"
 #include "google/cacheinvalidation/v2/throttle.h"
 
