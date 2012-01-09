@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,14 +18,14 @@
 
 #include <sstream>
 
-#include "google/cacheinvalidation/callback.h"
-#include "google/cacheinvalidation/random.h"
+#include "google/cacheinvalidation/v2/callback.h"
 #include "google/cacheinvalidation/v2/client_test_internal.pb.h"
 #include "google/cacheinvalidation/v2/invalidation-client-util.h"
 #include "google/cacheinvalidation/v2/log-macro.h"
 #include "google/cacheinvalidation/v2/persistence-utils.h"
 #include "google/cacheinvalidation/v2/proto-converter.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
+#include "google/cacheinvalidation/v2/random.h"
 #include "google/cacheinvalidation/v2/sha1-digest-function.h"
 #include "google/cacheinvalidation/v2/smearer.h"
 #include "google/cacheinvalidation/v2/string_util.h"

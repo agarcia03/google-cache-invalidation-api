@@ -1,4 +1,4 @@
-// Copyright 2010 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GOOGLE_CACHEINVALIDATION_GOOGLETEST_H_
-#define GOOGLE_CACHEINVALIDATION_GOOGLETEST_H_
+#ifndef GOOGLE_CACHEINVALIDATION_V2_SCOPED_PTR_H_
+#define GOOGLE_CACHEINVALIDATION_V2_SCOPED_PTR_H_
 
-#error This file should be replaced with a stub pointing to the googletest \
-  header. 
+#error Override scoped_ptr.h to point to a scoped_ptr implementation.
 
-#endif  // GOOGLE_CACHEINVALIDATION_GOOGLETEST_H_
+#endif  // GOOGLE_CACHEINVALIDATION_V2_SCOPED_PTR_H_

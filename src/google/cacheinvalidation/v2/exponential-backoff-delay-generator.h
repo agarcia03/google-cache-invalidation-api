@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_EXPONENTIAL_BACKOFF_DELAY_GENERATOR_H_
 #define GOOGLE_CACHEINVALIDATION_V2_EXPONENTIAL_BACKOFF_DELAY_GENERATOR_H_
 
-#include "google/cacheinvalidation/scoped_ptr.h"
-#include "google/cacheinvalidation/random.h"
 #include "google/cacheinvalidation/v2/logging.h"
+#include "google/cacheinvalidation/v2/random.h"
+#include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/time.h"
 
 namespace invalidation {

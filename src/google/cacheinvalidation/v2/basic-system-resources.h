@@ -18,8 +18,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_BASIC_SYSTEM_RESOURCES_H_
 #define GOOGLE_CACHEINVALIDATION_V2_BASIC_SYSTEM_RESOURCES_H_
 
-#include "google/cacheinvalidation/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/run-state.h"
+#include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
 
 namespace invalidation {

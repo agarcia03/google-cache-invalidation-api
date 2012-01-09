@@ -1,2 +1,2 @@
-This directory contains the implementation of the client library for a cache
-invalidation service.
+This code that resided here (and corresponding protocol) are no longer
+supported.  Please use the implementation in the v2/ directory.

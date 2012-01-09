@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cacheinvalidation/gmock.h"
-#include "google/cacheinvalidation/googletest.h"
-#include "google/cacheinvalidation/v2/string_util.h"
-#include "google/cacheinvalidation/v2/types.pb.h"
 #include "google/cacheinvalidation/v2/basic-system-resources.h"
 #include "google/cacheinvalidation/v2/constants.h"
+#include "google/cacheinvalidation/v2/gmock.h"
+#include "google/cacheinvalidation/v2/googletest.h"
 #include "google/cacheinvalidation/v2/protocol-handler.h"
 #include "google/cacheinvalidation/v2/statistics.h"
+#include "google/cacheinvalidation/v2/string_util.h"
 #include "google/cacheinvalidation/v2/test/deterministic-scheduler.h"
 #include "google/cacheinvalidation/v2/test/test-logger.h"
 #include "google/cacheinvalidation/v2/throttle.h"
 #include "google/cacheinvalidation/v2/ticl-message-validator.h"
+#include "google/cacheinvalidation/v2/types.pb.h"
 
 namespace invalidation {
 

@@ -1,4 +1,4 @@
-// Copyright 2010 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GOOGLE_CACHEINVALIDATION_STRING_UTIL_H_
-#define GOOGLE_CACHEINVALIDATION_STRING_UTIL_H_
+#ifndef GOOGLE_CACHEINVALIDATION_V2_STL_NAMESPACE_H_
+#define GOOGLE_CACHEINVALIDATION_V2_STL_NAMESPACE_H_
 
-#error This file should be replaced with a stub pointing to a file \
-  containing string utility functions in the invalidation namespace. \
-  At least StringAppendV() and StringPrintf() are needed.
+// Google style is to use the global namespace for stl classes so we
+// leave this blank.
+#define INVALIDATION_STL_NAMESPACE
 
-#endif  // GOOGLE_CACHEINVALIDATION_STRING_UTIL_H_
+#endif  // GOOGLE_CACHEINVALIDATION_V2_STL_NAMESPACE_H_

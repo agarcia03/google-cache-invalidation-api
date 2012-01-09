@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@
 #include <deque>
 #include <vector>
 
-#include "google/cacheinvalidation/callback.h"
-#include "google/cacheinvalidation/stl-namespace.h"
+#include "google/cacheinvalidation/v2/callback.h"
 #include "google/cacheinvalidation/v2/logging.h"
 #include "google/cacheinvalidation/v2/scoped_ptr.h"
+#include "google/cacheinvalidation/v2/stl-namespace.h"
 #include "google/cacheinvalidation/v2/time.h"
 
 namespace invalidation {

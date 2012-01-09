@@ -1,4 +1,4 @@
-// Copyright 2010 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GOOGLE_CACHEINVALIDATION_MUTEX_H_
-#define GOOGLE_CACHEINVALIDATION_MUTEX_H_
+// Defines callback types for the invalidation client library.
 
-#include "base/mutex.h"
+#ifndef GOOGLE_CACHEINVALIDATION_V2_CALLBACK_H_
+#define GOOGLE_CACHEINVALIDATION_V2_CALLBACK_H_
+
+#include "base/callback.h"
+
+#define INVALIDATION_CALLBACK1_TYPE(Arg1) ::Callback1<Arg1>
 
 namespace invalidation {
 
-using ::Mutex;
-using ::MutexLock;
-}  // invalidation
+using ::Closure;
+using ::DoNothing;
+using ::NewPermanentCallback;
 
-#endif  // GOOGLE_CACHEINVALIDATION_MUTEX_H_
+template <class T>
+bool IsCallbackRepeatable(const T* callback) {
+  return callback->IsRepeatable();
+}
+
+}  // namespace invalidation
+
+#endif  // GOOGLE_CACHEINVALIDATION_V2_CALLBACK_H_

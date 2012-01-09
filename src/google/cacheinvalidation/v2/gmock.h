@@ -1,4 +1,4 @@
-// Copyright 2011 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Defines compiler-specific utility functions for the Tango
-// invalidation client library.
+#ifndef GOOGLE_CACHEINVALIDATION_V2_GMOCK_H_
+#define GOOGLE_CACHEINVALIDATION_V2_GMOCK_H_
 
-#ifndef IPC_INVALIDATION_PUBLIC_INCLUDE_COMPILER_SPECIFIC_H_
-#define IPC_INVALIDATION_PUBLIC_INCLUDE_COMPILER_SPECIFIC_H_
+#error Replace with a header that imports the Google Mock library.
 
-// google3 code doesn't compile with MSVC, so we don't need anything
-// here.
-
-#define ALLOW_THIS_IN_INITIALIZER_LIST(code) code
-
-#endif  // IPC_INVALIDATION_PUBLIC_INCLUDE_COMPILER_SPECIFIC_H_
+#endif  // GOOGLE_CACHEINVALIDATION_V2_GMOCK_H_

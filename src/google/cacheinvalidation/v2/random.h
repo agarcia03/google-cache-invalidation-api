@@ -1,4 +1,4 @@
-// Copyright 2010 Google Inc.
+// Copyright 2012 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GOOGLE_CACHEINVALIDATION_TIME_H_
-#define GOOGLE_CACHEINVALIDATION_TIME_H_
+#ifndef GOOGLE_CACHEINVALIDATION_V2_RANDOM_H_
+#define GOOGLE_CACHEINVALIDATION_V2_RANDOM_H_
 
-#error This file should be replaced with a stub pointing to something \
-  like base/time.h from the Chromium source tree, with definitions for types \
-  Time, TimeDelta, etc.
+#error This file should be replaced with an implementation of the following \
+  interface.
 
-#endif  // GOOGLE_CACHEINVALIDATION_TIME_H_
+namespace invalidation {
+
+class Random {
+ public:
+  explicit Random(int64 seed);
+
+  double RandDouble();
+};
+
+}  // namespace invalidation
+
+#endif  // GOOGLE_CACHEINVALIDATION_V2_RANDOM_H_
