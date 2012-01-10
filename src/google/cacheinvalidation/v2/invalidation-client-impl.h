@@ -84,6 +84,9 @@ class InvalidationClientImpl : public InvalidationClient,
     void GetConfigParams(vector<pair<string, int> >* config_params);
 
     string ToString();
+
+    /* Initializes the config with values suitable for unit testing. */
+    void InitForTest();
   };
 
   /* Constructs a client.

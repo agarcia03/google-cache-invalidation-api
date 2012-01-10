@@ -67,6 +67,14 @@ string InvalidationClientImpl::Config::ToString() {
   return stream.str();
 }
 
+void InvalidationClientImpl::Config::InitForTest() {
+  network_timeout_delay = TimeDelta::FromSeconds(2);
+  protocol_handler_config.batching_delay = TimeDelta::FromMilliseconds(200);
+  heartbeat_interval = TimeDelta::FromSeconds(5);
+  write_retry_delay = TimeDelta::FromMilliseconds(500);
+  protocol_handler_config.rate_limits.clear();
+}
+
 InvalidationClientImpl::InvalidationClientImpl(
     SystemResources* resources, int client_type, const string& client_name,
     Config config, const string& application_name,

@@ -24,6 +24,8 @@
 
 #include <string>
 
+#include "google/cacheinvalidation/v2/stl-namespace.h"
+
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
