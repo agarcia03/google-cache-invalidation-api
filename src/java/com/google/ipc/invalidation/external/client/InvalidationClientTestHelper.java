@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.external.client;
 
+import com.google.ipc.invalidation.ticl.InvalidationClientConfig;
 import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
 
 /**
@@ -35,7 +36,7 @@ public class InvalidationClientTestHelper {
    */
   public static InvalidationClient createForTest(SystemResources resources,
       int clientType, byte[] clientName, String applicationName, InvalidationListener listener) {
-    InvalidationClientImpl.Config config = InvalidationClientImpl.Config.createConfigForTest();
+    InvalidationClientConfig config = InvalidationClientConfig.createConfigForTest();
     return new InvalidationClientImpl(resources, clientType, clientName, config, applicationName,
         listener);
   }

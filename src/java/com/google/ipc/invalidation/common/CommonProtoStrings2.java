@@ -57,7 +57,6 @@ public class CommonProtoStrings2 {
     };
   }
 
-
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final byte[] bytes) {
     if (bytes == null) {
@@ -184,7 +183,7 @@ public class CommonProtoStrings2 {
   // the compact representation in the given builder. Each method has the following spec:
   // Adds a compact representation for {@code <parameter-name>} to {@code builder} and
   // returns {@code builder}.
-  // TODO: [cleanup] Look into building indirection tables for the collections to avoid
+  // TODO: Look into building indirection tables for the collections to avoid
   // code duplication.
   //
 
@@ -194,7 +193,7 @@ public class CommonProtoStrings2 {
   }
 
   /** See spec in implementation notes. */
-  private static TextBuilder toCompactString(TextBuilder builder, ObjectIdP objectId) {
+  public static TextBuilder toCompactString(TextBuilder builder, ObjectIdP objectId) {
     builder.appendFormat("(Obj: %s, ", objectId.getSource());
     toCompactString(builder, objectId.getName());
     builder.append(')');

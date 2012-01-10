@@ -354,7 +354,10 @@ public class TiclMessageValidator2 {
 
     /** Validation for appliction client ids. */
     final MessageInfo APPLICATION_CLIENT_ID = new MessageInfo(
+        // Client type is optional here since the registrar needs to accept messages from
+        // the ticls that do not set the client type.
         ClientProtocolAccessor.APPLICATION_CLIENT_ID_P_ACCESSOR,
+        FieldInfo.newOptional(ApplicationClientIdPAccessor.CLIENT_TYPE),
         FieldInfo.newRequired(ApplicationClientIdPAccessor.CLIENT_NAME)) {
       @Override
       public boolean postValidate(GeneratedMessage message) {
@@ -430,7 +433,8 @@ public class TiclMessageValidator2 {
   }
 
   /** Describes how to validate server messages. */
-  private class ServerMsgInfos {
+  
+  class ServerMsgInfos {
     /** Validation for server headers. */
     final MessageInfo HEADER = new MessageInfo(
         ClientProtocolAccessor.SERVER_HEADER_ACCESSOR,
@@ -540,7 +544,8 @@ public class TiclMessageValidator2 {
   private final ClientMsgInfos clientMsgInfos = new ClientMsgInfos();
 
   /** Server validation information */
-  private final ServerMsgInfos serverMsgInfos = new ServerMsgInfos();
+  
+  final ServerMsgInfos serverMsgInfos = new ServerMsgInfos();
 
   /** Returns whether {@code clientMessage} is valid. */
   public boolean isValid(ClientToServerMessage clientMessage) {

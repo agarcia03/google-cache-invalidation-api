@@ -63,6 +63,6 @@ public final class AckHandle {
 
   @Override
   public String toString() {
-    return String.format("AckHandle: %s", BytesFormatter.toString(handleData));
+    return "AckHandle: " + BytesFormatter.toString(handleData);
   }
 }

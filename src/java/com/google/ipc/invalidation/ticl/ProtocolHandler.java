@@ -31,6 +31,7 @@ import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
 import com.google.ipc.invalidation.ticl.Statistics.ReceivedMessageType;
 import com.google.ipc.invalidation.ticl.Statistics.SentMessageType;
+import com.google.ipc.invalidation.ticl.Throttle.RateLimit;
 import com.google.ipc.invalidation.util.InternalBase;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
@@ -177,6 +178,15 @@ class ProtocolHandler {
      */
     public int batchingDelayMs = 500;
 
+    /** Rate limits for sending message. */
+    public List<RateLimit> rateLimits = new ArrayList<Throttle.RateLimit>();
+
+    public Config() {
+      // Set default rate limits.
+      rateLimits.add(new RateLimit(1000, 1));  // one message per second
+      rateLimits.add(new RateLimit(60 * 1000, 6));  // six messages per minute
+    }
+
     /**
      * Modifies {@code configParams} to contain the list of configuration parameter names and their
      * values.
@@ -201,6 +211,7 @@ class ProtocolHandler {
   private final ProtocolListener listener;
   private final OperationScheduler operationScheduler;
   private final TiclMessageValidator2 msgValidator;
+  private final Throttle throttle;
 
   /** A debug message id that is added to every message to the server. */
   private int messageId = 1;
@@ -241,7 +252,9 @@ class ProtocolHandler {
     @Override
     public void run() {
       // Send message to server - the batching information is picked up in sendMessageToServer.
-      sendMessageToServer();
+      // Go through a throttler to ensure that we obey rate limits in sending
+      // messages.
+      throttle.fire();
     }
   };
 
@@ -263,6 +276,12 @@ class ProtocolHandler {
     this.listener = listener;
     this.operationScheduler = new OperationScheduler(logger, internalScheduler);
     this.msgValidator = msgValidator;
+    this.throttle = new Throttle(config.rateLimits, internalScheduler, new Runnable() {
+      @Override
+      public void run() {
+        sendMessageToServer();
+      }
+    });
 
     this.clientVersion = CommonProtos2.newClientVersion(resources.getPlatform(), "Java",
         applicationName);
@@ -423,18 +442,18 @@ class ProtocolHandler {
   /**
    * Sends a message to the server to request a client token.
    *
-   * @param clientType client type code as assigned by the notification system's backend
    * @param applicationClientId application-specific client id
    * @param nonce nonce for the request
    * @param debugString information to identify the caller
    */
-  void sendInitializeMessage(int clientType, ApplicationClientIdP applicationClientId,
-      ByteString nonce, String debugString) {
+  void sendInitializeMessage(ApplicationClientIdP applicationClientId, ByteString nonce,
+      String debugString) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
     // Simply store the message in pendingInitializeMessage and send it when the batching task runs.
-    pendingInitializeMessage = CommonProtos2.newInitializeMessage(clientType, applicationClientId,
-        nonce, DigestSerializationType.BYTE_BASED);
+    pendingInitializeMessage = CommonProtos2.newInitializeMessage(
+        applicationClientId.getClientType(), applicationClientId, nonce,
+        DigestSerializationType.BYTE_BASED);
     logger.info("Batching initialize message for client: %s, %s", debugString,
         pendingInitializeMessage);
     operationScheduler.schedule(batchingTask);

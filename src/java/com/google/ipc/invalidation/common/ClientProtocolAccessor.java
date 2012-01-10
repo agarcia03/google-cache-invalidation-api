@@ -80,9 +80,11 @@ public class ClientProtocolAccessor {
   public static class ApplicationClientIdPAccessor implements Accessor {
     private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
       Arrays.<String>asList(
+        "client_type",
         "client_name"
       ));
     
+    public static final Descriptor CLIENT_TYPE = new Descriptor("client_type");
     public static final Descriptor CLIENT_NAME = new Descriptor("client_name");
     
     /** Returns whether {@code field} is present in {@code message}. */
@@ -92,6 +94,9 @@ public class ClientProtocolAccessor {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ApplicationClientIdP message = (ApplicationClientIdP) rawMessage;
+      if (field == CLIENT_TYPE) {
+        return message.hasClientType();
+      }
       if (field == CLIENT_NAME) {
         return message.hasClientName();
       }
@@ -105,6 +110,9 @@ public class ClientProtocolAccessor {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ApplicationClientIdP message = (ApplicationClientIdP) rawMessage;
+      if (field == CLIENT_TYPE) {
+        return message.getClientType();
+      }
       if (field == CLIENT_NAME) {
         return message.getClientName();
       }

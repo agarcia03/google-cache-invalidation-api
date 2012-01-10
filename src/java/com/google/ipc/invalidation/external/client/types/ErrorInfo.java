@@ -88,7 +88,6 @@ public final class ErrorInfo {
 
   @Override
   public String toString() {
-    return String.format("ErrorInfo: %s, %s, %s, %s", errorReason, isTransient, errorMessage,
-      context);
+    return "ErrorInfo: " + errorReason + ", " + isTransient + ", " + errorMessage + ", " + context;
   }
 }

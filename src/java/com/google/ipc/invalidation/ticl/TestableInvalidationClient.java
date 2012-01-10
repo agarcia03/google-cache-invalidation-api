@@ -127,5 +127,5 @@ public interface TestableInvalidationClient extends InvalidationClient {
   long getNextMessageSendTimeMsForTest();
 
   /** Returns the configuration used by the client. */
-  InvalidationClientImpl.Config getConfigForTest();
+  InvalidationClientConfig getConfigForTest();
 }

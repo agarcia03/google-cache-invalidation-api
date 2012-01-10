@@ -26,7 +26,6 @@ syntax = "proto2";
 package com.google.protos.ipc.invalidation;
 
 
-
 // Here is a high-level overview of the protocol. The protocol is designed in a
 // "message-passing" style, i.e., the client (C) or the server (S) can send any
 // message SPONTANEOUSLY at any time and both sides have to be prepared for any
@@ -153,6 +152,8 @@ message ObjectIdP {
 // globally unique client_name for a given client_type so that the particular
 // instantation of the application can be identified.
 message ApplicationClientIdP {
+  // The type of the client.
+  optional int32 client_type = 1;
 
   // A client name or unique id assigned by the application.  Application should
   // choose a unique name for different client instances if it wants to squelch
@@ -297,7 +298,7 @@ message InitializeMessage {
     BYTE_BASED = 1;
 
     // The digest for an object id is computed by serializing the object id into
-    // an array of numbers. TODO:  Determine and specify this
+    // an array of numbers. TODO: Determine and specify this
     // more precisely.
     NUMBER_BASED = 2;
   }

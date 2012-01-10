@@ -37,9 +37,17 @@ public class AndroidC2DMConstants {
   /** Name of C2DM parameter containing the client key. */
   public static final String CLIENT_KEY_PARAM = "tid";
 
-  /** Name of C2DM parameter containing the mailbox id. */
-  public static final String MAILBOX_ID_PARAM = "mid";
-
-  /** Name of C2DM parameter containing message content. */
+  /**
+   * Name of C2DM parameter containing message content.  If not set, data is retrieved via
+   * the mailbox frontend
+   * */
   public static final String CONTENT_PARAM = "content";
+
+  /**
+   * Returns the mailbox key to use for a client with C2DM registration id {@code c2dmRegId}
+   * and client key {@code clientKey}.
+   */
+  public static String getMailboxKey(String c2dmRegId, String clientKey) {
+    return clientKey + "@" + c2dmRegId;
+  }
 }

@@ -65,10 +65,6 @@ public class CommonInvalidationConstants2 {
   /** The value of ClientType.Type from types.proto. Must be kept in sync with that file. */
   public static final int TEST_CLIENT_TYPE = ClientType.Type.TEST.getNumber();
 
-  /** The value of ObjectSource.Type from types.proto. Must be kept in sync with that file. */
-  public static final int UNKNOWN_VERSION_OBJECT_SOURCE_TYPE =
-      ObjectSource.Type.UNKNOWN_VERSION.getNumber();
-
   /** Object id used to trigger a refresh of all cached objects ("invalidate-all"). */
   public static final ObjectIdP ALL_OBJECT_ID = ObjectIdP.newBuilder()
       .setName(ByteString.EMPTY)

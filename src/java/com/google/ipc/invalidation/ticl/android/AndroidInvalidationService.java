@@ -89,11 +89,6 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   static final String MESSAGE_CLIENT_KEY = "clientKey";
 
   /**
-   * The name of the String extra that contains the mail box id for the C2DM message.
-   */
-  static final String MESSAGE_MAILBOX_ID = "mailBoxId";
-
-  /**
    * The name of the byte array extra that contains the encoded event for the C2DM message.
    */
   static final String MESSAGE_DATA = "data";
@@ -135,11 +130,10 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   /**
    * Creates a new message intent that references event data to retrieve from a mailbox.
    */
-  static Intent createMailboxIntent(Context context, String clientKey, String mailboxId) {
+  static Intent createMailboxIntent(Context context, String clientKey) {
     Intent intent = new Intent(MESSAGE_ACTION);
     intent.setClass(context, AndroidInvalidationService.class);
     intent.putExtra(MESSAGE_CLIENT_KEY, clientKey);
-    intent.putExtra(MESSAGE_MAILBOX_ID, mailboxId);
     return intent;
   }
 
@@ -347,12 +341,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     if (message != null) {
       proxy.getChannel().receiveMessage(message);
     } else {
-      String mailboxId = intent.getStringExtra(AndroidC2DMConstants.MAILBOX_ID_PARAM);
-      if (mailboxId == null) {
-        Log.e(TAG, "Missing mailbox ID on message");
-        return;
-      }
-      proxy.getChannel().retrieveMailbox(mailboxId);
+      proxy.getChannel().retrieveMailbox();
     }
   }
 

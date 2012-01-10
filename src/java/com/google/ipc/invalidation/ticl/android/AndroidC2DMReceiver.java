@@ -84,13 +84,7 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
         return;
       }
     } else {
-      String mailBoxId = intent.getStringExtra(AndroidC2DMConstants.MAILBOX_ID_PARAM);
-      if (mailBoxId != null) {
-        serviceIntent = AndroidInvalidationService.createMailboxIntent(this, clientKey, mailBoxId);
-      } else {
-        Log.e(TAG, "Intent did not contain a mailbox id or data");
-        return;
-      }
+      serviceIntent = AndroidInvalidationService.createMailboxIntent(this, clientKey);
     }
     context.startService(serviceIntent);
   }

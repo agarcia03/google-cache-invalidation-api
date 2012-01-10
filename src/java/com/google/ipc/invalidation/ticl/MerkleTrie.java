@@ -264,7 +264,7 @@ class MerkleTrie<LeafType> extends InternalBase implements DigestStore<LeafType>
 
   @Override
   public void add(Collection<LeafType> elements) {
-    // TODO: [perf] With a more complex implementation, we can consider doing one or both of:
+    // TODO: With a more complex implementation, we can consider doing one or both of:
     // (a) Identify the leaf nodes that get affected and call recomputePathFromBucket for those
     // buckets once each.
     // (b) If elements is greater than a certain fraction of the whole trie, just recompute the
@@ -289,7 +289,7 @@ class MerkleTrie<LeafType> extends InternalBase implements DigestStore<LeafType>
 
   @Override
   public void remove(Collection<LeafType> elements) {
-    // TODO: [perf] see comments in add(Collection) on how this could be made more efficient.
+    // TODO: see comments in add(Collection) on how this could be made more efficient.
     for (LeafType element : elements) {
       remove(element);
     }

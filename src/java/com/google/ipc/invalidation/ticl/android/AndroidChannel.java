@@ -29,7 +29,12 @@ import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.types.Callback;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessage;
+import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessageBatch;
+import com.google.protos.ipc.invalidation.AndroidChannel.MajorVersion;
 import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
+import com.google.protos.ipc.invalidation.ClientProtocol.Version;
 
 import android.accounts.AccountManager;
 import android.accounts.AccountManagerCallback;
@@ -59,6 +64,11 @@ class AndroidChannel implements NetworkChannel {
 
   private static final String TAG = "AndroidChannel";
 
+  /** The channel version expected by this channel implementation */
+  
+  static final Version CHANNEL_VERSION =
+      CommonProtos2.newVersion(MajorVersion.INITIAL.getNumber(), 0);
+
   /** Invalidation client proxy using the channel. */
   private final AndroidClientProxy proxy;
 
@@ -80,7 +90,7 @@ class AndroidChannel implements NetworkChannel {
   /** The authentication token that can be used in channel requests to the server */
   private String authToken;
 
-  // TODO: Add code to track time of last network activity (in either direction)
+  // TODO:  Add code to track time of last network activity (in either direction)
   // so inactive clients can be detected and periodically flushed from memory.
 
   /**
@@ -234,7 +244,7 @@ class AndroidChannel implements NetworkChannel {
         pendingMessages = new ArrayList<byte[]>();
       }
       Log.i(TAG, "Buffering outbound message: " + registrationId + ", " + authToken);
-      // TODO: Put some limit on maximum amount of requests buffered
+      // TODO:  Put some limit on maximum amount of requests buffered
       pendingMessages.add(outgoingMessage);
       return;
     }
@@ -251,9 +261,6 @@ class AndroidChannel implements NetworkChannel {
   }
 
   private void deliverOutboundMessage(final byte [] outgoingMessage) {
-    NetworkEndpointId networkEndpointId =
-      CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey(),
-          proxy.getService().getSenderId());
 
   Log.d(TAG, "Delivering outbound message:" + outgoingMessage.length + " bytes");
   StringBuilder target = new StringBuilder();
@@ -261,8 +268,7 @@ class AndroidChannel implements NetworkChannel {
   // Build base URL that targets the inbound request service with the encoded network endpoint id
   target.append(proxy.getService().getChannelUrl());
   target.append(AndroidHttpConstants.REQUEST_URL);
-  target.append(Base64.encodeToString(networkEndpointId.toByteArray(),
-      Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING));
+  target.append(getWebEncodedEndpointId());
 
   // Add query parameter indicating the service to authenticate against
   target.append('?');
@@ -310,11 +316,15 @@ class AndroidChannel implements NetworkChannel {
   }
 
   void receiveMessage(byte[] inboundMessage) {
-    callbackReceiver.accept(inboundMessage);
+    try {
+      AddressedAndroidMessage addrMessage = AddressedAndroidMessage.parseFrom(inboundMessage);
+      tryDeliverMessage(addrMessage);
+    } catch (InvalidProtocolBufferException exception) {
+      Log.e(TAG, "Failed decoding AddressedAndroidMessage as C2DM payload", exception);
+    }
   }
 
-  void retrieveMailbox(String mailboxId) {
-
+  void retrieveMailbox() {
     // It's highly unlikely that we'll start receiving events before we have an auth token, but
     // if that is the case then we cannot retrieve mailbox contents.   The events should be
     // redelivered later.
@@ -326,7 +336,7 @@ class AndroidChannel implements NetworkChannel {
     StringBuilder target = new StringBuilder();
     target.append(proxy.getService().getChannelUrl());
     target.append(AndroidHttpConstants.MAILBOX_URL);
-    target.append(mailboxId);
+    target.append(getWebEncodedEndpointId());
 
     // Add query parameter indicating the service to authenticate against
     target.append('?');
@@ -356,7 +366,7 @@ class AndroidChannel implements NetworkChannel {
       // Retrieve the content from the response and forward it to the message receiver
       InputStream contentStream = response.getContent();
       if (contentStream == null) {
-        Log.e(TAG, "Missing content for mailbox " + mailboxId);
+        Log.e(TAG, "Missing content for mailbox " + proxy.getClientKey());
         return;
       }
       try {
@@ -375,15 +385,42 @@ class AndroidChannel implements NetworkChannel {
       }
 
       // Send the mailbox content on to the message receiver
-      receiveMessage(mailboxData);
-
+      AddressedAndroidMessageBatch messageBatch =
+          AddressedAndroidMessageBatch.parseFrom(mailboxData);
+      for (AddressedAndroidMessage message : messageBatch.getAddressedMessageList()) {
+        tryDeliverMessage(message);
+      }
     } catch (HttpResponseException exception) {
       // TODO: Distinguish between key HTTP error codes and handle more specifically
       // where appropriate.
       Log.e(TAG, "Error from server on mailbox retrieval", exception);
+    } catch (InvalidProtocolBufferException exception) {
+      Log.e(TAG, "Error parsing mailbox contents", exception);
     } catch (IOException exception) {
       Log.e(TAG, "Error retrieving mailbox", exception);
     }
+  }
+
+  /**
+   * Delivers the payload of {@code addrMessage} to the {@code callbackReceiver} if the client key
+   * of the addressed message matches that of the {@link #proxy}.
+   */
+  private void tryDeliverMessage(AddressedAndroidMessage addrMessage) {
+    if (addrMessage.getClientKey().equals(proxy.getClientKey())) {
+      callbackReceiver.accept(addrMessage.getMessage().toByteArray());
+    } else {
+      Log.e(TAG, "Not delivering message due to key mismatch: " + addrMessage.getClientKey()
+          + " vs " + proxy.getClientKey());
+    }
+  }
+
+  /** Returns the web encoded version of the channel network endpoint ID for HTTP requests. */
+  private String getWebEncodedEndpointId() {
+    NetworkEndpointId networkEndpointId =
+      CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey(),
+          proxy.getService().getSenderId(), CHANNEL_VERSION);
+    return Base64.encodeToString(networkEndpointId.toByteArray(),
+        Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING);
   }
 
   @Override

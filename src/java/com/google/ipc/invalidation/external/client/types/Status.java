@@ -91,7 +91,7 @@ public final class Status {
 
   @Override
   public String toString() {
-    return String.format("Code: %s, %s", code, message);
+    return "Code: " + code + ", " + message;
   }
 
   @Override

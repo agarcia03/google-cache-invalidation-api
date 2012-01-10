@@ -74,63 +74,6 @@ import java.util.Random;
 public class InvalidationClientImpl extends InternalBase
     implements TestableInvalidationClient, ProtocolListener {
 
-  /** Configuration for client. */
-  public static class Config extends InternalBase {
-    /**
-     * Initial delay for a heartbeat after restarting from persistent state. We use this so that
-     * the application has a chance to respond to the reissueRegistrations call.
-     */
-    private static final int INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS = 2000;
-
-    /** The delay after which a network message sent to the server is considered timed out. */
-    public int networkTimeoutDelayMs = 60 * 1000;
-
-    /** Retry delay for a persistent write if it fails. */
-    public int writeRetryDelayMs = 10 * 1000;
-
-    /** Delay for sending heartbeats to the server. */
-    public int heartbeatIntervalMs = 20 * 60 * 1000;
-
-    /** Delay after which performance counters are sent to the server. */
-    public int perfCounterDelayMs = 6 * 60 * 60 * 1000;  // 6 hours.
-
-    /** The maximum exponential backoff factor used for network and persistence timeouts. */
-    public int maxExponentialBackoffFactor = 500;
-
-    /** Configuration for the protocol client to control batching etc. */
-    public ProtocolHandler.Config protocolHandlerConfig = new ProtocolHandler.Config();
-
-    /**
-     * Modifies {@code configParams} to contain the list of configuration parameter names and their
-     * values.
-     */
-    public void getConfigParams(List<SimplePair<String, Integer>> configParams) {
-      configParams.add(SimplePair.of("networkTimeoutDelayMs", networkTimeoutDelayMs));
-      configParams.add(SimplePair.of("writeRetryDelayMs", writeRetryDelayMs));
-      configParams.add(SimplePair.of("heartbeatIntervalMs", heartbeatIntervalMs));
-      configParams.add(SimplePair.of("perfCounterDelayMs", perfCounterDelayMs));
-      configParams.add(SimplePair.of("maxExponentialBackoffFactor", maxExponentialBackoffFactor));
-      protocolHandlerConfig.getConfigParams(configParams);
-    }
-
-    @Override
-    public void toCompactString(TextBuilder builder) {
-      builder.appendFormat("Network timeout delay: %s, write retry delay: %s, heartbeat: %s ",
-          networkTimeoutDelayMs, writeRetryDelayMs, heartbeatIntervalMs);
-      protocolHandlerConfig.toCompactString(builder);
-    }
-
-    /** Returns a configuration object with parameters set for unit tests. */
-    public static InvalidationClientImpl.Config createConfigForTest() {
-      InvalidationClientImpl.Config config = new InvalidationClientImpl.Config();
-      config.networkTimeoutDelayMs = 2 * 1000;
-      config.protocolHandlerConfig.batchingDelayMs = 200;
-      config.heartbeatIntervalMs = 5 * 1000;
-      config.writeRetryDelayMs = 500;
-      return config;
-    }
-  }
-
   /** The single key used to write all the Ticl state. */
   
   public static final String CLIENT_TOKEN_KEY = "ClientToken";
@@ -151,10 +94,7 @@ public class InvalidationClientImpl extends InternalBase
   private final CheckingInvalidationListener listener;
 
   /** Configuration for this instance. */
-  private final Config config;
-
-  /** The client type code as assigned by the notification system's backend. */
-  private final int clientType;
+  private final InvalidationClientConfig config;
 
   /** Application identifier for this client. */
   private final ApplicationClientIdP applicationClientId;
@@ -189,6 +129,9 @@ public class InvalidationClientImpl extends InternalBase
   /** Exponential backoff generator for persistence timeouts. */
   private final ExponentialBackoffDelayGenerator persistenceExponentialBackoff;
 
+  /** Exponential backoff generator for heartbeat timeouts if registrations are out of sync. */
+  private final ExponentialBackoffDelayGenerator regSyncHeartbeatExponentialBackoff;
+
   /** A smearer to make sure that delays are randomized a little bit. */
   private final Smearer smearer;
 
@@ -201,7 +144,7 @@ public class InvalidationClientImpl extends InternalBase
   private ByteString nonce = null;
 
   /** Whether we should send registrations to the server or not. */
-  // TODO: [bug 5055726] Make the server summary in the registration manager nullable
+  // TODO: Make the server summary in the registration manager nullable
   // and replace this variable with a test for whether it's null or not.
   private boolean shouldSendRegistrations;
 
@@ -235,7 +178,7 @@ public class InvalidationClientImpl extends InternalBase
    * @param listener application callback
    */
   public InvalidationClientImpl(final SystemResources resources, int clientType,
-      final byte[] clientName, Config config, String applicationName,
+      final byte[] clientName, InvalidationClientConfig config, String applicationName,
       InvalidationListener listener) {
     this.resources = resources;
     this.logger = resources.getLogger();
@@ -246,12 +189,14 @@ public class InvalidationClientImpl extends InternalBase
     this.tokenExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
         config.maxExponentialBackoffFactor * config.networkTimeoutDelayMs,
         config.networkTimeoutDelayMs);
+    this.regSyncHeartbeatExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
+        config.maxExponentialBackoffFactor * config.networkTimeoutDelayMs,
+        config.networkTimeoutDelayMs);
     this.persistenceExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
         config.maxExponentialBackoffFactor * config.writeRetryDelayMs, config.writeRetryDelayMs);
     this.smearer = new Smearer(random);
-    this.clientType = clientType;
     this.applicationClientId =
-        CommonProtos2.newApplicationClientIdP(ByteString.copyFrom(clientName));
+        CommonProtos2.newApplicationClientIdP(clientType, ByteString.copyFrom(clientName));
     this.listener = new CheckingInvalidationListener(listener, statistics, internalScheduler,
         resources.getListenerScheduler(), logger);
     this.operationScheduler = new OperationScheduler(logger, internalScheduler);
@@ -268,7 +213,7 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   
-  public Config getConfigForTest() {
+  public InvalidationClientConfig getConfigForTest() {
     return this.config;
   }
 
@@ -374,6 +319,7 @@ public class InvalidationClientImpl extends InternalBase
   public void start() {
     Preconditions.checkState(resources.isStarted(), "Resources must be started before starting " +
         "the Ticl");
+    Preconditions.checkState(!ticlState.isStarted(), "Already started");
 
     // Initialize the nonce so that we can maintain the invariant that exactly one of
     // "nonce" and "clientToken" is non-null.
@@ -422,7 +368,8 @@ public class InvalidationClientImpl extends InternalBase
       // Schedule an info message for the near future. We delay a little bit to allow the
       // application to reissue its registrations locally and avoid triggering registration
       // sync with the data center due to a hash mismatch.
-      internalScheduler.schedule(Config.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS, new Runnable() {
+      internalScheduler.schedule(InvalidationClientConfig.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS,
+          new Runnable() {
         @Override
         public void run() {
           sendInfoMessageToServer(false, true);
@@ -631,6 +578,12 @@ public class InvalidationClientImpl extends InternalBase
       shouldSendRegistrations = true;
       registrationManager.informServerRegistrationSummary(header.registrationSummary);
     }
+
+    // Check and reset the exponential back off for the reg sync-based heartbeats on receipt of a
+    // message.
+    if (registrationManager.isStateInSyncWithServer()) {
+      regSyncHeartbeatExponentialBackoff.reset();
+    }
   }
 
   @Override
@@ -801,8 +754,7 @@ public class InvalidationClientImpl extends InternalBase
         if (clientToken == null) {
           // Allocate a nonce and send a message requesting a new token.
           setNonce(ByteString.copyFromUtf8(Long.toString(internalScheduler.getCurrentTimeMs())));
-          protocolHandler.sendInitializeMessage(clientType, applicationClientId, nonce,
-              debugString);
+          protocolHandler.sendInitializeMessage(applicationClientId, nonce, debugString);
 
           // Schedule a timeout to retry if we don't receive a response.
           operationScheduler.schedule(timeoutTask);
@@ -831,8 +783,20 @@ public class InvalidationClientImpl extends InternalBase
     // Simply send an info message to ensure syncing happens.
     if (!registrationManager.isStateInSyncWithServer()) {
       logger.info("Registration state not in sync with server: %s", registrationManager);
-      sendInfoMessageToServer(false, true);
-      operationScheduler.schedule(timeoutTask);
+
+      // Send the info message for syncing while respecting exponential backoff.
+      internalScheduler.schedule(regSyncHeartbeatExponentialBackoff.getNextDelay(), new Runnable() {
+        @Override
+        public void run() {
+          if (registrationManager.isStateInSyncWithServer()) {
+            logger.info("Not sending message since state is now in sync");
+          } else {
+            // Schedule a timeout after sending the message to make sure that we get into sync.
+            sendInfoMessageToServer(false, true /* request server summary */);
+            operationScheduler.schedule(timeoutTask);
+          }
+        }
+      });
     }
   }
 

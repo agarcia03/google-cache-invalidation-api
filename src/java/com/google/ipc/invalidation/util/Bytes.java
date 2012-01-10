@@ -201,19 +201,24 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
 
   @Override
   public int compareTo(Bytes other) {
-    int minLength = Math.min(bytes.length, other.bytes.length);
+    return compareTo(bytes, other.bytes);
+  }
+
+  /** Same specs as Bytes.compareTo except for the byte[] type. */
+  public static int compareTo(byte[] first, byte[] second) {
+    int minLength = Math.min(first.length, second.length);
     for (int i = 0; i < minLength; i++) {
-      if (bytes[i] != other.bytes[i]) {
-        int firstByte = bytes[i] & 0xff;
-        int otherByte = other.bytes[i] & 0xff;
-        return firstByte - otherByte;
+      if (first[i] != second[i]) {
+        int firstByte = first[i] & 0xff;
+        int secondByte = second[i] & 0xff;
+        return firstByte - secondByte;
       }
     }
     // At this point, either both arrays are equal length or one of the arrays has ended.
     // * If the arrays are of equal length, they must be identical (else we would have
     //   returned the correct value above
     // * If they are not of equal length, the one with the longer length is greater.
-    return bytes.length - other.bytes.length;
+    return first.length - second.length;
   }
 
   /**

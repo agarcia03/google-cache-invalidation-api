@@ -95,8 +95,14 @@ public class CommonProtos2 {
     return ObjectIdP.newBuilder().setSource(source).setName(name).build();
   }
 
-  public static ApplicationClientIdP newApplicationClientIdP(ByteString clientName) {
+  public static ObjectIdP newObjectIdP(int source, byte[] name) {
+    return newObjectIdP(source, ByteString.copyFrom(name));
+  }
+
+  public static ApplicationClientIdP newApplicationClientIdP(int clientType,
+      ByteString clientName) {
     return ApplicationClientIdP.newBuilder()
+        .setClientType(clientType)
         .setClientName(clientName)
         .build();
   }
@@ -105,7 +111,8 @@ public class CommonProtos2 {
     return InvalidationP.newBuilder()
         .setObjectId(oid)
         .setIsKnownVersion(true)
-        .setVersion(version).build();
+        .setVersion(version)
+        .build();
   }
 
   public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
@@ -124,7 +131,8 @@ public class CommonProtos2 {
     return InvalidationP.newBuilder()
         .setObjectId(oid)
         .setIsKnownVersion(false)
-        .setVersion(version).build();
+        .setVersion(version)
+        .build();
   }
 
   public static RegistrationP newRegistrationP(ObjectIdP oid, boolean isReg) {
@@ -320,14 +328,21 @@ public class CommonProtos2 {
    * {@code clientKey}, and {@code senderId}.
    */
   public static NetworkEndpointId newAndroidEndpointId(String registrationId, String clientKey,
-      String senderId) {
-    AndroidChannel.EndpointId androidEndpointId = AndroidChannel.EndpointId.newBuilder()
+      String senderId, Version channelVersion) {
+    AndroidChannel.EndpointId.Builder endpointBuilder = AndroidChannel.EndpointId.newBuilder()
         .setC2DmRegistrationId(registrationId)
         .setClientKey(clientKey)
-        .setSenderId(senderId)
-        .setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION)
-        .build();
-    return newNetworkEndpointId(NetworkAddress.ANDROID, androidEndpointId.toByteString());
+        .setSenderId(senderId);
+
+    // The protocol version field was set in the INITIAL channel implementation but subsequent
+    // versions only set the channel version.
+    if (channelVersion == null) {
+      // TODO:  Remove once unversioned clients are no longer supported
+      endpointBuilder.setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION);
+    } else {
+      endpointBuilder.setChannelVersion(channelVersion);
+    }
+    return newNetworkEndpointId(NetworkAddress.ANDROID, endpointBuilder.build().toByteString());
   }
 
   public static NetworkEndpointId newNetworkEndpointId(NetworkAddress networkAddr,

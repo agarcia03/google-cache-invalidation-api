@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.util;
 
-
 /**
  * A set of utilities needed to format strings by the external class implementations.
  *

@@ -41,7 +41,24 @@ class BytesFormatter {
     // Initialize the array with the Octal string values so that we do not have
     // to do String.format for every byte during runtime.
     for (int i = 0; i < CHAR_OCTAL_STRINGS1.length; i++) {
-      String value = String.format("\\%03o", i);
+      // Unsophisticated way to get an octal string padded to 3 characters.
+      String intAsStr = Integer.toOctalString(i);
+      switch (intAsStr.length()) {
+        case 3:
+          break;
+        case 2:
+          intAsStr = "0" + intAsStr;
+          break;
+        case 1:
+          intAsStr = "00" + intAsStr;
+          break;
+        default:
+          throw new RuntimeException("Bad integer value: " + intAsStr);
+      }
+      if (intAsStr.length() != 3) {
+        throw new RuntimeException("Bad padding: " + intAsStr);
+      }
+      String value = '\\' + intAsStr;
       CHAR_OCTAL_STRINGS1[i] = value.charAt(1);
       CHAR_OCTAL_STRINGS2[i] = value.charAt(2);
       CHAR_OCTAL_STRINGS3[i] = value.charAt(3);

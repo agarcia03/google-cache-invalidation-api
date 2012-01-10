@@ -23,14 +23,14 @@ import android.content.Intent;
 
 /**
  * Service base class that receives events for C2DM registrations and messages.  Subclasses
- * should override the {@code onXxx} event handler methods to add appropriate logic for
+ * should override the {@code onYYY} event handler methods to add appropriate logic for
  * registration or message handling.
  */
 public abstract class BaseC2DMReceiver extends IntentService {
 
   /**
    * If {@code true} indicates that the wakelock associated with messages should be automatically
-   * released after the {onXxx} handler has been called. Otherwise, the subclass is responsible for
+   * released after the {onYYY} handler has been called. Otherwise, the subclass is responsible for
    * releasing the lock (if any).
    */
   private final boolean automaticallyReleaseWakelock;
@@ -40,7 +40,7 @@ public abstract class BaseC2DMReceiver extends IntentService {
    *
    * @param name the name for the receiver service.  Used only for debug logging.
    * @param automaticallyReleaseWakeLock if {@code true} indicates that the wakelock associated with
-   *        messages should be automatically released after the {onXxx} handler has been called.
+   *        messages should be automatically released after the {onYYY} handler has been called.
    *        Otherwise, the subclass is responsible for releasing the lock (if any).
    */
   protected BaseC2DMReceiver(String name, boolean automaticallyReleaseWakeLock) {
@@ -51,7 +51,7 @@ public abstract class BaseC2DMReceiver extends IntentService {
   @Override
   protected void onHandleIntent(Intent intent) {
     try {
-      // Examine the action and raise the appropriate onXxx event
+      // Examine the action and raise the appropriate onYYY event
       if (intent.getAction().equals(C2DMessaging.ACTION_MESSAGE)) {
         onMessage(getApplicationContext(), intent);
       } else if (intent.getAction().equals(C2DMessaging.ACTION_REGISTRATION_ERROR)) {

@@ -17,7 +17,9 @@
 package com.google.ipc.invalidation.external.client.types;
 
 import com.google.common.base.Preconditions;
+
 import java.util.Arrays;
+
 
 /**
  * A class to represent an invalidation for a given object/version and an optional payload.
@@ -104,6 +106,6 @@ public final class Invalidation {
 
   @Override
   public String toString() {
-    return String.format("Inv: <%s, %d, %s>", objectId, version, BytesFormatter.toString(payload));
+    return "Inv: <" + objectId + ", " + version + ", " + BytesFormatter.toString(payload) + ">";
   }
 }
