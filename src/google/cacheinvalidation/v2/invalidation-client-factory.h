@@ -41,7 +41,7 @@ using INVALIDATION_STL_NAMESPACE::string;
  *       debugging/monitoring)
  *   listener callback object for invalidation events
  */
-static InvalidationClient* CreateInvalidationClient(
+InvalidationClient* CreateInvalidationClient(
     SystemResources* resources,
     int client_type,
     const string& client_name,
@@ -61,7 +61,7 @@ static InvalidationClient* CreateInvalidationClient(
  *       debugging/monitoring)
  *   listener callback object for invalidation events
  */
-static InvalidationClient* CreateInvalidationClientForTest(
+InvalidationClient* CreateInvalidationClientForTest(
     SystemResources* resources,
     int client_type,
     const string& client_name,
