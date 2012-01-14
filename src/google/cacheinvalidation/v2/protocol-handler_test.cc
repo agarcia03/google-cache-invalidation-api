@@ -23,6 +23,7 @@
 #include "google/cacheinvalidation/v2/test/test-logger.h"
 #include "google/cacheinvalidation/v2/throttle.h"
 #include "google/cacheinvalidation/v2/ticl-message-validator.h"
+#include "google/cacheinvalidation/v2/types.h"
 #include "google/cacheinvalidation/v2/types.pb.h"
 
 namespace invalidation {
