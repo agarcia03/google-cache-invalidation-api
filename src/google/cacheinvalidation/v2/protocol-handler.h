@@ -149,7 +149,7 @@ class ProtocolListener {
     */
   virtual void HandleErrorMessage(
       const ServerMessageHeader& header,
-      const ErrorMessage::Code code,
+      ErrorMessage::Code code,
       const string& description) = 0;
 
   /* Stores a summary of the current desired registrations. */

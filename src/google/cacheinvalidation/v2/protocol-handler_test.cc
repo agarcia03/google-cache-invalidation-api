@@ -108,7 +108,7 @@ class MockProtocolListener : public ProtocolListener {
 
   MOCK_METHOD3(
       HandleErrorMessage,
-      void(const ServerMessageHeader&, const ErrorMessage::Code,
+      void(const ServerMessageHeader&, ErrorMessage::Code,
            const string&));  // NOLINT
 
   MOCK_METHOD1(GetRegistrationSummary, void(RegistrationSummary*));  // NOLINT
