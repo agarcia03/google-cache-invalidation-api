@@ -151,11 +151,13 @@ class RegistrationManager extends InternalBase {
             registrationStatus.getRegistration().getOpType() == RegistrationP.OpType.REGISTER;
         boolean discrepancyExists = isRegister ^ inRequestedMap;
         if (discrepancyExists) {
-          // Just remove it and issue registration failure. Caller must issue reg failure
-          // to the app so that we find out the actual state of the registration.
+          // Just remove the registration and issue registration failure.
+          // Caller must issue registration failure to the app so that we find out the actual state
+          // of the registration.
           desiredRegistrations.remove(objectIdProto);
           statistics.recordError(ClientErrorType.REGISTRATION_DISCREPANCY);
-          logger.info("Discrepancy detected: %s, %s.Removing %s from requested",
+          logger.info("Ticl discrepancy detected: registered = %s, requested = %s. " +
+              "Removing %s from requested",
               isRegister, inRequestedMap, objectIdProto);
           isSuccess = false;
         }
@@ -189,12 +191,6 @@ class RegistrationManager extends InternalBase {
   void informServerRegistrationSummary(RegistrationSummary regSummary) {
     if (regSummary != null) {
       this.lastKnownServerSummary = regSummary;
-      if (this.isStateInSyncWithServer()) {
-        logger.fine("The registration summary matches %s", this.lastKnownServerSummary);
-      } else {
-        logger.fine("The registration summary mismatches: server %s, local %s",
-            this.lastKnownServerSummary, getRegistrationSummary());
-      }
     }
   }
 

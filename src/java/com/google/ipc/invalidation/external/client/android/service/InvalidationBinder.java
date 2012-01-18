@@ -17,6 +17,7 @@
 package com.google.ipc.invalidation.external.client.android.service;
 
 import android.os.IBinder;
+import android.util.Log;
 
 /**
  * A service binder implementation for connecting to the {@link InvalidationService}.
@@ -24,11 +25,34 @@ import android.os.IBinder;
  */
 public class InvalidationBinder extends ServiceBinder<InvalidationService> {
 
+  private static final String TAG = "InvalidationBinder";
+
+  /**
+   * Contains the name of the service implementation class that will be explicit bound to or
+   * {@code null} if implicitly binding
+   */
+  private static String serviceClassName;
+
+  static {
+    try {
+      // If the expected service class if found in the current application, use an explicit binding
+      // otherwise an implicit, intent-based binding will be used.   The latter capability is
+      // generally only to support mock and test service bindings.
+      Class<?> serviceClass =
+          Class.forName("com.google.ipc.invalidation.ticl.android.AndroidInvalidationService");
+      serviceClassName = serviceClass.getName();
+    } catch (ClassNotFoundException e) {
+
+      serviceClassName = null;
+    }
+    Log.i(TAG, "Invalidation service class name:" + serviceClassName);
+  }
+
   /**
    * Constructs a new InvalidationBinder that connects to the invalidation service.
    */
   public InvalidationBinder() {
-    super(Request.SERVICE_INTENT, InvalidationService.class);
+    super(Request.SERVICE_INTENT, InvalidationService.class, serviceClassName);
   }
 
   @Override

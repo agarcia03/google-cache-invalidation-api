@@ -90,7 +90,7 @@ public class InvalidationClientConfig extends InternalBase {
     config.protocolHandlerConfig.batchingDelayMs = 200;
     config.heartbeatIntervalMs = 5 * 1000;
     config.writeRetryDelayMs = 500;
-    config.protocolHandlerConfig.rateLimits.clear();  // no rate limits for unit tests
+    config.protocolHandlerConfig = ProtocolHandler.Config.createConfigForTest();
     return config;
   }
 }

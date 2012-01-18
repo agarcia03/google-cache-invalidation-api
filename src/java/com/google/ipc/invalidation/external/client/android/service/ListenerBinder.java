@@ -29,8 +29,8 @@ public class ListenerBinder extends ServiceBinder<ListenerService> {
    * Constructs a new ListenerBinder that connects to the ListenerService bound by the provided
    * intent. The intent should contain the component or class name of the target listener.
    */
-  public ListenerBinder(Intent listenerIntent) {
-    super(listenerIntent, ListenerService.class);
+  public ListenerBinder(Intent listenerIntent, String listenerClassName) {
+    super(listenerIntent, ListenerService.class, listenerClassName);
   }
 
   @Override

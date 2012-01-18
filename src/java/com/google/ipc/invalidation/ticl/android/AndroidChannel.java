@@ -16,19 +16,11 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
-import com.google.api.client.http.ByteArrayContent;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestFactory;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpResponse;
-import com.google.api.client.http.HttpResponseException;
-import com.google.api.client.http.HttpTransport;
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources;
-import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.types.Callback;
+import com.google.ipc.invalidation.ticl.TestableNetworkChannel;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessage;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessageBatch;
@@ -41,12 +33,22 @@ import android.accounts.AccountManagerCallback;
 import android.accounts.AccountManagerFuture;
 import android.accounts.AuthenticatorException;
 import android.accounts.OperationCanceledException;
+import android.content.Context;
+import android.net.http.AndroidHttpClient;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Base64;
 import android.util.Log;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
+
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -60,7 +62,7 @@ import java.util.List;
  * outbound messages and send them when the registration ID is eventually assigned.
  *
  */
-class AndroidChannel implements NetworkChannel {
+class AndroidChannel implements TestableNetworkChannel {
 
   private static final String TAG = "AndroidChannel";
 
@@ -78,8 +80,8 @@ class AndroidChannel implements NetworkChannel {
   /** Status receiver for this channel */
   private Callback<Boolean> statusReceiver;
 
-  /** Request factory for outbound HTTP calls. */
-  private final HttpRequestFactory requestFactory;
+  /** Client to use for outbound HTTP calls. */
+  private final HttpClient httpClient;
 
   /** System resources for this channel */
   private SystemResources resources;
@@ -106,14 +108,22 @@ class AndroidChannel implements NetworkChannel {
    static boolean disableAccountManager = false;
 
   /**
+   * Returns the default HTTP client to use for requests from the channel based upon its execution
+   * context.  The format of the User-Agent string is "<application-pkg>(<android-release>)".
+   */
+  static HttpClient getDefaultHttpClient(Context context) {
+    return AndroidHttpClient.newInstance(
+       context.getApplicationInfo().className + "(" + Build.VERSION.RELEASE + ")");
+  }
+
+  /**
    * Creates a new AndroidChannel.
    *
    * @param proxy the client proxy associated with the channel
-   * @param transport the HTTP transport to use to communicate with the Android invalidation
-   *        frontend
+   * @param httpClient the HTTP client to use to communicate with the Android invalidation frontend
    * @param c2dmRegistrationId the c2dm registration ID for the service
    */
-  AndroidChannel(AndroidClientProxy proxy, HttpTransport transport, String c2dmRegistrationId) {
+  AndroidChannel(AndroidClientProxy proxy, HttpClient httpClient, String c2dmRegistrationId) {
     this.proxy = Preconditions.checkNotNull(proxy);
 
     // Store the current registration ID into the channel instance (may be null)
@@ -123,14 +133,7 @@ class AndroidChannel implements NetworkChannel {
     // at new client creation time.
     requestAuthToken();
 
-    // Create a request factory for the provided transport that will automatically set the
-    // authentication token for all requests.
-    requestFactory = transport.createRequestFactory(new HttpRequestInitializer() {
-      @Override
-      public void initialize(HttpRequest request) {
-        request.getHeaders().setAuthorization("GoogleLogin auth=" + authToken);
-      }
-    });
+    this.httpClient = httpClient;
   }
 
   /** Returns the C2DM registration ID associated with the channel */
@@ -262,33 +265,37 @@ class AndroidChannel implements NetworkChannel {
 
   private void deliverOutboundMessage(final byte [] outgoingMessage) {
 
-  Log.d(TAG, "Delivering outbound message:" + outgoingMessage.length + " bytes");
-  StringBuilder target = new StringBuilder();
+    Log.d(TAG, "Delivering outbound message:" + outgoingMessage.length + " bytes");
+    StringBuilder target = new StringBuilder();
 
-  // Build base URL that targets the inbound request service with the encoded network endpoint id
-  target.append(proxy.getService().getChannelUrl());
-  target.append(AndroidHttpConstants.REQUEST_URL);
-  target.append(getWebEncodedEndpointId());
+    // Build base URL that targets the inbound request service with the encoded network endpoint id
+    target.append(proxy.getService().getChannelUrl());
+    target.append(AndroidHttpConstants.REQUEST_URL);
+    target.append(getWebEncodedEndpointId());
 
-  // Add query parameter indicating the service to authenticate against
-  target.append('?');
-  target.append(AndroidHttpConstants.SERVICE_PARAMETER);
-  target.append('=');
-  target.append(proxy.getAuthType());
-  GenericUrl url = new GenericUrl(target.toString());
+    // Add query parameter indicating the service to authenticate against
+    target.append('?');
+    target.append(AndroidHttpConstants.SERVICE_PARAMETER);
+    target.append('=');
+    target.append(proxy.getAuthType());
 
-  ByteArrayContent content =
-      new ByteArrayContent(AndroidHttpConstants.PROTO_CONTENT_TYPE, outgoingMessage);
-  try {
-    HttpRequest request = requestFactory.buildPostRequest(url, content);
-    request.execute();
-  } catch (HttpResponseException exception) {
-    // TODO: Distinguish between key HTTP error codes and handle more specifically
-    // where appropriate.
-    Log.e(TAG, "Error from server on request", exception);
-  } catch (IOException exception) {
-    Log.e(TAG, "Error writing request", exception);
-  }
+    // Construct entity containing the outbound protobuf msg
+    ByteArrayEntity contentEntity = new ByteArrayEntity(outgoingMessage);
+    contentEntity.setContentType(AndroidHttpConstants.PROTO_CONTENT_TYPE);
+
+    // Construct POST request with the entity content and appropriate authorization
+    HttpPost httpPost = new HttpPost(target.toString());
+    httpPost.setEntity(contentEntity);
+    httpPost.setHeader("Authorization", "GoogleLogin auth=" + authToken);
+    try {
+      HttpResponse response = httpClient.execute(httpPost);
+    } catch (ClientProtocolException exception) {
+      // TODO: Distinguish between key HTTP error codes and handle more specifically
+      // where appropriate.
+      Log.e(TAG, "Error from server on request", exception);
+    } catch (IOException exception) {
+      Log.e(TAG, "Error writing request", exception);
+    }
   }
 
   /**
@@ -343,54 +350,33 @@ class AndroidChannel implements NetworkChannel {
     target.append(AndroidHttpConstants.SERVICE_PARAMETER);
     target.append('=');
     target.append(proxy.getAuthType());
-    GenericUrl url = new GenericUrl(target.toString());
     try {
-      HttpRequest request = requestFactory.buildPostRequest(url, null);
-      HttpResponse response = request.execute();
-
-      // Retrieve and validate the Content-Length header
-      String contentLengthHeader = response.getHeaders().getContentLength();
-      int contentLength = 0;
-      try {
-        contentLength = Integer.parseInt(contentLengthHeader);
-      } catch (NumberFormatException exception) {
-        Log.e(TAG, "Invalid mailbox Content-Length:" + contentLengthHeader);
+      HttpPost httpPost = new HttpPost(target.toString());
+      httpPost.setHeader("Authorization", "GoogleLogin auth=" + authToken);
+      HttpResponse response = httpClient.execute(httpPost);
+      HttpEntity responseEntity = response.getEntity();
+      if (responseEntity == null) {
+        Log.e(TAG, "Missing response content");
         return;
       }
-      if (contentLength <= 0) {
+      long contentLength = responseEntity.getContentLength();
+      if ((contentLength <= 0) || (contentLength > Integer.MAX_VALUE)) {
         Log.e(TAG, "Invalid mailbox Content-Length value:" + contentLength);
         return;
       }
-      byte[] mailboxData = new byte[contentLength];
 
-      // Retrieve the content from the response and forward it to the message receiver
-      InputStream contentStream = response.getContent();
-      if (contentStream == null) {
-        Log.e(TAG, "Missing content for mailbox " + proxy.getClientKey());
-        return;
-      }
-      try {
-        int bytesRead = 0;
-        while (bytesRead < contentLength) {
-          int numRead = contentStream.read(mailboxData, bytesRead, contentLength - bytesRead);
-          if (numRead < 0) {
-            Log.e(TAG, "Premature end of data: read " + bytesRead + ", expected " + contentLength);
-            return;
-          }
-          bytesRead += numRead;
-        }
-      } catch (IOException exception) {
-        Log.e(TAG, "Error reading mailbox data", exception);
-        return;
-      }
-
-      // Send the mailbox content on to the message receiver
+      // Read the mailbox data into a local byte array and parse it
+      ByteArrayOutputStream baos = new ByteArrayOutputStream((int) contentLength);
+      responseEntity.writeTo(baos);
+      byte[] mailboxData =  baos.toByteArray();
       AddressedAndroidMessageBatch messageBatch =
           AddressedAndroidMessageBatch.parseFrom(mailboxData);
+
+      // Send the mailbox content on to the message receiver
       for (AddressedAndroidMessage message : messageBatch.getAddressedMessageList()) {
         tryDeliverMessage(message);
       }
-    } catch (HttpResponseException exception) {
+    } catch (ClientProtocolException exception) {
       // TODO: Distinguish between key HTTP error codes and handle more specifically
       // where appropriate.
       Log.e(TAG, "Error from server on mailbox retrieval", exception);
@@ -431,5 +417,11 @@ class AndroidChannel implements NetworkChannel {
   @Override
   public void setSystemResources(SystemResources resources) {
     this.resources = resources;
+  }
+
+  @Override
+  public NetworkEndpointId getNetworkIdForTest() {
+    // TODO: implement.
+    throw new UnsupportedOperationException();
   }
 }

@@ -131,7 +131,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
       ListenerBinder binder = null;
       InvalidationTestService theService = InvalidationTestService.this;
       try {
-        binder = new ListenerBinder(state.eventIntent);
+        binder = new ListenerBinder(state.eventIntent, InvalidationTestListener.class.getName());
         ListenerService service = binder.bind(theService);
         theService.sendEvent(service, new Event(eventBundle));
       } finally {

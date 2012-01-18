@@ -28,6 +28,7 @@ import com.google.ipc.invalidation.common.TiclMessageValidator2;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.SystemResources.Storage;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
@@ -49,6 +50,7 @@ import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
 import com.google.protos.ipc.invalidation.Client.AckHandleP;
 import com.google.protos.ipc.invalidation.Client.PersistentTiclState;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
@@ -947,5 +949,15 @@ public class InvalidationClientImpl extends InternalBase
   public void toCompactString(TextBuilder builder) {
     builder.appendFormat("Client: %s, %s", applicationClientId,
         CommonProtoStrings2.toLazyCompactString(clientToken));
+  }
+
+  @Override
+  public NetworkEndpointId getNetworkIdForTest() {
+    NetworkChannel network = resources.getNetwork();
+    if (!(network instanceof TestableNetworkChannel)) {
+      throw new UnsupportedOperationException(
+          "getNetworkIdForTest requires a TestableNetworkChannel, not: " + network.getClass());
+    }
+    return ((TestableNetworkChannel) network).getNetworkIdForTest();
   }
 }

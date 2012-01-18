@@ -182,6 +182,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    *
    * @param objectId object id.
    */
+  @Override
   public void register(ObjectId objectId) {
     Request request =
         Request.newBuilder(Action.REGISTER).setClientKey(clientKey).setObjectId(objectId).build();
@@ -193,6 +194,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    *
    * @param objectIds object id collection.
    */
+  @Override
   public void register(Collection<ObjectId> objectIds) {
     Request request =
         Request.newBuilder(Action.REGISTER).setClientKey(clientKey).setObjectIds(objectIds).build();
@@ -204,6 +206,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    *
    * @param objectId object id.
    */
+  @Override
   public void unregister(ObjectId objectId) {
     Request request =
         Request.newBuilder(Action.UNREGISTER).setClientKey(clientKey).setObjectId(objectId).build();
@@ -215,6 +218,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    *
    * @param objectIds object id collection.
    */
+  @Override
   public void unregister(Collection<ObjectId> objectIds) {
     Request request = Request
         .newBuilder(Action.UNREGISTER)
@@ -317,8 +321,9 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
 
       // Start the service if not currently bound. The invalidation service
       // is responsible for stopping itself when no work remains to be done.
-      if (context.startService(Request.SERVICE_INTENT) == null) {
-        Log.e(TAG, "Unable to start invalidation service");
+      Intent serviceIntent = serviceBinder.getIntent(context);
+      if (context.startService(serviceIntent) == null) {
+        Log.e(TAG, "Unable to start invalidation service:" + serviceIntent);
         throw new IllegalStateException("Unable to start invalidation service");
       }
     }

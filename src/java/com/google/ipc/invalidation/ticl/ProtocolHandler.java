@@ -187,6 +187,14 @@ class ProtocolHandler {
       rateLimits.add(new RateLimit(60 * 1000, 6));  // six messages per minute
     }
 
+    /** Returns a configuration object with parameters set for unit tests. */
+    public static Config createConfigForTest() {
+      Config config = new Config();
+      config.rateLimits.clear();
+      config.batchingDelayMs = 200;
+      return config;
+    }
+
     /**
      * Modifies {@code configParams} to contain the list of configuration parameter names and their
      * values.

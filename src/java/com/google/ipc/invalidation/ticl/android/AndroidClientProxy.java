@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
-import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationClientFactory;
@@ -33,8 +32,6 @@ import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.protos.ipc.invalidation.AndroidState.ClientMetadata;
 
 import android.accounts.Account;
-import android.content.ComponentName;
-import android.content.Intent;
 import android.util.Log;
 
 import java.util.Collection;
@@ -55,102 +52,73 @@ class AndroidClientProxy implements AndroidInvalidationClient {
     private static final String TAG = "AndroidListenerProxy";
 
     /** Binder that can be use to bind back to event listener service */
-     final ListenerBinder binder;
+    
+    final ListenerBinder binder;
 
     /**
      * Creates a new listener reverse proxy.
-     *
-     * @param eventIntent the event listener intent for the associated client.
      */
-    private AndroidListenerProxy(Intent eventIntent) {
-      this.binder = new ListenerBinder(eventIntent);
+    private AndroidListenerProxy() {
+      this.binder = new ListenerBinder(Event.LISTENER_INTENT, metadata.getListenerClass());
     }
 
     @Override
     public void ready(InvalidationClient client) {
-      Event event = Event
-          .newBuilder(Event.Action.READY)
-          .setClientKey(clientKey)
-          .build();
+      Event event = Event.newBuilder(Event.Action.READY).setClientKey(clientKey).build();
       sendEvent(event);
     }
 
     @Override
     public void informRegistrationStatus(
         InvalidationClient client, ObjectId objectId, RegistrationState regState) {
-      Event event = Event
-          .newBuilder(Event.Action.INFORM_REGISTRATION_STATUS)
-          .setClientKey(clientKey)
-          .setObjectId(objectId)
-          .setRegistrationState(regState)
-          .build();
+      Event event = Event.newBuilder(Event.Action.INFORM_REGISTRATION_STATUS)
+          .setClientKey(clientKey).setObjectId(objectId).setRegistrationState(regState).build();
       sendEvent(event);
     }
 
     @Override
     public void informRegistrationFailure(
         InvalidationClient client, ObjectId objectId, boolean isTransient, String errorMessage) {
-      Event event = Event
-          .newBuilder(Event.Action.INFORM_REGISTRATION_FAILURE)
-          .setClientKey(clientKey)
-          .setObjectId(objectId)
-          .setIsTransient(isTransient)
-          .setError(errorMessage)
-          .build();
+      Event event = Event.newBuilder(Event.Action.INFORM_REGISTRATION_FAILURE)
+          .setClientKey(clientKey).setObjectId(objectId).setIsTransient(isTransient)
+          .setError(errorMessage).build();
       sendEvent(event);
     }
 
     @Override
     public void invalidate(
         InvalidationClient client, Invalidation invalidation, AckHandle ackHandle) {
-      Event event = Event
-          .newBuilder(Event.Action.INVALIDATE)
-          .setClientKey(clientKey)
-          .setInvalidation(invalidation)
-          .setAckHandle(ackHandle)
-          .build();
+      Event event = Event.newBuilder(Event.Action.INVALIDATE)
+          .setClientKey(clientKey).setInvalidation(invalidation).setAckHandle(ackHandle).build();
       sendEvent(event);
     }
 
     @Override
     public void invalidateAll(InvalidationClient client, AckHandle ackHandle) {
-      Event event = Event
-          .newBuilder(Event.Action.INVALIDATE_ALL)
-          .setClientKey(clientKey)
-          .setAckHandle(ackHandle)
-          .build();
+      Event event = Event.newBuilder(Event.Action.INVALIDATE_ALL)
+          .setClientKey(clientKey).setAckHandle(ackHandle).build();
       sendEvent(event);
     }
 
     @Override
     public void invalidateUnknownVersion(
         InvalidationClient client, ObjectId objectId, AckHandle ackHandle) {
-      Event event = Event
-          .newBuilder(Event.Action.INVALIDATE_UNKNOWN)
-          .setClientKey(clientKey)
-          .setObjectId(objectId)
-          .setAckHandle(ackHandle)
-          .build();
+      Event event = Event.newBuilder(Event.Action.INVALIDATE_UNKNOWN)
+          .setClientKey(clientKey).setObjectId(objectId).setAckHandle(ackHandle).build();
       sendEvent(event);
     }
 
     @Override
     public void reissueRegistrations(InvalidationClient client, byte[] prefix, int prefixLength) {
-      Event event = Event
-          .newBuilder(Event.Action.REISSUE_REGISTRATIONS)
-          .setClientKey(clientKey)
-          .setPrefix(prefix, prefixLength)
-          .build();
+      Event event = Event.newBuilder(Event.Action.REISSUE_REGISTRATIONS)
+          .setClientKey(clientKey).setPrefix(prefix, prefixLength).build();
       sendEvent(event);
     }
 
     @Override
     public void informError(InvalidationClient client, ErrorInfo errorInfo) {
-      Event event = Event
-          .newBuilder(Event.Action.INFORM_ERROR)
-          .setClientKey(clientKey)
-          .setErrorInfo(errorInfo)
-          .build();
+      Event event = Event.newBuilder(Event.Action.INFORM_ERROR)
+          .setClientKey(clientKey).setErrorInfo(errorInfo).build();
       sendEvent(event);
     }
 
@@ -162,14 +130,13 @@ class AndroidClientProxy implements AndroidInvalidationClient {
     }
 
     /**
-     * Send event messages to application clients and provides common processing
-     * of the response.
+     * Send event messages to application clients and provides common processing of the response.
      */
     private void sendEvent(Event event) {
       ListenerService listenerService = binder.bind(service);
       if (listenerService == null) {
         // If unable to bind to the client listener service, then log a warning
-        // and exit.  It's possible that the application has been uninstalled.
+        // and exit. It's possible that the application has been uninstalled.
         Log.w(TAG, "Cannot bind using " + binder + " to send event:" + event);
         return;
       }
@@ -216,18 +183,14 @@ class AndroidClientProxy implements AndroidInvalidationClient {
     this.service = service;
     this.metadata = storage.getClientMetadata();
     this.clientKey = metadata.getClientKey();
+    this.listener = new AndroidListenerProxy();
 
-    String applicationPkg = metadata.getListenerPkg();
-    Intent eventIntent = new Intent();
-    eventIntent.setComponent(
-        new ComponentName(applicationPkg, metadata.getListenerClass()));
-    this.listener = new AndroidListenerProxy(eventIntent);
-
-    this.channel = new AndroidChannel(this, new NetHttpTransport(), c2dmRegistrationId);
+    this.channel =
+        new AndroidChannel(this, AndroidChannel.getDefaultHttpClient(service), c2dmRegistrationId);
     this.resources =
         AndroidResourcesFactory.createResourcesBuilder(clientKey, channel, storage).build();
-    this.delegate = createClient(
-        resources, metadata.getClientType(), clientKey.getBytes(), applicationPkg, listener);
+    this.delegate = createClient(resources, metadata.getClientType(), clientKey.getBytes(),
+        metadata.getListenerPkg(), listener);
   }
 
   @Override
@@ -285,7 +248,7 @@ class AndroidClientProxy implements AndroidInvalidationClient {
     delegate.stop();
     started = false;
 
-    // Remove any cached instance for this client.  Any subsequent create or resume operations
+    // Remove any cached instance for this client. Any subsequent create or resume operations
     // will then have a clean, unstarted instance.
     service.getClientManager().remove(clientKey);
   }
@@ -319,18 +282,19 @@ class AndroidClientProxy implements AndroidInvalidationClient {
    * Called when the client proxy is being removed from memory and will no longer be in use.
    * Releases any resources associated with the client proxy.
    */
+  @Override
   public void release() {
     listener.release();
   }
 
   /**
-   * Creates a new InvalidationClient instance that the proxy will delegate requests to and
-   * listen for events from.
+   * Creates a new InvalidationClient instance that the proxy will delegate requests to and listen
+   * for events from.
    */
   // Overridden by tests to inject mock clients or for listener interception
   
-  InvalidationClient createClient(SystemResources resources, int clientType,
-      byte[] clientName, String applicationName, InvalidationListener listener) {
+  InvalidationClient createClient(SystemResources resources, int clientType, byte[] clientName,
+      String applicationName, InvalidationListener listener) {
     return InvalidationClientFactory.create(
         resources, clientType, clientName, applicationName, listener);
   }

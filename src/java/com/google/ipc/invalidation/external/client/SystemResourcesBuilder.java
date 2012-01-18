@@ -40,7 +40,7 @@ public class SystemResourcesBuilder {
   /** If the build method has been called on this builder. */
   private boolean sealed;
 
-  /** See specs at {@code InvalidationClientFactory.createDefaultResourcesBuilder}. */
+  /** See specs at {@code DefaultResourcesFactory.createDefaultResourcesBuilder}. */
   public SystemResourcesBuilder(Logger logger, Scheduler internalScheduler,
       Scheduler listenerScheduler, NetworkChannel network, Storage storage) {
     this.logger = logger;

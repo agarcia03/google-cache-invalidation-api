@@ -46,10 +46,13 @@ public abstract class ServiceBinder<BoundService> {
   private static final int CONNECTION_TIMEOUT = 60 * 1000;
 
   /** Intent that can be used to bind to the service */
-  private Intent serviceIntent;
+  private final Intent serviceIntent;
 
   /** Class that represents the bound service interface */
-  private Class<BoundService> serviceClass;
+  private final Class<BoundService> serviceClass;
+
+  /** Name of the component that implements the service interface. */
+  private final String componentClassName;
 
   /** Latch used to wait for connection */
   private CountDownLatch connectLatch;
@@ -68,7 +71,7 @@ public abstract class ServiceBinder<BoundService> {
 
     @Override
     public void onServiceConnected(ComponentName serviceName, IBinder binder) {
-      Log.i(TAG, "onServiceConnected:" + serviceClass);
+      Log.i(TAG, "onServiceConnected:" + serviceName);
       Preconditions.checkNotNull(connectLatch, "No connection in progress");
       serviceInstance = asInterface(binder);
       connectLatch.countDown();
@@ -88,15 +91,25 @@ public abstract class ServiceBinder<BoundService> {
    *
    * @param serviceIntent intent that can be used to connect to the bound service.
    * @param serviceClass interface exposed by the bound service.
+   * @param componentClassName name of component implementing the bound service. If non-null, then
+   *        an explicit binding to the named component within the same class is guaranteed.
    */
-  protected ServiceBinder(Intent serviceIntent, Class<BoundService> serviceClass) {
+  protected ServiceBinder(Intent serviceIntent, Class<BoundService> serviceClass,
+      String componentClassName) {
     this.serviceIntent = serviceIntent;
     this.serviceClass = serviceClass;
+    this.componentClassName = componentClassName;
   }
 
   /** Returns the intent used to bind to the service */
-  public Intent getIntent() {
-    return serviceIntent;
+  public Intent getIntent(Context context) {
+    Intent bindIntent;
+    if (componentClassName == null) {
+      return serviceIntent;
+    }
+    bindIntent = new Intent(serviceIntent);
+    bindIntent.setClassName(context, componentClassName);
+    return bindIntent;
   }
 
   /**
@@ -106,8 +119,9 @@ public abstract class ServiceBinder<BoundService> {
     synchronized (lock) {
       if (!isBound()) {
         connectLatch = new CountDownLatch(1);
-        if (!context.bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)) {
-          Log.e(TAG, "Unable to bind to service:" + serviceClass);
+        Intent bindIntent = getIntent(context);
+        if (!context.bindService(bindIntent, serviceConnection, Context.BIND_AUTO_CREATE)) {
+          Log.e(TAG, "Unable to bind to service:" + bindIntent);
           return null;
         }
         try {
