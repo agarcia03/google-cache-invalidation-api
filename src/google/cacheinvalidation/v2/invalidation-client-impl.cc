@@ -507,7 +507,7 @@ void InvalidationClientImpl::HandleInfoMessage(
 
 void InvalidationClientImpl::HandleErrorMessage(
       const ServerMessageHeader& header,
-      const ErrorMessage::Code code,
+      ErrorMessage::Code code,
       const string& description) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   HandleIncomingHeader(header);

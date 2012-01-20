@@ -235,7 +235,7 @@ class InvalidationClientImpl : public InvalidationClient,
 
   virtual void HandleErrorMessage(
       const ServerMessageHeader& header,
-      const ErrorMessage::Code code,
+      ErrorMessage::Code code,
       const string& description);
 
   virtual void GetRegistrationSummary(RegistrationSummary* summary) {
