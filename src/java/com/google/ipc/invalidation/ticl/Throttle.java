@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.ticl;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
+import com.google.ipc.invalidation.util.NamedRunnable;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -157,7 +158,7 @@ public class Throttle {
           // Set the flag to indicate we have a deferred task scheduled.  No need
           // to continue checking other rate limits now.
           timerScheduled = true;
-          scheduler.schedule((int) windowEndFromNow, new Runnable() {
+          scheduler.schedule((int) windowEndFromNow, new NamedRunnable("Throttle.fire") {
             @Override
             public void run() {
               timerScheduled = false;

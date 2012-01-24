@@ -24,6 +24,7 @@ import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.external.client.types.Status;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
 
@@ -46,7 +47,8 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
     // Schedule the write even if the resources are started since the
     // scheduler will prevent it from running in case the resources have been
     // stopped.
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
+    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+        new NamedRunnable("MemoryStorage.writeKey") {
       @Override
       public void run() {
         ticlPersistentState.put(key, value);
@@ -66,7 +68,8 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
 
   @Override
   public void readKey(final String key, final Callback<SimplePair<Status, byte[]>> done) {
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
+    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+        new NamedRunnable("MemoryStorage.readKey") {
       @Override
       public void run() {
         byte[] value = TypedUtil.mapGet(ticlPersistentState, key);
@@ -84,7 +87,8 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
 
   @Override
   public void deleteKey(final String key, final Callback<Boolean> done) {
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
+    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+        new NamedRunnable("MemoryStorage.deleteKey") {
       @Override
       public void run() {
         TypedUtil.remove(ticlPersistentState, key);
@@ -95,7 +99,8 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
 
   @Override
   public void readAllKeys(final Callback<SimplePair<Status, String>> done) {
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY, new Runnable() {
+    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+        new NamedRunnable("MemoryStorage.readAllKeys") {
       @Override
       public void run() {
         Status successStatus = Status.newInstance(Status.Code.SUCCESS, "");

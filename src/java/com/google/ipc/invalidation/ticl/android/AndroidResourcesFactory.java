@@ -20,6 +20,7 @@ import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.SystemResourcesBuilder;
+import com.google.ipc.invalidation.util.NamedRunnable;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -62,7 +63,7 @@ public class AndroidResourcesFactory {
     public void schedule(final int delayMs, final Runnable runnable) {
       // For simplicity, schedule first and then check when the event runs later if the resources
       // have been shut down.
-      scheduler.schedule(new Runnable() {
+      scheduler.schedule(new NamedRunnable("AndroidScheduler") {
         @Override
         public void run() {
           if (thread != Thread.currentThread()) {

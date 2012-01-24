@@ -26,6 +26,7 @@ import com.google.ipc.invalidation.external.client.android.service.Response.Stat
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.ipc.invalidation.ticl.android.c2dm.C2DMessaging;
+import com.google.ipc.invalidation.ticl.android.c2dm.WakeLockManager;
 
 import android.accounts.Account;
 import android.content.Context;
@@ -33,6 +34,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
+import android.os.AsyncTask;
 import android.util.Log;
 
 import java.util.List;
@@ -57,7 +59,14 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
    */
   public static final String CHANNEL_URL = "channel-url";
 
-   static AndroidClientManager clientManager;
+  /** The client manager tracking in-memory client instances */
+   protected static AndroidClientManager clientManager;
+
+  /**
+   * The HTTP URL of the channel service.  This value is retrieved from the {@code channel-url}
+   * metadata attribute of the service.
+   */
+  private static String channelUrl;
 
   // The AndroidInvalidationService handles a set of internal intents that are used for
   // communication and coordination between the it and the C2DM handling service.   These
@@ -104,6 +113,11 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
    */
   static final String ERROR_MESSAGE = "message";
 
+  /** Returns the client manager for this service */
+  static AndroidClientManager getClientManager() {
+    return clientManager;
+  }
+
   /**
    * Creates a new registration intent that notifies the service of a registration ID change
    */
@@ -148,10 +162,13 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   /**
-   * The HTTP URL of the channel service.  This value is retrieved from the {@code channel-url}
-   * metadata attribute of the service.
+   * Overrides the channel URL set in package metadata to enable dynamic port assignment and
+   * configuration during testing.
    */
-  private String channelUrl;
+  
+  static void setChannelUrlForTest(String url) {
+    channelUrl = url;
+  }
 
   /**
    * The C2DM sender ID used to send messages to the service.
@@ -172,24 +189,26 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   public void onCreate() {
     super.onCreate();
 
-    // Retrieve the channel URL from service metadata
-    List<ResolveInfo> resolveInfos =
-        getPackageManager().queryIntentServices(Request.SERVICE_INTENT,
-            PackageManager.GET_META_DATA);
-    Preconditions.checkState(!resolveInfos.isEmpty(), "Cannot find service metadata");
-    ServiceInfo serviceInfo = resolveInfos.get(0).serviceInfo;
-    if (serviceInfo.metaData != null) {
-      channelUrl = serviceInfo.metaData.getString(CHANNEL_URL);
-      if (channelUrl == null) {
-        Log.e(TAG, "No meta-data element with the name " + CHANNEL_URL +
-        "found on the service declaration.  An element with this name must have a value that is " +
-        "the invalidation channel frontend url");
+    // Retrieve the channel URL from service metadata if not already set
+    if (channelUrl == null) {
+      List<ResolveInfo> resolveInfos =
+          getPackageManager().queryIntentServices(Request.SERVICE_INTENT,
+              PackageManager.GET_META_DATA);
+      Preconditions.checkState(!resolveInfos.isEmpty(), "Cannot find service metadata");
+      ServiceInfo serviceInfo = resolveInfos.get(0).serviceInfo;
+      if (serviceInfo.metaData != null) {
+        channelUrl = serviceInfo.metaData.getString(CHANNEL_URL);
+        if (channelUrl == null) {
+          Log.e(TAG, "No meta-data element with the name " + CHANNEL_URL +
+          "found on the service declaration.  An element with this name must have a value that " +
+          "is the invalidation channel frontend url");
+          stopSelf();
+        }
+      } else {
+        Log.e(TAG, "No meta-data elements found on the service declaration. One with a name of " +
+            CHANNEL_URL + "must have a value that is the invalidation channel frontend url.");
         stopSelf();
       }
-    } else {
-      Log.e(TAG, "No meta-data elements found on the service declaration. One with a name of " +
-          CHANNEL_URL + "must have a value that is the invalidation channel frontend url.");
-      stopSelf();
     }
 
     // Retrieve the C2DM sender ID
@@ -319,11 +338,6 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     return senderId;
   }
 
-  /** Returns the client manager for this service */
-  AndroidClientManager getClientManager() {
-    return clientManager;
-  }
-
   private void handleC2dmMessage(Intent intent) {
     String clientKey = intent.getStringExtra(MESSAGE_CLIENT_KEY);
     AndroidClientProxy proxy;
@@ -341,7 +355,24 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     if (message != null) {
       proxy.getChannel().receiveMessage(message);
     } else {
-      proxy.getChannel().retrieveMailbox();
+      // Process mailbox messages on a background thread since they will do outbound HTTP for the
+      // mailbox retrieval which is not allowed on the main service thread.
+      final AndroidClientProxy finalProxy = proxy;
+      final Context applicationContext = getApplicationContext();
+      WakeLockManager.getInstance(applicationContext).
+          acquire(AndroidInvalidationService.class.getName());
+      new AsyncTask<Void, Void, Void>() {
+          @Override
+          protected Void doInBackground(Void... params) {
+            try {
+              finalProxy.getChannel().retrieveMailbox();
+            } finally {
+              WakeLockManager.getInstance(applicationContext).
+                release(AndroidInvalidationService.class.getName());
+            }
+            return null;
+          }
+      }.execute();
     }
   }
 

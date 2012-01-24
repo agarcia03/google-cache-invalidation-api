@@ -77,6 +77,9 @@ public interface TestableInvalidationClient extends InvalidationClient {
   /** Returns the current time on the client. */
   long getResourcesTimeMs();
 
+  /** Returns the client internal scheduler */
+  SystemResources.Scheduler getInternalSchedulerForTest();
+
   /** Returns the client storage. */
   SystemResources.Storage getStorage();
 

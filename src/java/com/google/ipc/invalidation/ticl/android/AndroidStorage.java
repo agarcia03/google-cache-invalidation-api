@@ -22,6 +22,7 @@ import com.google.ipc.invalidation.external.client.SystemResources.Storage;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.external.client.types.Status;
+import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.AndroidState.ClientMetadata;
 import com.google.protos.ipc.invalidation.AndroidState.ClientProperty;
@@ -123,7 +124,7 @@ public class AndroidStorage implements Storage {
 
   @Override
   public void deleteKey(final String key, final Callback<Boolean> done) {
-    scheduler.execute(new Runnable() {
+    scheduler.execute(new NamedRunnable("AndroidStorage.deleteKey") {
       @Override
       public void run() {
         properties.remove(key);
@@ -135,7 +136,7 @@ public class AndroidStorage implements Storage {
 
   @Override
   public void readAllKeys(final Callback<SimplePair<Status, String>> keyCallback) {
-    scheduler.execute(new Runnable() {
+    scheduler.execute(new NamedRunnable("AndroidStorage.readAllKeys") {
       @Override
       public void run() {
         for (String key : properties.keySet()) {
@@ -147,7 +148,7 @@ public class AndroidStorage implements Storage {
 
   @Override
   public void readKey(final String key, final Callback<SimplePair<Status, byte[]>> done) {
-    scheduler.execute(new Runnable() {
+    scheduler.execute(new NamedRunnable("AndroidStorage.readKey") {
       @Override
       public void run() {
           byte [] value = properties.get(key);
@@ -164,7 +165,7 @@ public class AndroidStorage implements Storage {
 
   @Override
   public void writeKey(final String key, final byte[] value, final Callback<Status> done) {
-    scheduler.execute(new Runnable() {
+    scheduler.execute(new NamedRunnable("AndroidStorage.writeKey") {
       @Override
       public void run() {
         properties.put(key, value);

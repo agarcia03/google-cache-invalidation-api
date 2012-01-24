@@ -18,7 +18,6 @@ package com.google.ipc.invalidation.ticl;
 
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.util.InternalBase;
-import com.google.ipc.invalidation.util.TextBuilder;
 
 import java.util.List;
 
@@ -48,6 +47,9 @@ public class InvalidationClientConfig extends InternalBase {
   /** The maximum exponential backoff factor used for network and persistence timeouts. */
   public int maxExponentialBackoffFactor = 500;
 
+  /** Smearing percent for randomizing delays. */
+  public int smearPercent = 20;
+
   /**
    * Whether the client is transient, that is, does not write its session token to durable
    * storage.
@@ -69,18 +71,11 @@ public class InvalidationClientConfig extends InternalBase {
     configParams.add(SimplePair.of("heartbeatIntervalMs", heartbeatIntervalMs));
     configParams.add(SimplePair.of("perfCounterDelayMs", perfCounterDelayMs));
     configParams.add(SimplePair.of("maxExponentialBackoffFactor", maxExponentialBackoffFactor));
+    configParams.add(SimplePair.of("smearPercent", smearPercent));
 
     // Translate boolean into interger for type compatibility in {@code configParams}.
     configParams.add(SimplePair.of("isTransient", isTransient ? 1 : 0));
     protocolHandlerConfig.getConfigParams(configParams);
-  }
-
-  @Override
-  public void toCompactString(TextBuilder builder) {
-    builder.appendFormat("Network timeout delay: %s, write retry delay: %s, heartbeat: %s, %s",
-        networkTimeoutDelayMs, writeRetryDelayMs, heartbeatIntervalMs,
-        isTransient ? "transient" : "persistent");
-    protocolHandlerConfig.toCompactString(builder);
   }
 
   /** Returns a configuration object with parameters set for unit tests. */

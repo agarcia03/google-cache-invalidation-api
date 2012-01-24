@@ -19,6 +19,8 @@ package com.google.ipc.invalidation.external.client;
 import com.google.ipc.invalidation.ticl.InvalidationClientConfig;
 import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
 
+import java.util.Random;
+
 /**
  * Factory for creating invalidation clients.
  *
@@ -37,8 +39,9 @@ public class InvalidationClientFactory {
   public static InvalidationClient create(SystemResources resources, int clientType,
       byte[] clientName, String applicationName, InvalidationListener listener) {
    InvalidationClientConfig config = new InvalidationClientConfig();
-    return new InvalidationClientImpl(resources, clientType, clientName, config, applicationName,
-        listener);
+   Random random = new Random(resources.getInternalScheduler().getCurrentTimeMs());
+   return new InvalidationClientImpl(resources, random, clientType, clientName, config,
+        applicationName, listener);
   }
 
   private InvalidationClientFactory() {} // Prevents instantiation.

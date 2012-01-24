@@ -33,6 +33,8 @@ import com.google.ipc.invalidation.ticl.Statistics.ReceivedMessageType;
 import com.google.ipc.invalidation.ticl.Statistics.SentMessageType;
 import com.google.ipc.invalidation.ticl.Throttle.RateLimit;
 import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.NamedRunnable;
+import com.google.ipc.invalidation.util.Smearer;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protobuf.ByteString;
@@ -256,7 +258,7 @@ class ProtocolHandler {
   private final Statistics statistics;
 
   /** Task to send all batched messages to the server. */
-  private final Runnable batchingTask = new Runnable() {
+  private final Runnable batchingTask = new NamedRunnable("ProtocolHandler.batching") {
     @Override
     public void run() {
       // Send message to server - the batching information is picked up in sendMessageToServer.
@@ -271,20 +273,23 @@ class ProtocolHandler {
    *
    * @param config configuration for the protocol handler
    * @param resources resources to use
+   * @param smearer a smearer to randomize delays
    * @param statistics track information about messages sent/received, etc
    * @param applicationName name of the application using the library (for debugging/monitoring)
    * @param listener callback for protocol events
    */
-  ProtocolHandler(Config config, final SystemResources resources, Statistics statistics,
-    String applicationName, ProtocolListener listener, TiclMessageValidator2 msgValidator) {
+  ProtocolHandler(Config config, final SystemResources resources, Smearer smearer,
+      Statistics statistics, String applicationName, ProtocolListener listener,
+      TiclMessageValidator2 msgValidator) {
     this.resources = resources;
     this.logger = resources.getLogger();
     this.statistics = statistics;
     this.internalScheduler = resources.getInternalScheduler();
     this.listener = listener;
-    this.operationScheduler = new OperationScheduler(logger, internalScheduler);
+    this.operationScheduler = new OperationScheduler(smearer, logger, internalScheduler);
     this.msgValidator = msgValidator;
-    this.throttle = new Throttle(config.rateLimits, internalScheduler, new Runnable() {
+    this.throttle = new Throttle(config.rateLimits, internalScheduler,
+        new NamedRunnable("ProtocolHandler.throttle") {
       @Override
       public void run() {
         sendMessageToServer();
@@ -299,7 +304,7 @@ class ProtocolHandler {
     resources.getNetwork().setMessageReceiver(new Callback<byte[]>() {
       @Override
       public void accept(final byte[] incomingMessage) {
-        internalScheduler.schedule(NO_DELAY, new Runnable() {
+        internalScheduler.schedule(NO_DELAY, new NamedRunnable("ProtocolHandler.handleMessage") {
           @Override
           public void run() {
             handleIncomingMessage(incomingMessage);

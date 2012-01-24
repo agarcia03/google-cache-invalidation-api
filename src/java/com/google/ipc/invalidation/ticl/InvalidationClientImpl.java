@@ -45,6 +45,7 @@ import com.google.ipc.invalidation.ticl.Statistics.IncomingOperationType;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.ipc.invalidation.util.Smearer;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
@@ -151,7 +152,7 @@ public class InvalidationClientImpl extends InternalBase
   private boolean shouldSendRegistrations;
 
   /** A task for periodic heartbeats. */
-  private final Runnable heartbeatTask = new Runnable() {
+  private final Runnable heartbeatTask = new NamedRunnable("Invclient.heartbeat") {
     @Override
     public void run() {
       // Send info message
@@ -162,7 +163,7 @@ public class InvalidationClientImpl extends InternalBase
   };
 
   /** A task to periodically check network timeouts. */
-  private final Runnable timeoutTask = new Runnable() {
+  private final Runnable timeoutTask = new NamedRunnable("Invclient.timeout") {
     @Override
     public void run() {
       checkNetworkTimeouts();
@@ -173,13 +174,14 @@ public class InvalidationClientImpl extends InternalBase
    * Constructs a client.
    *
    * @param resources resources to use during execution
+   * @param random a random number generator
    * @param clientType client type code
    * @param clientName application identifier for the client
    * @param config configuration for the client
    * @param applicationName name of the application using the library (for debugging/monitoring)
    * @param listener application callback
    */
-  public InvalidationClientImpl(final SystemResources resources, int clientType,
+  public InvalidationClientImpl(final SystemResources resources, Random random, int clientType,
       final byte[] clientName, InvalidationClientConfig config, String applicationName,
       InvalidationListener listener) {
     this.resources = resources;
@@ -187,7 +189,6 @@ public class InvalidationClientImpl extends InternalBase
     this.internalScheduler = resources.getInternalScheduler();
     this.config = config;
     this.registrationManager = new RegistrationManager(logger, statistics, digestFn);
-    Random random = new Random();
     this.tokenExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
         config.maxExponentialBackoffFactor * config.networkTimeoutDelayMs,
         config.networkTimeoutDelayMs);
@@ -196,17 +197,17 @@ public class InvalidationClientImpl extends InternalBase
         config.networkTimeoutDelayMs);
     this.persistenceExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
         config.maxExponentialBackoffFactor * config.writeRetryDelayMs, config.writeRetryDelayMs);
-    this.smearer = new Smearer(random);
+    this.smearer = new Smearer(random, config.smearPercent);
     this.applicationClientId =
         CommonProtos2.newApplicationClientIdP(clientType, ByteString.copyFrom(clientName));
     this.listener = new CheckingInvalidationListener(listener, statistics, internalScheduler,
         resources.getListenerScheduler(), logger);
-    this.operationScheduler = new OperationScheduler(logger, internalScheduler);
+    this.operationScheduler = new OperationScheduler(smearer, logger, internalScheduler);
     this.msgValidator = new TiclMessageValidator2(resources.getLogger());
 
     operationScheduler.setOperation(config.networkTimeoutDelayMs, timeoutTask);
     operationScheduler.setOperation(config.heartbeatIntervalMs, heartbeatTask);
-    this.protocolHandler = new ProtocolHandler(config.protocolHandlerConfig, resources,
+    this.protocolHandler = new ProtocolHandler(config.protocolHandlerConfig, resources, smearer,
         statistics, applicationName, this, msgValidator);
     logger.info("Created client: %s", this);
   }
@@ -311,6 +312,11 @@ public class InvalidationClientImpl extends InternalBase
   }
 
   @Override
+  public Scheduler getInternalSchedulerForTest() {
+    return resources.getInternalScheduler();
+  }
+
+  @Override
   public Storage getStorage() {
     return resources.getStorage();
   }
@@ -371,7 +377,7 @@ public class InvalidationClientImpl extends InternalBase
       // application to reissue its registrations locally and avoid triggering registration
       // sync with the data center due to a hash mismatch.
       internalScheduler.schedule(InvalidationClientConfig.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS,
-          new Runnable() {
+          new NamedRunnable("InvClient.sendInfoMessageAfterPersistentRead") {
         @Override
         public void run() {
           sendInfoMessageToServer(false, true);
@@ -450,7 +456,7 @@ public class InvalidationClientImpl extends InternalBase
       return;
     }
 
-    internalScheduler.schedule(NO_DELAY, new Runnable() {
+    internalScheduler.schedule(NO_DELAY, new NamedRunnable("InvClient.performRegOperations") {
       @Override
       public void run() {
         List<ObjectIdP> objectIdProtos = new ArrayList<ObjectIdP>(objectIds.size());
@@ -486,7 +492,7 @@ public class InvalidationClientImpl extends InternalBase
   @Override
   public void acknowledge(final AckHandle acknowledgeHandle) {
     Preconditions.checkNotNull(acknowledgeHandle);
-    internalScheduler.schedule(NO_DELAY, new Runnable() {
+    internalScheduler.schedule(NO_DELAY, new NamedRunnable("InvClient.acknowledge") {
       @Override
       public void run() {
         // Validate the ack handle.
@@ -720,7 +726,8 @@ public class InvalidationClientImpl extends InternalBase
     }
     // Schedule the stop on the listener work queue so that it happens after the inform
     // registration failure calls above
-    resources.getListenerScheduler().schedule(NO_DELAY, new Runnable() {
+    resources.getListenerScheduler().schedule(NO_DELAY,
+        new NamedRunnable("InvClient.scheduleStopAfterAuthError") {
       @Override
       public void run() {
         stop();
@@ -749,7 +756,8 @@ public class InvalidationClientImpl extends InternalBase
     setClientToken(null);
 
     // Schedule the token acquisition while respecting exponential backoff.
-    internalScheduler.schedule(tokenExponentialBackoff.getNextDelay(), new Runnable() {
+    internalScheduler.schedule(tokenExponentialBackoff.getNextDelay(),
+        new NamedRunnable("InvClient.acquireToken") {
       @Override
       public void run() {
         // If token is still not assigned (as expected), sends a request. Otherwise, ignore.
@@ -787,7 +795,8 @@ public class InvalidationClientImpl extends InternalBase
       logger.info("Registration state not in sync with server: %s", registrationManager);
 
       // Send the info message for syncing while respecting exponential backoff.
-      internalScheduler.schedule(regSyncHeartbeatExponentialBackoff.getNextDelay(), new Runnable() {
+      internalScheduler.schedule(regSyncHeartbeatExponentialBackoff.getNextDelay(),
+          new NamedRunnable("InvClient.infoMessageForSync") {
         @Override
         public void run() {
           if (registrationManager.isStateInSyncWithServer()) {
@@ -841,7 +850,7 @@ public class InvalidationClientImpl extends InternalBase
           // Retry with exponential backoff.
           statistics.recordError(ClientErrorType.PERSISTENT_WRITE_FAILURE);
           internalScheduler.schedule(
-            persistenceExponentialBackoff.getNextDelay(), new Runnable() {
+            persistenceExponentialBackoff.getNextDelay(), new NamedRunnable("InvClient.writeBlob") {
             @Override
             public void run() {
               writeStateBlob();
@@ -868,7 +877,7 @@ public class InvalidationClientImpl extends InternalBase
               readResult.getFirst().getMessage());
         }
         // Call start now.
-        internalScheduler.schedule(NO_DELAY, new Runnable() {
+        internalScheduler.schedule(NO_DELAY, new NamedRunnable("InvClient.scheduleAfterRead") {
           @Override
           public void run() {
             startInternal(serializedState);

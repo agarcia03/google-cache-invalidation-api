@@ -30,22 +30,10 @@ import java.util.Random;
  */
 public class Smearer {
 
-  /** Default smearing to be done if the caller does not specify any. */
-  
-  public static final int DEFAULT_SMEAR_PERCENT = 20;
-
   private final Random random;
 
   /** The percentage (0, 1.0] for smearing the delay. */
   private final double smearFraction;
-
-  /**
-   * Creates a smearer with the given random number generator and default smear percent.
-   */
-  public Smearer(Random random) {
-    this.random = random;
-    this.smearFraction = DEFAULT_SMEAR_PERCENT / 100.0;
-  }
 
   /**
    * Creates a smearer with the given random number generator. If {@code smearPercent} is 0, uses an
@@ -54,7 +42,7 @@ public class Smearer {
    * REQUIRES: 0 < smearPercent <= 100
    */
   public Smearer(Random random, int smearPercent) {
-    Preconditions.checkState((smearPercent > 0) && (smearPercent <= 100));
+    Preconditions.checkState((smearPercent >= 0) && (smearPercent <= 100));
     this.random = random;
     this.smearFraction = smearPercent / 100.0;
   }

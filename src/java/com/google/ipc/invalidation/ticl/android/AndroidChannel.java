@@ -21,6 +21,7 @@ import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.ticl.TestableNetworkChannel;
+import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessage;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessageBatch;
@@ -255,7 +256,7 @@ class AndroidChannel implements TestableNetworkChannel {
     // Do the actual HTTP I/O on a seperate thread, since we may be called on the main
     // thread for the application.
     resources.getListenerScheduler().schedule(SystemResources.Scheduler.NO_DELAY,
-        new Runnable() {
+        new NamedRunnable("AndroidChannel.sendMessage") {
           @Override
           public void run() {
             deliverOutboundMessage(outgoingMessage);
@@ -360,21 +361,29 @@ class AndroidChannel implements TestableNetworkChannel {
         return;
       }
       long contentLength = responseEntity.getContentLength();
-      if ((contentLength <= 0) || (contentLength > Integer.MAX_VALUE)) {
+      if ((contentLength < 0) || (contentLength > Integer.MAX_VALUE)) {
         Log.e(TAG, "Invalid mailbox Content-Length value:" + contentLength);
         return;
       }
 
-      // Read the mailbox data into a local byte array and parse it
-      ByteArrayOutputStream baos = new ByteArrayOutputStream((int) contentLength);
-      responseEntity.writeTo(baos);
-      byte[] mailboxData =  baos.toByteArray();
-      AddressedAndroidMessageBatch messageBatch =
-          AddressedAndroidMessageBatch.parseFrom(mailboxData);
+      // If data present, read the mailbox data into a local byte array and parse it
+      // A mailbox may be empty because a prior retrieval pulled down all messages available
+      // (including the one that initiated the current C2DM message).
+      if (contentLength > 0) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream((int) contentLength);
+        responseEntity.writeTo(baos);
+        byte[] mailboxData =  baos.toByteArray();
+        AddressedAndroidMessageBatch messageBatch =
+            AddressedAndroidMessageBatch.parseFrom(mailboxData);
 
-      // Send the mailbox content on to the message receiver
-      for (AddressedAndroidMessage message : messageBatch.getAddressedMessageList()) {
-        tryDeliverMessage(message);
+        // Send the mailbox content on to the message receiver
+        List<AddressedAndroidMessage> msgList =  messageBatch.getAddressedMessageList();
+        Log.d(TAG, "Mailbox contains " + msgList.size() + " msgs");
+        for (AddressedAndroidMessage message : msgList) {
+          tryDeliverMessage(message);
+        }
+      } else {
+        Log.d(TAG, "No data in mailbox");
       }
     } catch (ClientProtocolException exception) {
       // TODO: Distinguish between key HTTP error codes and handle more specifically

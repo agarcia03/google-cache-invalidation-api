@@ -28,6 +28,7 @@ import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.ipc.invalidation.ticl.Statistics.ListenerEventType;
+import com.google.ipc.invalidation.util.NamedRunnable;
 
 /**
  * {@link InvalidationListener} wrapper that ensures that a delegate listener is called on the
@@ -65,7 +66,7 @@ class CheckingInvalidationListener implements InvalidationListener {
       final AckHandle ackHandle) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     Preconditions.checkNotNull(ackHandle);
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY, new NamedRunnable("CheckingInvalListener.invalidate") {
       @Override
       public void run() {
         statistics.recordListenerEvent(ListenerEventType.INVALIDATE);
@@ -79,7 +80,8 @@ class CheckingInvalidationListener implements InvalidationListener {
       final AckHandle ackHandle) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     Preconditions.checkNotNull(ackHandle);
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY,
+        new NamedRunnable("CheckingInvalListener.invalidateUnknownVersion") {
       @Override
       public void run() {
         statistics.recordListenerEvent(ListenerEventType.INVALIDATE_UNKNOWN);
@@ -92,7 +94,7 @@ class CheckingInvalidationListener implements InvalidationListener {
   public void invalidateAll(final InvalidationClient client, final AckHandle ackHandle) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     Preconditions.checkNotNull(ackHandle);
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY, new NamedRunnable("CheckingInvalListener.invalidateAll") {
       @Override
       public void run() {
         statistics.recordListenerEvent(ListenerEventType.INVALIDATE_ALL);
@@ -105,7 +107,7 @@ class CheckingInvalidationListener implements InvalidationListener {
   public void informRegistrationFailure(final InvalidationClient client, final ObjectId objectId,
       final boolean isTransient, final String errorMessage) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY, new NamedRunnable("CheckingInvalListener.regFailure") {
       @Override
       public void run() {
         statistics.recordListenerEvent(ListenerEventType.INFORM_REGISTRATION_FAILURE);
@@ -118,7 +120,7 @@ class CheckingInvalidationListener implements InvalidationListener {
   public void informRegistrationStatus(final InvalidationClient client, final ObjectId objectId,
       final RegistrationState regState) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY, new NamedRunnable("CheckingInvalListener.regStatus") {
       @Override
       public void run() {
         statistics.recordListenerEvent(ListenerEventType.INFORM_REGISTRATION_STATUS);
@@ -131,7 +133,7 @@ class CheckingInvalidationListener implements InvalidationListener {
   public void reissueRegistrations(final InvalidationClient client, final byte[] prefix,
       final int prefixLen) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY, new NamedRunnable("CheckingInvalListener.reissueRegs") {
       @Override
       public void run() {
         statistics.recordListenerEvent(ListenerEventType.REISSUE_REGISTRATIONS);
@@ -143,7 +145,7 @@ class CheckingInvalidationListener implements InvalidationListener {
   @Override
   public void informError(final InvalidationClient client, final ErrorInfo errorInfo) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY, new NamedRunnable("CheckingInvalListener.informError") {
       @Override
       public void run() {
         statistics.recordListenerEvent(ListenerEventType.INFORM_ERROR);
@@ -160,7 +162,7 @@ class CheckingInvalidationListener implements InvalidationListener {
   @Override
   public void ready(final InvalidationClient client) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    listenerScheduler.schedule(NO_DELAY, new Runnable() {
+    listenerScheduler.schedule(NO_DELAY, new NamedRunnable("CheckingInvalListener.ready") {
       @Override
       public void run() {
         logger.info("Informing app that ticl is ready");

@@ -18,12 +18,12 @@ package com.google.ipc.invalidation.ticl;
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
+import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.ipc.invalidation.util.Smearer;
 import com.google.ipc.invalidation.util.TypedUtil;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 
 /**
  * Class to schedule future operations such that if one has already been scheduled for the same
@@ -47,10 +47,11 @@ class OperationScheduler {
       new HashMap<Runnable, OperationScheduleInfo>();
   private final Logger logger;
   private final Scheduler scheduler;
-  private final Smearer smearer = new Smearer(new Random());
+  private final Smearer smearer;
 
-  OperationScheduler(Logger logger, Scheduler scheduler) {
+  OperationScheduler(Smearer smearer, Logger logger, Scheduler scheduler) {
     this.logger = logger;
+    this.smearer = smearer;
     this.scheduler = scheduler;
   }
 
@@ -101,7 +102,7 @@ class OperationScheduler {
       logger.fine("Scheduling %s with a delay %s, Now = %s", operation, delayMs,
           scheduler.getCurrentTimeMs());
       opInfo.hasBeenScheduled = true;
-      scheduler.schedule(delayMs, new Runnable() {
+      scheduler.schedule(delayMs, new NamedRunnable("OpScheduler.schedule: " + operation) {
         @Override
         public void run() {
           opInfo.hasBeenScheduled = false;
