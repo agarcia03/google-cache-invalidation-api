@@ -84,9 +84,8 @@ class MockStorage : public Storage {
 // A base class for unit tests to share common methods and helper routines.
 class UnitTestBase : public testing::Test {
  public:
-  // The maximum amount by which smearing can increase a configuration
-  // parameter.
-  static const int kMaxSmearMultiplier = 2;
+  /* Default smearing to be done to randomize delays. */
+  static const int kDefaultSmearPercent = 20;
 
   // The token or nonce used by default for a client in client to server or
   // server to client messages.
@@ -140,9 +139,6 @@ class UnitTestBase : public testing::Test {
   // Initializes |summary| with a registration summary for 0 objects.
   static void InitZeroRegistrationSummary(RegistrationSummary* summary);
 
-  // Initializes a server header with the given token.
-  static void InitServerHeader(const string& token, ServerHeader* header);
-
   // Creates a matcher for the parts of the header that the test can predict.
   static Matcher<ClientHeader> ClientHeaderMatches(const ClientHeader* header);
 
@@ -172,6 +168,10 @@ class UnitTestBase : public testing::Test {
 
   // Sets up some common expectations for the system resources.
   void InitCommonExpectations();
+
+  // Initializes a server header with the given token (registration summary is
+  // picked up the internal state |reg_summary|).
+  void InitServerHeader(const string& token, ServerHeader* header);
 
   // Gives a ServerToClientMessage {@code message} to the protocol handler and
   // passes time in the internal scheduler by |delay| waiting for processing to
@@ -243,6 +243,10 @@ class UnitTestBase : public testing::Test {
   // Message callback installed by the protocol handler.  Captured by the mock
   // network.
   MessageCallback* message_callback;
+
+  // Registration summary to be placed in messages from the client to the server
+  // and vice-versa.
+  scoped_ptr<RegistrationSummary> reg_summary;
 };
 
 }  // namespace invalidation

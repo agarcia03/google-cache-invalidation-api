@@ -29,6 +29,7 @@
 #include "google/cacheinvalidation/v2/proto-helpers.h"
 #include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/statistics.h"
+#include "google/cacheinvalidation/v2/smearer.h"
 #include "google/cacheinvalidation/v2/throttle.h"
 #include "google/cacheinvalidation/v2/ticl-message-validator.h"
 
@@ -47,30 +48,33 @@ struct ServerMessageHeader {
    *
    * Arguments:
    *     init_token - server-sent token
-   *     init_registration_summary - summary over server registration state
+   *     init_registration_summary - summary over server registration state.
+   *     If num_registations is not set, means no registration summary was
+   *     received from the server.
    */
   ServerMessageHeader(const string& init_token,
                       const RegistrationSummary& init_registration_summary)
-      : token(init_token) {
-    registration_summary.CopyFrom(init_registration_summary);
+      : token_(init_token) {
+    registration_summary_.CopyFrom(init_registration_summary);
   }
 
-  string ToString() const {
-    return StringPrintf(
-        "Token: %s, Summary: %s", ProtoHelpers::ToString(token).c_str(),
-        ProtoHelpers::ToString(registration_summary).c_str());
+  const string& token() const {
+    return token_;
   }
 
-  bool operator==(const ServerMessageHeader& other) const {
-    return (token == other.token) &&
-        (registration_summary.num_registrations() ==
-            other.registration_summary.num_registrations()) &&
-        (registration_summary.registration_digest() ==
-            other.registration_summary.registration_digest());
+  // Returns the registration summary if any. |this| continues to own the space.
+  const RegistrationSummary* registration_summary() const {
+    return registration_summary_.has_num_registrations() ?
+        &registration_summary_ : NULL;
   }
 
-  string token;
-  RegistrationSummary registration_summary;
+  bool operator==(const ServerMessageHeader& other) const;
+
+  string ToString() const;
+
+ private:
+  string token_;
+  RegistrationSummary registration_summary_;
 };
 
 /*
@@ -193,15 +197,17 @@ class ProtocolHandler {
    *
    * config - configuration for the client
    * resources - resources to use
+   * smearer - a smearer to randomize delays
    * statistics - track information about messages sent/received, etc
    * application_name - name of the application using the library (for
    *     debugging/monitoring)
    * listener - callback for protocol events
    * msg_validator - validator for protocol messages
+   * Caller continues to own space for smearer.
    */
   ProtocolHandler(const Config& config, SystemResources* resources,
-                  Statistics* statistics, const string& application_name,
-                  ProtocolListener* listener,
+                  Smearer* smearer, Statistics* statistics,
+                  const string& application_name, ProtocolListener* listener,
                   TiclMessageValidator* msg_validator);
 
   /* Returns the next time a message is allowed to be sent to the server (could

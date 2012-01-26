@@ -44,8 +44,10 @@ const char* UnitTestBase::kClientToken = "Dummy";
 void UnitTestBase::SetUp() {
   // Start time at an arbitrary point, just to make sure we don't depend on it
   // being 0.
-  start_time = Time() + TimeDelta::FromDays(5742);
+  start_time = Time() + TimeDelta::FromDays(9);
   statistics.reset(new Statistics());
+  reg_summary.reset(new RegistrationSummary());
+  InitZeroRegistrationSummary(reg_summary.get());
   InitSystemResources();  // Set up system resources
   InitCommonExpectations();  // Set up expectations for common mock operations
   message_callback = NULL;
@@ -190,7 +192,9 @@ void UnitTestBase::MakeRegistrationStatusesFromObjectIds(
 }
 
 TimeDelta UnitTestBase::GetMaxDelay(TimeDelta delay) {
-  return delay * kMaxSmearMultiplier;
+  int64 extra_delay =
+      (delay.InMilliseconds() * kDefaultSmearPercent) / 100.0;
+  return delay + TimeDelta::FromMilliseconds(extra_delay);
 }
 
 TimeDelta UnitTestBase::GetMaxBatchingDelay(
@@ -207,7 +211,9 @@ void UnitTestBase::InitZeroRegistrationSummary(RegistrationSummary* summary) {
 void UnitTestBase::InitServerHeader(const string& token, ServerHeader* header) {
   ProtoHelpers::InitProtocolVersion(header->mutable_protocol_version());
   header->set_client_token(token);
-  InitZeroRegistrationSummary(header->mutable_registration_summary());
+  if (reg_summary.get() != NULL) {
+    header->mutable_registration_summary()->CopyFrom(*reg_summary.get());
+  }
 
   // Use arbitrary server time and message id, since they don't matter.
   header->set_server_time_ms(314159265);

@@ -53,6 +53,7 @@ void InvalidationClientImpl::Config::GetConfigParams(
       make_pair("perfCounterDelay", perf_counter_delay.InMilliseconds()));
   config_params->push_back(
       make_pair("maxExponentialBackoffFactor", max_exponential_backoff_factor));
+  config_params->push_back(make_pair("smearPercent", smear_percent));
   config_params->push_back(
       make_pair("isTransient", is_transient));
   protocol_handler_config.GetConfigParams(config_params);
@@ -63,6 +64,9 @@ string InvalidationClientImpl::Config::ToString() {
   stream << "network delay: " << network_timeout_delay.InMilliseconds()
          << ", write retry delay: " << write_retry_delay.InMilliseconds()
          << ", heartbeat: " << heartbeat_interval.InMilliseconds()
+         << ", perfcounter delay: " << perf_counter_delay.InMilliseconds()
+         << ", maxExponentialBackoffFactor: " << max_exponential_backoff_factor
+         << ", smearPercent: " << smear_percent
          << (is_transient ? ", transient" : ", persistent");
   return stream.str();
 }
@@ -76,8 +80,8 @@ void InvalidationClientImpl::Config::InitForTest() {
 }
 
 InvalidationClientImpl::InvalidationClientImpl(
-    SystemResources* resources, int client_type, const string& client_name,
-    Config config, const string& application_name,
+    SystemResources* resources, Random* random, int client_type,
+    const string& client_name, Config config, const string& application_name,
     InvalidationListener* listener)
     : resources_(resources),
       internal_scheduler_(resources->internal_scheduler()),
@@ -90,35 +94,31 @@ InvalidationClientImpl::InvalidationClientImpl(
       digest_fn_(new Sha1DigestFunction()),
       registration_manager_(logger_, statistics_.get(), digest_fn_.get()),
       msg_validator_(new TiclMessageValidator(logger_)),
-      protocol_handler_(config.protocol_handler_config, resources,
-                        statistics_.get(), application_name, this,
-                        msg_validator_.get()),
-      operation_scheduler_(logger_, internal_scheduler_),
+      smearer_(random, config.smear_percent),
+      protocol_handler_(config.protocol_handler_config, resources, &smearer_,
+          statistics_.get(), application_name, this, msg_validator_.get()),
+      operation_scheduler_(&smearer_, logger_, internal_scheduler_),
       token_exponential_backoff_(
-          new Random(InvalidationClientUtil::GetCurrentTimeMs(
-              resources->internal_scheduler())),
+          random,
           config.max_exponential_backoff_factor *
               config.network_timeout_delay,
           config.network_timeout_delay),
       reg_sync_heartbeat_exponential_backoff_(
-          new Random(InvalidationClientUtil::GetCurrentTimeMs(
-              resources->internal_scheduler())),
+          random,
           config.max_exponential_backoff_factor *
               config.network_timeout_delay,
           config.network_timeout_delay),
       persistence_exponential_backoff_(
-          new Random(InvalidationClientUtil::GetCurrentTimeMs(
-              resources->internal_scheduler())),
+          random,
           config.max_exponential_backoff_factor *
               config.write_retry_delay,
           config.write_retry_delay),
-      smearer_(new Random(InvalidationClientUtil::GetCurrentTimeMs(
-          resources->internal_scheduler()))),
       heartbeat_task_(
           NewPermanentCallback(this, &InvalidationClientImpl::HeartbeatTask)),
       timeout_task_(
           NewPermanentCallback(
-              this, &InvalidationClientImpl::CheckNetworkTimeouts)) {
+              this, &InvalidationClientImpl::CheckNetworkTimeouts)),
+      random_(random) {
   application_client_id_.set_client_name(client_name);
   application_client_id_.set_client_type(client_type);
   operation_scheduler_.SetOperation(
@@ -357,7 +357,7 @@ void InvalidationClientImpl::HandleTokenChanged(
   // handler.  Otherwise, we need to check for the nonce, i.e., if we have a
   // nonce, the message must carry the same nonce.
   if (!nonce_.empty()) {
-    if (header.token == nonce_) {
+    if (header.token() == nonce_) {
       TLOG(logger_, INFO, "Accepting server message with matching nonce: %s",
            ProtoHelpers::ToString(nonce_).c_str());
       set_nonce("");
@@ -366,7 +366,7 @@ void InvalidationClientImpl::HandleTokenChanged(
       TLOG(logger_, INFO,
            "Rejecting server message with mismatched nonce: %s, %s",
            ProtoHelpers::ToString(nonce_).c_str(),
-           ProtoHelpers::ToString(header.token).c_str());
+           ProtoHelpers::ToString(header.token()).c_str());
       return;
     }
   }
@@ -651,12 +651,12 @@ void InvalidationClientImpl::HandleIncomingHeader(
       "Cannot process server header " << header.ToString() <<
       " with non-empty nonce " << nonce_;
 
-  if (header.registration_summary.has_num_registrations()) {
+  if (header.registration_summary() != NULL) {
     // We've received a summary from the server, so if we were suppressing
     // registrations, we should now allow them to go to the registrar.
     should_send_registrations_ = true;
     registration_manager_.InformServerRegistrationSummary(
-        header.registration_summary);
+        *header.registration_summary());
   }
 
   // Check and reset the exponential back off for the reg sync-based heartbeats

@@ -32,7 +32,7 @@ namespace invalidation {
 class ExponentialBackoffDelayGenerator {
  public:
   /* Creates a generator with the given maximum and initial delays.
-   * random is owned by this after the call.
+   * Caller continues to own space for random.
    */
   ExponentialBackoffDelayGenerator(Random* random, TimeDelta max_delay,
                                    TimeDelta initial_max_delay) :
@@ -70,7 +70,7 @@ class ExponentialBackoffDelayGenerator {
   /* If the first call to getNextDelay has been made after reset. */
   bool in_retry_mode;
 
-  scoped_ptr<Random> random_;
+  Random* random_;
 };
 }  // namespace invalidation
 

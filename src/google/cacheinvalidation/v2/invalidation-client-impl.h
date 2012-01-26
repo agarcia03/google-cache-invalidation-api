@@ -49,6 +49,7 @@ class InvalidationClientImpl : public InvalidationClient,
                heartbeat_interval(TimeDelta::FromMinutes(20)),
                perf_counter_delay(TimeDelta::FromHours(6)),
                max_exponential_backoff_factor(500),
+               smear_percent(20),
                is_transient(false) {}
 
     /* The delay after which a network message sent to the server is considered
@@ -69,6 +70,9 @@ class InvalidationClientImpl : public InvalidationClient,
      * timeouts.
      */
     int max_exponential_backoff_factor;
+
+    /* Smearing percent for randomizing delays. */
+    int smear_percent;
 
     /* Whether the client is transient, that is, does not write its session
      * token to durable storage.
@@ -93,14 +97,15 @@ class InvalidationClientImpl : public InvalidationClient,
    *
    * Arguments:
    * resources - resources to use during execution
+   * random - a random number generator (owned by this after the call)
    * client_type - client type code
    * client_name - application identifier for the client
    * config - configuration for the client
    * listener - application callback
    */
   InvalidationClientImpl(
-      SystemResources* resources, int client_type, const string& client_name,
-      Config config, const string& application_name,
+      SystemResources* resources, Random* random, int client_type,
+      const string& client_name, Config config, const string& application_name,
       InvalidationListener* listener);
 
   /* Stores the client id that is used for squelching invalidations on the
@@ -368,6 +373,9 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Used to validate messages */
   scoped_ptr<TiclMessageValidator> msg_validator_;
 
+  /* A smearer to make sure that delays are randomized a little bit. */
+  Smearer smearer_;
+
   /* Object handling low-level wire format interactions. */
   ProtocolHandler protocol_handler_;
 
@@ -391,9 +399,6 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Exponential backoff generator for persistence timeouts. */
   ExponentialBackoffDelayGenerator persistence_exponential_backoff_;
 
-  /* A smearer to make sure that delays are randomized a little bit. */
-  Smearer smearer_;
-
   /* Current client token known from the server. */
   string client_token_;
 
@@ -412,6 +417,9 @@ class InvalidationClientImpl : public InvalidationClient,
 
   /* A task to periodically check network timeouts. */
   scoped_ptr<Closure> timeout_task_;
+
+  /* Random number generator for smearing, exp backoff, etc. */
+  scoped_ptr<Random> random_;
 };
 
 }  // namespace invalidation

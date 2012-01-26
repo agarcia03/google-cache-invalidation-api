@@ -27,9 +27,11 @@ InvalidationClient* CreateInvalidationClient(
     InvalidationListener* listener) {
   // Make a default config and construct an instance to return.
   InvalidationClientImpl::Config client_config;
+  Random* random = new Random(InvalidationClientUtil::GetCurrentTimeMs(
+              resources->internal_scheduler()));
   return new InvalidationClientImpl(
-      resources, client_type, client_name, client_config, application_name,
-      listener);
+      resources, random, client_type, client_name, client_config,
+      application_name, listener);
 }
 
 InvalidationClient* CreateInvalidationClientForTest(
@@ -41,9 +43,11 @@ InvalidationClient* CreateInvalidationClientForTest(
   // Make a default config and construct an instance to return.
   InvalidationClientImpl::Config client_config;
   client_config.InitForTest();
+  Random* random = new Random(InvalidationClientUtil::GetCurrentTimeMs(
+              resources->internal_scheduler()));
   return new InvalidationClientImpl(
-      resources, client_type, client_name, client_config, application_name,
-      listener);
+      resources, random, client_type, client_name, client_config,
+      application_name, listener);
 }
 
 }  // namespace invalidation

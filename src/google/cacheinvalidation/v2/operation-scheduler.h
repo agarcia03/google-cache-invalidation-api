@@ -51,10 +51,9 @@ struct OperationScheduleInfo {
 
 class OperationScheduler {
  public:
-  OperationScheduler(Logger* logger, Scheduler* scheduler)
-      : logger_(logger), scheduler_(scheduler),
-        smearer_(
-            new Random(InvalidationClientUtil::GetCurrentTimeMs(scheduler))) {}
+  /* Caller continues to own space for smearer, logger and scheduler. */
+  OperationScheduler(Smearer* smearer, Logger* logger, Scheduler* scheduler)
+      : logger_(logger), scheduler_(scheduler), smearer_(smearer) {}
 
   /* Informs the scheduler about a new operation that can be scheduled.
    *
@@ -93,7 +92,7 @@ class OperationScheduler {
   Scheduler* scheduler_;
 
   /* A smearer to make sure that delays are randomized a little bit. */
-  Smearer smearer_;
+  Smearer* smearer_;
 };
 
 }  // namespace invalidation

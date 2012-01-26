@@ -31,23 +31,17 @@ namespace invalidation {
 
 class Smearer {
  public:
-  /* Creates a smearer with the given random number generator and default
-   * smear percent. random is owned by this after the call.
-   */
-  explicit Smearer(Random* random) :
-    random_(random), smear_fraction_(kDefaultSmearPercent / 100.0) {}
-
   /* Creates a smearer with the given random number generator.
-   * random is owned by this after the call.
-   * REQUIRES: 0 < smearPercent <= 100
+   * REQUIRES: 0 <= smear_percent <= 100
+   * Caller continues to own space for random.
    */
   Smearer(Random* random, int smear_percent) : random_(random),
           smear_fraction_(smear_percent / 100.0) {
-    CHECK((smear_percent > 0) && (smear_percent <= 100));
+    CHECK((smear_percent >= 0) && (smear_percent <= 100));
   }
 
   /* Given a delay, returns a value that is randomly distributed between
-   * (delay - smearPercent * delay, delay + smearPercent * delay)
+   * (delay - smear_percent * delay, delay + smear_percent * delay)
    */
   TimeDelta GetSmearedDelay(TimeDelta delay) {
     // Get a random number between -1 and 1 and then multiply that by the
@@ -58,10 +52,7 @@ class Smearer {
   }
 
  private:
-  /* Default smearing to be done if the caller does not specify any. */
-  static const int kDefaultSmearPercent = 20;
-
-  scoped_ptr<Random> random_;
+  Random* random_;
 
   /* The percentage (0, 1.0] for smearing the delay. */
   double smear_fraction_;

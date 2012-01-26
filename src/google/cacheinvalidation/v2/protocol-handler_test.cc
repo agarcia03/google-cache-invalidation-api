@@ -94,10 +94,13 @@ class ProtocolHandlerTest : public UnitTestBase {
     validator.reset(new TiclMessageValidator(logger));  // Create msg validator
 
     // Create the protocol handler object.
+    random.reset(new Random(InvalidationClientUtil::GetCurrentTimeMs(
+        resources.get()->internal_scheduler())));
+    smearer.reset(new Smearer(random.get(), kDefaultSmearPercent));
     protocol_handler.reset(
         new ProtocolHandler(
-            config, resources.get(), statistics.get(), "unit-test", &listener,
-            validator.get()));
+            config, resources.get(), smearer.get(), statistics.get(),
+            "unit-test", &listener, validator.get()));
   }
 
  private:
@@ -132,10 +135,16 @@ class ProtocolHandlerTest : public UnitTestBase {
   // protocol handler depends on it.
   scoped_ptr<TiclMessageValidator> validator;
 
-  // Fake token and registration summary for the mock listener to return when
+  // Token and registration summary for the mock listener to return when
   // the protocol handler requests them.
   string token;
   RegistrationSummary summary;
+
+  // A smearer to randomize delays.
+  scoped_ptr<Smearer> smearer;
+
+  // A random number generator.
+  scoped_ptr<Random> random;
 };
 
 // Asks the protocol handler to send an initialize message.  Waits for the

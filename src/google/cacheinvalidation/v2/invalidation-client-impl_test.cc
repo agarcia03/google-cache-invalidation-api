@@ -15,7 +15,9 @@
 
 #include <vector>
 
+#include "google/cacheinvalidation/v2/client_test_internal.pb.h"
 #include "google/cacheinvalidation/v2/gmock.h"
+#include "google/cacheinvalidation/v2/random.h"
 #include "google/cacheinvalidation/v2/string_util.h"
 #include "google/cacheinvalidation/v2/invalidation-listener.h"
 #include "google/cacheinvalidation/v2/types.h"
@@ -34,6 +36,7 @@
 namespace invalidation {
 
 using ::ipc::invalidation::ClientType_Type_TEST;
+using ::ipc::invalidation::RegistrationManagerStateP;
 using ::ipc::invalidation::ObjectSource_Type_TEST;
 using ::ipc::invalidation::StatusP_Code_PERMANENT_FAILURE;
 using ::testing::_;
@@ -134,8 +137,10 @@ class InvalidationClientImplTest : public UnitTestBase {
         .WillRepeatedly(InvokeAndDeleteClosure<1>());
 
     // Create the actual client.
+    Random* random = new Random(InvalidationClientUtil::GetCurrentTimeMs(
+        resources->internal_scheduler()));
     client.reset(new InvalidationClientImpl(
-        resources.get(), ClientType_Type_TEST, "clientName", config,
+        resources.get(), random, ClientType_Type_TEST, "clientName", config,
         "InvClientTest", &listener));
   }
 
@@ -144,7 +149,7 @@ class InvalidationClientImplTest : public UnitTestBase {
   // sure that ready is called. client_messages is the list of messages expected
   // from the client. The 0th message corresponds to the initialization message
   // sent out by the client.
-  void StartClient(const vector<string>& client_messages) {
+  void StartClient() {
     // Start the client.
     client.get()->Start();
 
@@ -154,7 +159,7 @@ class InvalidationClientImplTest : public UnitTestBase {
 
     // Check that the message contains an initializeMessage.
     ClientToServerMessage client_message;
-    client_message.ParseFromString(client_messages[0]);
+    client_message.ParseFromString(outgoing_messages[0]);
     ASSERT_TRUE(client_message.has_initialize_message());
     string nonce = client_message.initialize_message().nonce();
 
@@ -169,8 +174,7 @@ class InvalidationClientImplTest : public UnitTestBase {
   // Sets the expectations so that the Ticl is ready to be started such that
   // |num_outgoing_messages| are expected to be sent by the ticl. These messages
   // will be saved in |outgoing_messages|.
-  void SetExpectationsForTiclStart(int num_outgoing_msgs,
-                                   vector<string>& outgoing_messages) {
+  void SetExpectationsForTiclStart(int num_outgoing_msgs) {
     // Set up expectations for number of messages expected on the network.
     EXPECT_CALL(*network, SendMessage(_))
         .Times(num_outgoing_msgs)
@@ -194,6 +198,9 @@ class InvalidationClientImplTest : public UnitTestBase {
   // Test state maintained for every test.
   //
 
+  // Messages sent by the Ticl.
+  vector<string> outgoing_messages;
+
   // Configuration for the protocol handler (uses defaults).
   InvalidationClientImpl::Config config;
 
@@ -207,16 +214,14 @@ class InvalidationClientImplTest : public UnitTestBase {
 // Starts the ticl and checks that appropriate calls are made on the listener
 // and that a proper message is sent on the network.
 TEST_F(InvalidationClientImplTest, Start) {
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(1, outgoing_messages);
-  StartClient(outgoing_messages);
+  SetExpectationsForTiclStart(1);
+  StartClient();
 }
 
 // Starts the Ticl, registers for a few objects, gets success and ensures that
 // the right listener methods are invoked.
 TEST_F(InvalidationClientImplTest, Register) {
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(2, outgoing_messages);
+  SetExpectationsForTiclStart(2);
 
   // Set some expectations for registration status messages.
   vector<ObjectId> saved_oids;
@@ -227,7 +232,7 @@ TEST_F(InvalidationClientImplTest, Register) {
       .WillRepeatedly(SaveArgToVector<1>(&saved_oids));
 
   // Start the Ticl.
-  StartClient(outgoing_messages);
+  StartClient();
 
   // Synthesize a few test object ids.
   int num_objects = 3;
@@ -277,8 +282,7 @@ TEST_F(InvalidationClientImplTest, Register) {
 // sent out.
 TEST_F(InvalidationClientImplTest, Invalidations) {
     // Set some expectations for starting the client.
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(2, outgoing_messages);
+  SetExpectationsForTiclStart(2);
 
   // Synthesize a few test object ids.
   int num_objects = 3;
@@ -303,7 +307,7 @@ TEST_F(InvalidationClientImplTest, Invalidations) {
                             SaveArgToVector<2>(&ack_handles)));
 
   // Start the Ticl.
-  StartClient(outgoing_messages);
+  StartClient();
 
   // Give this message to the protocol handler.
   ServerToClientMessage message;
@@ -340,11 +344,10 @@ TEST_F(InvalidationClientImplTest, Invalidations) {
 // client and wait for the sync message and the info message to go out.
 TEST_F(InvalidationClientImplTest, ServerRequests) {
   // Set some expectations for starting the client.
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(2, outgoing_messages);
+  SetExpectationsForTiclStart(2);
 
   // Start the ticl.
-  StartClient(outgoing_messages);
+  StartClient();
 
   // Make the server to client message.
   ServerToClientMessage message;
@@ -370,14 +373,13 @@ TEST_F(InvalidationClientImplTest, ServerRequests) {
 // Tests that an incoming unknown failure message results in the app being
 // informed about it.
 TEST_F(InvalidationClientImplTest, IncomingErrorMessage) {
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(1, outgoing_messages);
+  SetExpectationsForTiclStart(1);
 
   // Set up listener expectation for error.
   EXPECT_CALL(listener, InformError(Eq(client.get()), _));
 
   // Start the ticl.
-  StartClient(outgoing_messages);
+  StartClient();
 
   // Give the error message to the protocol handler.
   ServerToClientMessage message;
@@ -390,8 +392,7 @@ TEST_F(InvalidationClientImplTest, IncomingErrorMessage) {
 // Tests that an incoming auth failure message results in the app being informed
 // about it and the registrations being removed.
 TEST_F(InvalidationClientImplTest, IncomingAuthErrorMessage) {
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(2, outgoing_messages);
+  SetExpectationsForTiclStart(2);
 
   // One object to register for.
   int num_objects = 1;
@@ -412,7 +413,7 @@ TEST_F(InvalidationClientImplTest, IncomingAuthErrorMessage) {
       Eq(false), _));
 
   // Start the client.
-  StartClient(outgoing_messages);
+  StartClient();
 
   // Register and let the message be sent out.
   client.get()->Register(oids[0]);
@@ -431,8 +432,7 @@ TEST_F(InvalidationClientImplTest, IncomingAuthErrorMessage) {
 // sent out.
 TEST_F(InvalidationClientImplTest, NetworkTimeouts) {
   // Set some expectations for starting the client.
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(3, outgoing_messages);
+  SetExpectationsForTiclStart(3);
 
   // One object to register for.
   int num_objects = 1;
@@ -447,7 +447,7 @@ TEST_F(InvalidationClientImplTest, NetworkTimeouts) {
       InvalidationListener::REGISTERED));
 
   // Start the client.
-  StartClient(outgoing_messages);
+  StartClient();
 
   // Register for an object.
   client.get()->Register(oids[0]);
@@ -470,14 +470,44 @@ TEST_F(InvalidationClientImplTest, NetworkTimeouts) {
   internal_scheduler->PassTime(EndOfTestWaitTime());
 }
 
+// Tests that an incoming message without registration summary does not
+// cause the registration summary in the client to be changed.
+TEST_F(InvalidationClientImplTest, NoRegistrationSummary) {
+  // Test plan: Initialze the ticl, let it get a token with a ServerToClient
+  // message that has no registration summary.
+
+  // Set some expectations for starting the client and start the client.
+  // Give it a summary with 1 reg.
+  reg_summary.get()->set_num_registrations(1);
+  SetExpectationsForTiclStart(1);
+  StartClient();
+
+  // Now give it an message with no summary. It should not reset to a summary
+  // with zero registrations.
+  reg_summary.reset(NULL);
+  ServerToClientMessage message;
+  InitServerHeader(client.get()->GetClientToken(), message.mutable_header());
+  ProcessIncomingMessage(message, EndOfTestWaitTime());
+
+  // Check that the registration manager state did not change.
+  string manager_serial_state;
+  client->GetRegistrationManagerStateAsSerializedProto(&manager_serial_state);
+  RegistrationManagerStateP reg_manager_state;
+  reg_manager_state.ParseFromString(manager_serial_state);
+
+  // Check that the registration manager state's number of registrations is 1.
+  TLOG(logger, INFO, "Reg manager state: %s",
+       reg_manager_state.Utf8DebugString().c_str());
+  ASSERT_EQUALS(1, reg_manager_state.server_summary().num_registrations());
+}
+
 // Tests that heartbeats are sent out as time advances.
 TEST_F(InvalidationClientImplTest, Heartbeats) {
   // Set some expectations for starting the client.
-  vector<string> outgoing_messages;
-  SetExpectationsForTiclStart(2, outgoing_messages);
+  SetExpectationsForTiclStart(2);
 
   // Start the client.
-  StartClient(outgoing_messages);
+  StartClient();
 
   // Now let the heartbeat occur and an info message be sent.
   TimeDelta heartbeat_delay = GetMaxDelay(config.heartbeat_interval);

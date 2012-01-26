@@ -35,10 +35,34 @@ using ::ipc::invalidation::ServerHeader;
 using ::ipc::invalidation::ServerToClientMessage;
 using ::ipc::invalidation::TokenControlMessage;
 
+bool ServerMessageHeader::operator==(const ServerMessageHeader& other) const {
+  // If the token is different or if one of the registration summary is
+  // null and the other is non-null, return false.
+  if (((registration_summary() != NULL) !=
+      (other.registration_summary() != NULL)) ||
+      (token_ != other.token_)) {
+    return false;
+  }
+
+  // The tokens are the same and registration summaries are either both
+  // null or non-null.
+  return (registration_summary() == NULL) ||
+      ((registration_summary()->num_registrations() ==
+          other.registration_summary()->num_registrations()) &&
+          (registration_summary()->registration_digest() ==
+              other.registration_summary()->registration_digest()));
+}
+
+string ServerMessageHeader::ToString() const {
+  return StringPrintf(
+      "Token: %s, Summary: %s", ProtoHelpers::ToString(token_).c_str(),
+      ProtoHelpers::ToString(registration_summary_).c_str());
+}
+
 ProtocolHandler::ProtocolHandler(
-    const Config& config, SystemResources* resources, Statistics* statistics,
-    const string& application_name, ProtocolListener* listener,
-    TiclMessageValidator* msg_validator)
+    const Config& config, SystemResources* resources, Smearer* smearer,
+    Statistics* statistics, const string& application_name,
+    ProtocolListener* listener, TiclMessageValidator* msg_validator)
     : resources_(resources),
       logger_(resources->logger()),
       internal_scheduler_(resources->internal_scheduler()),
@@ -47,7 +71,7 @@ ProtocolHandler::ProtocolHandler(
           NewPermanentCallback(this, &ProtocolHandler::SendMessageToServer)),
       listener_(listener),
       operation_scheduler_(new OperationScheduler(
-          logger_, internal_scheduler_)),
+          smearer, logger_, internal_scheduler_)),
       msg_validator_(msg_validator),
       message_id_(1),
       last_known_server_time_ms_(0),

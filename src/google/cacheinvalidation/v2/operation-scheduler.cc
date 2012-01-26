@@ -53,7 +53,7 @@ void OperationScheduler::Schedule(Closure* operation) {
 
   // Schedule an event if one has not been already scheduled.
   if (!op_info->has_been_scheduled) {
-    TimeDelta delay = smearer_.GetSmearedDelay(op_info->delay);
+    TimeDelta delay = smearer_->GetSmearedDelay(op_info->delay);
     TLOG(logger_, FINE, "Scheduling %s with a delay %d, Now = %d",
          op_info->name.c_str(), delay.InMilliseconds(),
          InvalidationClientUtil::GetCurrentTimeMs(scheduler_));
