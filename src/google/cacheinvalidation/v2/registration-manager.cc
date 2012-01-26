@@ -82,14 +82,15 @@ void RegistrationManager::HandleRegistrationStatus(
            RegistrationP_OpType_REGISTER);
       bool discrepancy_exists = is_register ^ in_requested_map;
       if (discrepancy_exists) {
-        // Just remove it and issue registration failure. Caller must issue reg
-        // failure to the app so that we find out the actual state of the
-        // registration.
+        // Just remove the registration and issue registration failure.
+        // Caller must issue registration failure to the app so that we find
+        // out the actual state of the registration.
         desired_registrations_->Remove(object_id_proto);
         statistics_->RecordError(
             Statistics::ClientErrorType_REGISTRATION_DISCREPANCY);
         TLOG(logger_, INFO,
-             "Discrepancy detected: %d, %d. Removing %s from requested",
+             "Ticl discrepancy detected: registered = %d, requested = %d. "
+             "Removing %s from requested",
              is_register, in_requested_map,
              ProtoHelpers::ToString(object_id_proto).c_str());
         is_success = false;
