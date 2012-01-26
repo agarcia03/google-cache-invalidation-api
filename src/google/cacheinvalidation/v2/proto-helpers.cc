@@ -145,6 +145,12 @@ void ProtoHelpers::InitRegistrationP(const ObjectIdP& oid,
   reg->set_op_type(op_type);
 }
 
+void ProtoHelpers::InitRateLimitP(int window_ms, int count,
+    RateLimitP *rate_limit) {
+  rate_limit->set_window_ms(window_ms);
+  rate_limit->set_count(count);
+}
+
 void ProtoHelpers::InitInitializeMessage(
     const ApplicationClientIdP& application_client_id, const string& nonce,
     InitializeMessage* init_msg) {
@@ -170,6 +176,11 @@ void ProtoHelpers::InitProtocolVersion(ProtocolVersion* protocol_version) {
   Version* version = protocol_version->mutable_version();
   version->set_major_version(Constants::kProtocolMajorVersion);
   version->set_minor_version(Constants::kProtocolMinorVersion);
+}
+
+void ProtoHelpers::InitConfigVersion(Version* config_version) {
+  config_version->set_major_version(Constants::kConfigMajorVersion);
+  config_version->set_minor_version(Constants::kConfigMinorVersion);
 }
 
 DEFINE_TO_STRING(ErrorMessage::Code) {
@@ -254,6 +265,35 @@ DEFINE_TO_STRING(PropertyRecord) {
   BEGIN();
   OPTIONAL(name);
   OPTIONAL(value);
+  END();
+}
+
+DEFINE_TO_STRING(RateLimitP) {
+  BEGIN();
+  OPTIONAL(window_ms);
+  OPTIONAL(count);
+  END();
+}
+
+DEFINE_TO_STRING(ProtocolHandlerConfigP) {
+  BEGIN();
+  OPTIONAL(batching_delay_ms);
+  REPEATED(rate_limit);
+  END();
+}
+
+DEFINE_TO_STRING(ClientConfigP) {
+  BEGIN();
+  OPTIONAL(version);
+  OPTIONAL(network_timeout_delay_ms);
+  OPTIONAL(write_retry_delay_ms);
+  OPTIONAL(heartbeat_interval_ms);
+  OPTIONAL(perf_counter_delay_ms);
+  OPTIONAL(max_exponential_backoff_factor);
+  OPTIONAL(smear_percent);
+  OPTIONAL(is_transient);
+  OPTIONAL(initial_persistent_heartbeat_delay_ms);
+  OPTIONAL(protocol_handler_config);
   END();
 }
 

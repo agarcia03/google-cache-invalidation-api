@@ -126,6 +126,13 @@ class ProtoHelpers {
   static void InitClientVersion(const string& platform,
       const string& application_info, ClientVersion* client_version);
 
+  // Initializes |config_version| to the current config version.
+  static void InitConfigVersion(Version* config_version);
+
+  // Initializes |rate_limit| with the given window interval and count of
+  // messages.
+  static void InitRateLimitP(int window_ms, int count, RateLimitP *rate_limit);
+
  private:
   static const int NUM_CHARS = 256;
   static char CHAR_OCTAL_STRINGS1[NUM_CHARS];

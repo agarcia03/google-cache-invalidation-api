@@ -37,62 +37,6 @@ namespace invalidation {
 class InvalidationClientImpl : public InvalidationClient,
                                public ProtocolListener {
  public:
-  struct Config {
-    /* Initial delay for a heartbeat after restarting from persistent state.
-     * We use this so that the application has a chance to respond to the
-     * reissueRegistrations call.
-     */
-    static const int64 kInitialPersistentHeartbeatDelayMs;
-
-    Config() : network_timeout_delay(TimeDelta::FromMinutes(1)),
-               write_retry_delay(TimeDelta::FromSeconds(10)),
-               heartbeat_interval(TimeDelta::FromMinutes(20)),
-               perf_counter_delay(TimeDelta::FromHours(6)),
-               max_exponential_backoff_factor(500),
-               smear_percent(20),
-               is_transient(false) {}
-
-    /* The delay after which a network message sent to the server is considered
-     * timed out.
-     */
-    TimeDelta network_timeout_delay;
-
-    /* Retry delay for a persistent write if it fails. */
-    TimeDelta write_retry_delay;
-
-    /* Delay for sending heartbeats to the server. */
-    TimeDelta heartbeat_interval;
-
-    /* Delay after which performance counters are sent to the server. */
-    TimeDelta perf_counter_delay;
-
-    /* The maximum exponential backoff factor used for network and persistence
-     * timeouts.
-     */
-    int max_exponential_backoff_factor;
-
-    /* Smearing percent for randomizing delays. */
-    int smear_percent;
-
-    /* Whether the client is transient, that is, does not write its session
-     * token to durable storage.
-     */
-    bool is_transient;
-
-    /* Configuration for the protocol client to control batching etc. */
-    ProtocolHandler::Config protocol_handler_config;
-
-    /* Modifies configParams to contain the list of configuration parameter
-     * names and their values.
-     */
-    void GetConfigParams(vector<pair<string, int> >* config_params);
-
-    string ToString();
-
-    /* Initializes the config with values suitable for unit testing. */
-    void InitForTest();
-  };
-
   /* Constructs a client.
    *
    * Arguments:
@@ -105,8 +49,14 @@ class InvalidationClientImpl : public InvalidationClient,
    */
   InvalidationClientImpl(
       SystemResources* resources, Random* random, int client_type,
-      const string& client_name, Config config, const string& application_name,
-      InvalidationListener* listener);
+      const string& client_name, const ClientConfigP &config,
+      const string& application_name, InvalidationListener* listener);
+
+  /* Modifies |config| to contain default parameters. */
+  static void InitConfig(ClientConfigP *config);
+
+  /* Modifies |config| to contain parameters set for unit tests. */
+  static void InitConfigForTest(ClientConfigP *config);
 
   /* Stores the client id that is used for squelching invalidations on the
    * server side.
@@ -358,7 +308,7 @@ class InvalidationClientImpl : public InvalidationClient,
   scoped_ptr<CheckingInvalidationListener> listener_;
 
   /* Configuration for this instance. */
-  Config config_;
+  ClientConfigP config_;
 
   /* Application identifier for this client. */
   ApplicationClientIdP application_client_id_;

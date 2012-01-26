@@ -16,6 +16,7 @@
 
 #include "google/cacheinvalidation/v2/googletest.h"
 #include "google/cacheinvalidation/v2/test/deterministic-scheduler.h"
+#include "google/cacheinvalidation/v2/proto-helpers.h"
 #include "google/cacheinvalidation/v2/throttle.h"
 
 namespace invalidation {
@@ -53,12 +54,16 @@ class ThrottleTest : public testing::Test {
     start_time_ = scheduler_->GetCurrentTime();
     call_count_ = 0;
     last_call_time_ = Time() - TimeDelta::FromHours(1);
+    ProtoHelpers::InitRateLimitP(1000, kMessagesPerSecond, rate_limits_.Add());
+    ProtoHelpers::InitRateLimitP(60 * 1000, kMessagesPerMinute,
+        rate_limits_.Add());
   }
 
   int call_count_;
   Time start_time_;
   Time last_call_time_;
   scoped_ptr<DeterministicScheduler> scheduler_;
+  RepeatedPtrField<RateLimitP> rate_limits_;
 
   static const int kMessagesPerSecond;
   static const int kMessagesPerMinute;
@@ -83,14 +88,8 @@ TEST_F(ThrottleTest, ThrottlingScripted) {
   Closure* listener =
       NewPermanentCallback(this, &ThrottleTest::IncrementCounter);
 
-  vector<RateLimit> rate_limits;
-  rate_limits.push_back(
-      RateLimit(TimeDelta::FromSeconds(1), kMessagesPerSecond));
-  rate_limits.push_back(
-      RateLimit(TimeDelta::FromMinutes(1), kMessagesPerMinute));
-
   scoped_ptr<Throttle> throttle(
-      new Throttle(rate_limits, scheduler_.get(), listener));
+      new Throttle(rate_limits_, scheduler_.get(), listener));
 
   // The first time we fire(), it should call right away.
   throttle->Fire();
@@ -165,15 +164,9 @@ TEST_F(ThrottleTest, ThrottlingStorm) {
   Closure* listener =
       NewPermanentCallback(this, &ThrottleTest::IncrementAndCheckRateLimits);
 
-  vector<RateLimit> rate_limits;
-  rate_limits.push_back(
-      RateLimit(TimeDelta::FromSeconds(1), kMessagesPerSecond));
-  rate_limits.push_back(
-      RateLimit(TimeDelta::FromMinutes(1), kMessagesPerMinute));
-
   // Throttler allowing one call per second and six per minute.
   scoped_ptr<Throttle> throttle(
-      new Throttle(rate_limits, scheduler_.get(), listener));
+      new Throttle(rate_limits_, scheduler_.get(), listener));
 
   // For five minutes, call Fire() every ten milliseconds, and make sure the
   // rate limits are respected.

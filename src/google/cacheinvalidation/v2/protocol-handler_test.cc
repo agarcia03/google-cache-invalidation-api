@@ -16,6 +16,7 @@
 #include "google/cacheinvalidation/v2/constants.h"
 #include "google/cacheinvalidation/v2/gmock.h"
 #include "google/cacheinvalidation/v2/googletest.h"
+#include "google/cacheinvalidation/v2/invalidation-client-impl.h"
 #include "google/cacheinvalidation/v2/protocol-handler.h"
 #include "google/cacheinvalidation/v2/statistics.h"
 #include "google/cacheinvalidation/v2/string_util.h"
@@ -119,7 +120,7 @@ class ProtocolHandlerTest : public UnitTestBase {
 
  public:
   // Configuration for the protocol handler (uses defaults).
-  ProtocolHandler::Config config;
+  ProtocolHandlerConfigP config;
 
   // The protocol handler being tested.  Created fresh for each test function.
   scoped_ptr<ProtocolHandler> protocol_handler;
@@ -248,17 +249,16 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
   // Concoct some performance counters and config parameters, and ask to send
   // an info message with them.
   vector<pair<string, int> > perf_counters;
-  vector<pair<string, int> > config_params;
   perf_counters.push_back(make_pair("x", 3));
   perf_counters.push_back(make_pair("y", 81));
-  config_params.push_back(make_pair("z", 2));
-  config_params.push_back(make_pair("aa", 55));
+  ClientConfigP client_config;
+  InvalidationClientImpl::InitConfig(&client_config);
 
   internal_scheduler->Schedule(
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendInfoMessage,
-          perf_counters, config_params, true));
+          perf_counters, &client_config, true));
 
   // Synthesize a few test object ids.
   vector<ObjectIdP> oids;
@@ -355,12 +355,8 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
   ProtoHelpers::InitClientVersion("unit-test", "unit-test",
       info_message->mutable_client_version());
   info_message->set_server_registration_summary_requested(true);
+  info_message->mutable_client_config()->CopyFrom(client_config);
   PropertyRecord* prop_rec;
-  for (uint32 i = 0; i < config_params.size(); ++i) {
-    prop_rec = info_message->add_config_parameter();
-    prop_rec->set_name(config_params[i].first);
-    prop_rec->set_value(config_params[i].second);
-  }
   for (uint32 i = 0; i < perf_counters.size(); ++i) {
     prop_rec = info_message->add_performance_counter();
     prop_rec->set_name(perf_counters[i].first);
@@ -561,7 +557,7 @@ TEST_F(ProtocolHandlerTest, ConfigMessage) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendInfoMessage,
-          empty_vector, empty_vector, false));
+          empty_vector, NULL, false));
 
   // Keep simulating passage of time until just before the quiet period ends.
   // Nothing should be sent.  (The mock network will catch any attempts to send
@@ -628,7 +624,7 @@ TEST_F(ProtocolHandlerTest, TokenMissing) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(),
-          &ProtocolHandler::SendInfoMessage, empty_vector, empty_vector, true));
+          &ProtocolHandler::SendInfoMessage, empty_vector, NULL, true));
 
   internal_scheduler->PassTime(GetMaxBatchingDelay(config));
 

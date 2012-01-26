@@ -254,10 +254,36 @@ DEFINE_VALIDATOR(PropertyRecord) {
   REQUIRE(value);
 }
 
+DEFINE_VALIDATOR(RateLimitP) {
+  REQUIRE(window_ms);
+  GREATER_OR_EQUAL(window_ms, 1000);
+  CONDITION(message.window_ms() > message.count());
+  REQUIRE(count);
+}
+
+DEFINE_VALIDATOR(ProtocolHandlerConfigP) {
+  ALLOW(batching_delay_ms);
+  ZERO_OR_MORE(rate_limit);
+}
+
+DEFINE_VALIDATOR(ClientConfigP) {
+  REQUIRE(version);
+  ALLOW(network_timeout_delay_ms);
+  ALLOW(write_retry_delay_ms);
+  ALLOW(heartbeat_interval_ms);
+  ALLOW(perf_counter_delay_ms);
+  ALLOW(max_exponential_backoff_factor);
+  ALLOW(smear_percent);
+  ALLOW(is_transient);
+  ALLOW(initial_persistent_heartbeat_delay_ms);
+  REQUIRE(protocol_handler_config);
+}
+
 DEFINE_VALIDATOR(InfoMessage) {
   REQUIRE(client_version);
   ZERO_OR_MORE(config_parameter);
   ZERO_OR_MORE(performance_counter);
+  ALLOW(client_config);
   ALLOW(server_registration_summary_requested);
 }
 

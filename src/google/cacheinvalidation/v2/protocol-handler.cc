@@ -60,14 +60,14 @@ string ServerMessageHeader::ToString() const {
 }
 
 ProtocolHandler::ProtocolHandler(
-    const Config& config, SystemResources* resources, Smearer* smearer,
-    Statistics* statistics, const string& application_name,
+    const ProtocolHandlerConfigP& config, SystemResources* resources,
+    Smearer* smearer, Statistics* statistics, const string& application_name,
     ProtocolListener* listener, TiclMessageValidator* msg_validator)
     : resources_(resources),
       logger_(resources->logger()),
       internal_scheduler_(resources->internal_scheduler()),
       throttled_message_sender_(
-          config.rate_limits, internal_scheduler_,
+          config.rate_limit(), internal_scheduler_,
           NewPermanentCallback(this, &ProtocolHandler::SendMessageToServer)),
       listener_(listener),
       operation_scheduler_(new OperationScheduler(
@@ -86,7 +86,8 @@ ProtocolHandler::ProtocolHandler(
      &client_version_);
 
   operation_scheduler_->SetOperation(
-      config.batching_delay, batching_task_.get(), "[batching task]");
+      TimeDelta::FromMilliseconds(config.batching_delay_ms()),
+        batching_task_.get(), "[batching task]");
 
   // Install ourselves as a receiver for server messages.
   resources_->network()->SetMessageReceiver(
@@ -94,6 +95,24 @@ ProtocolHandler::ProtocolHandler(
 
   resources_->network()->AddNetworkStatusReceiver(
       NewPermanentCallback(this, &ProtocolHandler::NetworkStatusReceiver));
+}
+
+void ProtocolHandler::InitConfig(ProtocolHandlerConfigP* config) {
+  // Add rate limits.
+  // At most one message per second.
+  ProtoHelpers::InitRateLimitP(1000, 1, config->add_rate_limit());
+  // At most six messages per minute.
+  ProtoHelpers::InitRateLimitP(60 * 1000, 6, config->add_rate_limit());
+}
+
+void ProtocolHandler::InitConfigForTest(ProtocolHandlerConfigP* config) {
+  // No rate limits.
+  config->set_batching_delay_ms(200);
+
+  // At most one message per second.
+  ProtoHelpers::InitRateLimitP(1000, 1, config->add_rate_limit());
+  // At most six messages per minute.
+  ProtoHelpers::InitRateLimitP(60 * 1000, 6, config->add_rate_limit());
 }
 
 void ProtocolHandler::HandleIncomingMessage(const string& incoming_message) {
@@ -268,7 +287,7 @@ void ProtocolHandler::SendInitializeMessage(
 
 void ProtocolHandler::SendInfoMessage(
     const vector<pair<string, int> >& performance_counters,
-    const vector<pair<string, int> >& config_params,
+    ClientConfigP* client_config,
     bool request_server_registration_summary) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
@@ -277,12 +296,10 @@ void ProtocolHandler::SendInfoMessage(
   pending_info_message_.reset(new InfoMessage());
   pending_info_message_->mutable_client_version()->CopyFrom(client_version_);
 
-  // Add configuration parameters.
-  for (size_t i = 0; i < config_params.size(); ++i) {
-    PropertyRecord* config_record =
-        pending_info_message_->add_config_parameter();
-    config_record->set_name(config_params[i].first);
-    config_record->set_value(config_params[i].second);
+  // Add configuration parameters
+  if (client_config != NULL) {
+    pending_info_message_.get()->mutable_client_config()->CopyFrom(
+        *client_config);
   }
 
   // Add performance counters.
@@ -367,29 +384,14 @@ void ProtocolHandler::SendMessageToServer() {
 
   // Add reg, acks, reg subtrees - clear them after adding.
   if (!pending_acked_invalidations_.empty()) {
-    InvalidationMessage* ack_message =
-        builder.mutable_invalidation_ack_message();
-    set<InvalidationP, ProtoCompareLess>::const_iterator iter;
-    for (iter = pending_acked_invalidations_.begin();
-         iter != pending_acked_invalidations_.end(); ++iter) {
-      ack_message->add_invalidation()->CopyFrom(*iter);
-    }
-    pending_acked_invalidations_.clear();
+    InitAckMessage(builder.mutable_invalidation_ack_message());
     statistics_->RecordSentMessage(
         Statistics::SentMessageType_INVALIDATION_ACK);
   }
 
   // Check regs.
   if (!pending_registrations_.empty()) {
-    map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>::const_iterator
-        iter;
-    RegistrationMessage* reg_message = builder.mutable_registration_message();
-    for (iter = pending_registrations_.begin();
-         iter != pending_registrations_.end(); ++iter) {
-      RegistrationP* reg = reg_message->add_registration();
-      ProtoHelpers::InitRegistrationP(iter->first, iter->second, reg);
-    }
-    pending_registrations_.clear();
+    InitRegistrationMessage(builder.mutable_registration_message());
     statistics_->RecordSentMessage(Statistics::SentMessageType_REGISTRATION);
   }
 
@@ -430,6 +432,32 @@ void ProtocolHandler::SendMessageToServer() {
   string serialized;
   builder.SerializeToString(&serialized);
   resources_->network()->SendMessage(serialized);
+}
+
+void ProtocolHandler::InitRegistrationMessage(
+    RegistrationMessage* reg_message) {
+  CHECK(!pending_registrations_.empty());
+
+  // Run through the pending_registrations map.
+  map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>::iterator iter;
+  for (iter = pending_registrations_.begin();
+       iter != pending_registrations_.end(); ++iter) {
+    ProtoHelpers::InitRegistrationP(iter->first, iter->second,
+        reg_message->add_registration());
+  }
+  pending_registrations_.clear();
+}
+
+void ProtocolHandler::InitAckMessage(InvalidationMessage *ack_message) {
+  CHECK(!pending_acked_invalidations_.empty());
+
+  // Run through pending_acked_invalidations_ set.
+  set<InvalidationP, ProtoCompareLess>::iterator iter;
+  for (iter = pending_acked_invalidations_.begin();
+       iter != pending_acked_invalidations_.end(); iter++) {
+    ack_message->add_invalidation()->CopyFrom(*iter);
+  }
+  pending_acked_invalidations_.clear();
 }
 
 void ProtocolHandler::InitClientHeader(ClientHeader* builder) {

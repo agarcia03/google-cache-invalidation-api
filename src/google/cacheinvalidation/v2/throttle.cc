@@ -26,7 +26,7 @@ namespace invalidation {
 using INVALIDATION_STL_NAMESPACE::max;
 
 Throttle::Throttle(
-    const vector<RateLimit>& rate_limits, Scheduler* scheduler,
+    const RepeatedPtrField<RateLimitP>& rate_limits, Scheduler* scheduler,
     Closure* listener)
     : rate_limits_(rate_limits), scheduler_(scheduler), listener_(listener),
       timer_scheduled_(false) {
@@ -35,7 +35,11 @@ Throttle::Throttle(
   // the buffer of recent messages we need to retain.
   max_recent_events_ = 1;
   for (size_t i = 0; i < rate_limits_.size(); ++i) {
-    max_recent_events_ = max(max_recent_events_, rate_limits_[i].count);
+    const RateLimitP& rate_limit = rate_limits.Get(i);
+    CHECK(rate_limit.window_ms() > rate_limit.count()) <<
+        "Windows size too small";
+    max_recent_events_ = max(static_cast<int>(max_recent_events_),
+        rate_limits_.Get(i).count());
   }
 }
 
@@ -50,12 +54,12 @@ void Throttle::Fire() {
   // violated, send.
   Time now = scheduler_->GetCurrentTime();
   for (size_t i = 0; i < rate_limits_.size(); ++i) {
-    RateLimit rate_limit = rate_limits_[i];
+    RateLimitP rate_limit   = rate_limits_.Get(i);
 
     // We're now checking whether sending would violate a rate limit of 'count'
     // messages per 'window_size'.
-    int count = rate_limit.count;
-    TimeDelta window_size = rate_limit.window_size;
+    int count = rate_limit.count();
+    TimeDelta window_size = TimeDelta::FromMilliseconds(rate_limit.window_ms());
 
     // First, see how many messages we've sent so far (up to the size of our
     // recent message buffer).

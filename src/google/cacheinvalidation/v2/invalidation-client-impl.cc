@@ -34,55 +34,10 @@ namespace invalidation {
 
 using ::ipc::invalidation::RegistrationManagerStateP;
 
-const int64
-InvalidationClientImpl::Config::kInitialPersistentHeartbeatDelayMs = 2000;
-
-/* Modifies configParams to contain the list of configuration parameter
- * names and their values.
- */
-void InvalidationClientImpl::Config::GetConfigParams(
-    vector<pair<string, int> >* config_params) {
-  config_params->push_back(
-      make_pair("networkTimeoutDelay",
-                network_timeout_delay.InMilliseconds()));
-  config_params->push_back(
-      make_pair("writeRetryDelay", write_retry_delay.InMilliseconds()));
-  config_params->push_back(
-      make_pair("heartbeatInterval", heartbeat_interval.InMilliseconds()));
-  config_params->push_back(
-      make_pair("perfCounterDelay", perf_counter_delay.InMilliseconds()));
-  config_params->push_back(
-      make_pair("maxExponentialBackoffFactor", max_exponential_backoff_factor));
-  config_params->push_back(make_pair("smearPercent", smear_percent));
-  config_params->push_back(
-      make_pair("isTransient", is_transient));
-  protocol_handler_config.GetConfigParams(config_params);
-}
-
-string InvalidationClientImpl::Config::ToString() {
-  std::stringstream stream;
-  stream << "network delay: " << network_timeout_delay.InMilliseconds()
-         << ", write retry delay: " << write_retry_delay.InMilliseconds()
-         << ", heartbeat: " << heartbeat_interval.InMilliseconds()
-         << ", perfcounter delay: " << perf_counter_delay.InMilliseconds()
-         << ", maxExponentialBackoffFactor: " << max_exponential_backoff_factor
-         << ", smearPercent: " << smear_percent
-         << (is_transient ? ", transient" : ", persistent");
-  return stream.str();
-}
-
-void InvalidationClientImpl::Config::InitForTest() {
-  network_timeout_delay = TimeDelta::FromSeconds(2);
-  protocol_handler_config.batching_delay = TimeDelta::FromMilliseconds(200);
-  heartbeat_interval = TimeDelta::FromSeconds(5);
-  write_retry_delay = TimeDelta::FromMilliseconds(500);
-  protocol_handler_config.rate_limits.clear();
-}
-
 InvalidationClientImpl::InvalidationClientImpl(
     SystemResources* resources, Random* random, int client_type,
-    const string& client_name, Config config, const string& application_name,
-    InvalidationListener* listener)
+    const string& client_name, const ClientConfigP& config,
+    const string& application_name, InvalidationListener* listener)
     : resources_(resources),
       internal_scheduler_(resources->internal_scheduler()),
       logger_(resources->logger()),
@@ -94,25 +49,25 @@ InvalidationClientImpl::InvalidationClientImpl(
       digest_fn_(new Sha1DigestFunction()),
       registration_manager_(logger_, statistics_.get(), digest_fn_.get()),
       msg_validator_(new TiclMessageValidator(logger_)),
-      smearer_(random, config.smear_percent),
-      protocol_handler_(config.protocol_handler_config, resources, &smearer_,
+      smearer_(random, config.smear_percent()),
+      protocol_handler_(config.protocol_handler_config(), resources, &smearer_,
           statistics_.get(), application_name, this, msg_validator_.get()),
       operation_scheduler_(&smearer_, logger_, internal_scheduler_),
       token_exponential_backoff_(
           random,
-          config.max_exponential_backoff_factor *
-              config.network_timeout_delay,
-          config.network_timeout_delay),
+          config.max_exponential_backoff_factor() *
+              TimeDelta::FromMilliseconds(config.network_timeout_delay_ms()),
+          TimeDelta::FromMilliseconds(config.network_timeout_delay_ms())),
       reg_sync_heartbeat_exponential_backoff_(
           random,
-          config.max_exponential_backoff_factor *
-              config.network_timeout_delay,
-          config.network_timeout_delay),
+          config.max_exponential_backoff_factor() *
+              TimeDelta::FromMilliseconds(config.network_timeout_delay_ms()),
+          TimeDelta::FromMilliseconds(config.network_timeout_delay_ms())),
       persistence_exponential_backoff_(
           random,
-          config.max_exponential_backoff_factor *
-              config.write_retry_delay,
-          config.write_retry_delay),
+          config.max_exponential_backoff_factor() *
+              TimeDelta::FromMilliseconds(config.write_retry_delay_ms()),
+          TimeDelta::FromMilliseconds(config.write_retry_delay_ms())),
       heartbeat_task_(
           NewPermanentCallback(this, &InvalidationClientImpl::HeartbeatTask)),
       timeout_task_(
@@ -122,10 +77,25 @@ InvalidationClientImpl::InvalidationClientImpl(
   application_client_id_.set_client_name(client_name);
   application_client_id_.set_client_type(client_type);
   operation_scheduler_.SetOperation(
-      config.network_timeout_delay, timeout_task_.get(), "[timeout task]");
+      TimeDelta::FromMilliseconds(config.network_timeout_delay_ms()),
+        timeout_task_.get(), "[timeout task]");
   operation_scheduler_.SetOperation(
-      config.heartbeat_interval, heartbeat_task_.get(), "[heartbeat task]");
+      TimeDelta::FromMilliseconds(config.heartbeat_interval_ms()),
+        heartbeat_task_.get(), "[heartbeat task]");
   TLOG(logger_, INFO, "Created client: %s", ToString().c_str());
+}
+
+void InvalidationClientImpl::InitConfig(ClientConfigP* config) {
+  ProtoHelpers::InitConfigVersion(config->mutable_version());
+  ProtocolHandler::InitConfig(config->mutable_protocol_handler_config());
+}
+
+void InvalidationClientImpl::InitConfigForTest(ClientConfigP* config) {
+  ProtoHelpers::InitConfigVersion(config->mutable_version());
+  config->set_network_timeout_delay_ms(2000);
+  config->set_heartbeat_interval_ms(5000);
+  config->set_write_retry_delay_ms(500);
+  ProtocolHandler::InitConfigForTest(config->mutable_protocol_handler_config());
 }
 
 void InvalidationClientImpl::Start() {
@@ -137,7 +107,7 @@ void InvalidationClientImpl::Start() {
       internal_scheduler_->GetCurrentTime().ToInternalValue()));
 
   TLOG(logger_, INFO, "Starting with C++ config: %s",
-       config_.ToString().c_str());
+       ProtoHelpers::ToString(config_).c_str());
 
   // Read the state blob and then schedule startInternal once the value is
   // there.
@@ -186,8 +156,8 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     // Schedule an info message for the near future. We delay a little bit to
     // allow the application to reissue its registrations locally and avoid
     // triggering registration sync with the data center due to a hash mismatch.
-    internal_scheduler_->Schedule(
-        TimeDelta::FromMilliseconds(Config::kInitialPersistentHeartbeatDelayMs),
+    internal_scheduler_->Schedule(TimeDelta::FromMilliseconds(
+        config_.initial_persistent_heartbeat_delay_ms()),
         NewPermanentCallback(this,
             &InvalidationClientImpl::SendInfoMessageToServer, false, true));
 
@@ -673,19 +643,20 @@ void InvalidationClientImpl::SendInfoMessageToServer(
 
   // Make sure that you have the latest registration summary.
   Time next_performance_send_time =
-      last_performance_send_time_ + config_.perf_counter_delay;
+      last_performance_send_time_ +
+      TimeDelta::FromMilliseconds(config_.perf_counter_delay_ms());
   vector<pair<string, int> > performance_counters;
-  vector<pair<string, int> > config_params;
+  ClientConfigP* config_to_send = NULL;
   if (must_send_performance_counters ||
       (next_performance_send_time <
        internal_scheduler_->GetCurrentTime())) {
     statistics_->GetNonZeroStatistics(&performance_counters);
-    config_.GetConfigParams(&config_params);
+    config_to_send = &config_;
     last_performance_send_time_ = internal_scheduler_->GetCurrentTime();
   }
 
   protocol_handler_.SendInfoMessage(
-      performance_counters, config_params, request_server_summary);
+      performance_counters, config_to_send, request_server_summary);
 }
 
 void InvalidationClientImpl::WriteStateBlob() {

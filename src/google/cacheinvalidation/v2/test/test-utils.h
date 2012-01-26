@@ -128,13 +128,13 @@ class UnitTestBase : public testing::Test {
       const vector<ObjectIdP>& object_ids, bool is_reg, bool is_success,
       vector<RegistrationStatus>* registration_statuses);
 
-  // Returns the maximum smeared delay possible for |delayMs| given the
+  // Returns the maximum smeared delay possible for |delay_ms| given the
   // |Smearer|'s default smearing.
-  static TimeDelta GetMaxDelay(TimeDelta delay);
+  static TimeDelta GetMaxDelay(int delay_ms);
 
   // Returns the maximum batching delay that a message will incur in the
   // protocol handler.
-  static TimeDelta GetMaxBatchingDelay(const ProtocolHandler::Config& config);
+  static TimeDelta GetMaxBatchingDelay(const ProtocolHandlerConfigP& config);
 
   // Initializes |summary| with a registration summary for 0 objects.
   static void InitZeroRegistrationSummary(RegistrationSummary* summary);

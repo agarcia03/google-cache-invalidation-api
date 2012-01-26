@@ -33,6 +33,7 @@ using ::ipc::invalidation::PersistentTiclState;
 // ClientProtocol
 using ::ipc::invalidation::AckHandleP;
 using ::ipc::invalidation::ApplicationClientIdP;
+using ::ipc::invalidation::ClientConfigP;
 using ::ipc::invalidation::ClientHeader;
 using ::ipc::invalidation::ClientVersion;
 using ::ipc::invalidation::ClientToServerMessage;
@@ -51,7 +52,9 @@ using ::ipc::invalidation::InvalidationMessage;
 using ::ipc::invalidation::InvalidationP;
 using ::ipc::invalidation::ObjectIdP;
 using ::ipc::invalidation::PropertyRecord;
+using ::ipc::invalidation::ProtocolHandlerConfigP;
 using ::ipc::invalidation::ProtocolVersion;
+using ::ipc::invalidation::RateLimitP;
 using ::ipc::invalidation::RegistrationMessage;
 using ::ipc::invalidation::RegistrationP;
 using ::ipc::invalidation::RegistrationP_OpType_REGISTER;

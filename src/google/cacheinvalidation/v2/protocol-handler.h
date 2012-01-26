@@ -19,6 +19,7 @@
 
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -165,34 +166,6 @@ class ProtocolListener {
 
 class ProtocolHandler {
  public:
-  /* Configuration for the protocol client. */
-  class Config {
-   public:
-    Config() : batching_delay(
-        TimeDelta::FromMilliseconds(kDefaultBatchingDelayMs)) {
-      // At most one message per second.
-      rate_limits.push_back(RateLimit(TimeDelta::FromSeconds(1), 1));
-      // At most six messages per minute.
-      rate_limits.push_back(RateLimit(TimeDelta::FromMinutes(1), 6));
-    }
-
-    /* Batching delay - certain messages (e.g., registrations, invalidation
-     * acks) are sent to the server after this delay.
-     */
-    TimeDelta batching_delay;
-
-    /* Rate limits for sending messages. */
-    vector<RateLimit> rate_limits;
-
-    void GetConfigParams(vector<pair<string, int> >* config_params) {
-      config_params->push_back(
-          make_pair("batching_delay", batching_delay.InMilliseconds()));
-    }
-
-    // Default batching delay in milliseconds.
-    static const int kDefaultBatchingDelayMs = 500;
-  };
-
   /* Creates an instance.
    *
    * config - configuration for the client
@@ -205,10 +178,19 @@ class ProtocolHandler {
    * msg_validator - validator for protocol messages
    * Caller continues to own space for smearer.
    */
-  ProtocolHandler(const Config& config, SystemResources* resources,
+  ProtocolHandler(const ProtocolHandlerConfigP& config,
+                  SystemResources* resources,
                   Smearer* smearer, Statistics* statistics,
                   const string& application_name, ProtocolListener* listener,
                   TiclMessageValidator* msg_validator);
+
+  /* Initializes |config| with default protocol handler config parameters. */
+  static void InitConfig(ProtocolHandlerConfigP *config);
+
+  /* Initializes |config| with protocol handler config parameters for unit
+   * tests
+   */
+  static void InitConfigForTest(ProtocolHandlerConfigP *config);
 
   /* Returns the next time a message is allowed to be sent to the server (could
    * be in the past).
@@ -231,10 +213,11 @@ class ProtocolHandler {
       const string& nonce, const string& debug_string);
 
   /* Sends an info message to the server with the performance counters supplied
-   * in performance_counters and the config supplies in config_params.
+   * in performance_counters and the config supplies in client_config (which
+   * could be null).
    */
   void SendInfoMessage(const vector<pair<string, int> >& performance_counters,
-                       const vector<pair<string, int> >& config_params,
+                       ClientConfigP* client_config,
                        bool request_server_registration_summary);
 
   /* Sends a registration request to the server.
@@ -269,6 +252,20 @@ class ProtocolHandler {
    * sync messages).
    */
   void SendMessageToServer();
+
+  /* Initializes a registration message based on registrations from
+   * |pending_registrations|.
+   *
+   * REQUIRES: pending_registrations.size() > 0
+   */
+  void InitRegistrationMessage(RegistrationMessage* reg_message);
+
+  /* Initializes an invalidation ack message based on acks from
+   * |pending_acked_invalidations|.
+   * <p>
+   * REQUIRES: pending_acked_invalidations.size() > 0
+   */
+  void InitAckMessage(InvalidationMessage* ack_message);
 
   /* Stores the header to include on a message to the server. */
   void InitClientHeader(ClientHeader* header);

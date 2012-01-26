@@ -29,7 +29,7 @@ namespace invalidation {
 using INVALIDATION_STL_NAMESPACE::string;
 
 /* Constructs an invalidation client library instance with a default
- * configuration.
+ * configuration. Caller owns returned space.
  *
  * Arguments:
  *   resources SystemResources to use for logging, scheduling, persistence,
@@ -49,7 +49,7 @@ InvalidationClient* CreateInvalidationClient(
     InvalidationListener* listener);
 
 /* Constructs an invalidation client library instance with a configuration
- * initialized for testing.
+ * initialized for testing. Caller owns returned space.
  *
  * Arguments:
  *   resources SystemResources to use for logging, scheduling, persistence,

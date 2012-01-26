@@ -191,15 +191,14 @@ void UnitTestBase::MakeRegistrationStatusesFromObjectIds(
   }
 }
 
-TimeDelta UnitTestBase::GetMaxDelay(TimeDelta delay) {
-  int64 extra_delay =
-      (delay.InMilliseconds() * kDefaultSmearPercent) / 100.0;
-  return delay + TimeDelta::FromMilliseconds(extra_delay);
+TimeDelta UnitTestBase::GetMaxDelay(int delay_ms) {
+  int64 extra_delay_ms = (delay_ms * kDefaultSmearPercent) / 100.0;
+  return TimeDelta::FromMilliseconds(extra_delay_ms + delay_ms);
 }
 
 TimeDelta UnitTestBase::GetMaxBatchingDelay(
-    const ProtocolHandler::Config& config) {
-  return GetMaxDelay(config.batching_delay);
+    const ProtocolHandlerConfigP& config) {
+  return GetMaxDelay(config.batching_delay_ms());
 }
 
 void UnitTestBase::InitZeroRegistrationSummary(RegistrationSummary* summary) {

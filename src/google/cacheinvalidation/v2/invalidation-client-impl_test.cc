@@ -130,7 +130,8 @@ class InvalidationClientImplTest : public UnitTestBase {
     UnitTestBase::SetUp();
 
     // Clear throttle limits so that it does not interfere with any test.
-    config.protocol_handler_config.rate_limits.clear();
+    InvalidationClientImpl::InitConfig(&config);
+    config.mutable_protocol_handler_config()->clear_rate_limit();
 
     // Set up the listener scheduler to run any runnable that it receives.
     EXPECT_CALL(*listener_scheduler, Schedule(_, _))
@@ -155,7 +156,7 @@ class InvalidationClientImplTest : public UnitTestBase {
 
     // Let the message be sent out.
     internal_scheduler->PassTime(
-        GetMaxBatchingDelay(config.protocol_handler_config));
+        GetMaxBatchingDelay(config.protocol_handler_config()));
 
     // Check that the message contains an initializeMessage.
     ClientToServerMessage client_message;
@@ -202,7 +203,7 @@ class InvalidationClientImplTest : public UnitTestBase {
   vector<string> outgoing_messages;
 
   // Configuration for the protocol handler (uses defaults).
-  InvalidationClientImpl::Config config;
+  ClientConfigP config;
 
   // The client being tested. Created fresh for each test function.
   scoped_ptr<InvalidationClientImpl> client;
@@ -246,7 +247,7 @@ TEST_F(InvalidationClientImplTest, Register) {
 
   // Let the message be sent out.
   internal_scheduler->PassTime(
-      GetMaxBatchingDelay(config.protocol_handler_config));
+      GetMaxBatchingDelay(config.protocol_handler_config()));
 
   // Give a registration status message to the protocol handler and wait for
   // the listener calls.
@@ -326,7 +327,7 @@ TEST_F(InvalidationClientImplTest, Invalidations) {
     client.get()->Acknowledge(ack_handles[i]);
   }
   internal_scheduler->PassTime(
-      GetMaxBatchingDelay(config.protocol_handler_config));
+      GetMaxBatchingDelay(config.protocol_handler_config()));
 
   // Check that the ack message is as expected.
   ClientToServerMessage client_msg;
@@ -418,7 +419,7 @@ TEST_F(InvalidationClientImplTest, IncomingAuthErrorMessage) {
   // Register and let the message be sent out.
   client.get()->Register(oids[0]);
   internal_scheduler->PassTime(
-      GetMaxBatchingDelay(config.protocol_handler_config));
+      GetMaxBatchingDelay(config.protocol_handler_config()));
 
   // Give this message to the protocol handler.
   ServerToClientMessage message;
@@ -454,10 +455,10 @@ TEST_F(InvalidationClientImplTest, NetworkTimeouts) {
 
   // Let the registration message be sent out.
   internal_scheduler->PassTime(
-      GetMaxBatchingDelay(config.protocol_handler_config));
+      GetMaxBatchingDelay(config.protocol_handler_config()));
 
   // Now let the network timeout occur and an info message be sent.
-  TimeDelta timeout_delay = GetMaxDelay(config.network_timeout_delay);
+  TimeDelta timeout_delay = GetMaxDelay(config.network_timeout_delay_ms());
   internal_scheduler->PassTime(timeout_delay);
 
   // Check that the message sent out is an info message asking for the server's
@@ -510,7 +511,7 @@ TEST_F(InvalidationClientImplTest, Heartbeats) {
   StartClient();
 
   // Now let the heartbeat occur and an info message be sent.
-  TimeDelta heartbeat_delay = GetMaxDelay(config.heartbeat_interval);
+  TimeDelta heartbeat_delay = GetMaxDelay(config.heartbeat_interval_ms());
   internal_scheduler->PassTime(heartbeat_delay);
 
   // Check that the heartbeat is sent and it does not ask for the server's

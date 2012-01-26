@@ -33,6 +33,12 @@ class Constants {
 
   /* Minor version of the protocol between the client and the server. */
   static const int kProtocolMinorVersion;
+
+  /* Major version of the client config. */
+  static const int kConfigMajorVersion;
+
+  /* Minor version of the client config. */
+  static const int kConfigMinorVersion;
 };
 
 }  // namespace invalidation

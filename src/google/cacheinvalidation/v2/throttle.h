@@ -26,6 +26,7 @@
 #include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/stl-namespace.h"
 #include "google/cacheinvalidation/v2/time.h"
+#include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 
 namespace invalidation {
 
@@ -33,15 +34,6 @@ class Scheduler;
 
 using INVALIDATION_STL_NAMESPACE::deque;
 using INVALIDATION_STL_NAMESPACE::vector;
-
-// A rate limit of 'count' events over a window of duration 'window_size'.
-struct RateLimit {
-  RateLimit(TimeDelta window_size, size_t count)
-      : window_size(window_size), count(count) {}
-
-  TimeDelta window_size;
-  size_t count;
-};
 
 // Provides an abstraction for multi-level rate-limiting.  For example, the
 // default limits state that no more than one message should be sent per second,
@@ -53,8 +45,8 @@ class Throttle {
   // Constructs a throttler to enforce the given rate limits for the given
   // listener, using the given system resources.  Ownership of scheduler is
   // retained by the caller, but the throttle takes ownership of the listener.
-  Throttle(const vector<RateLimit>& rate_limits, Scheduler* scheduler,
-           Closure* listener);
+  Throttle(const RepeatedPtrField<RateLimitP>& rate_limits,
+           Scheduler* scheduler, Closure* listener);
 
   // If calling the listener would not violate the rate limits, does so.
   // Otherwise, schedules a timer to do so as soon as doing so would not violate
@@ -71,7 +63,7 @@ class Throttle {
   }
 
   // Rate limits to be enforced by this object.
-  vector<RateLimit> rate_limits_;
+  RepeatedPtrField<RateLimitP> rate_limits_;
 
   // Scheduler for reading the current time and scheduling tasks that need to be
   // delayed.
