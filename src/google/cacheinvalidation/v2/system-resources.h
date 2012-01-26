@@ -115,6 +115,8 @@ class Scheduler : public ResourceComponent {
 
   /* Schedules runnable to be run on scheduler's thread after at least
    * delay.
+   * Callee owns the runnable and must delete it after the task has run
+   * (or if the scheduler is shut down before the task has run).
    */
   virtual void Schedule(TimeDelta delay, Closure* runnable) = 0;
 
@@ -180,6 +182,8 @@ class Storage : public ResourceComponent {
    *
    * Note: If a wrie W1 finishes unsuccessfully and then W2 is issued for the
    * same key and W2 finishes successfully, W1 must NOT later overwrite W2.
+   * Callee owns |done| after this call. After it calls |done->Run()|, it must
+   * delete |done|.
    *
    * REQUIRES: Neither key nor value is null.
    */
@@ -189,11 +193,15 @@ class Storage : public ResourceComponent {
   /* Reads the value corresponding to key and calls done with the result.  If it
    * finds the key, passes a success status and the value. Else passes a failure
    * status and a null value.
+   * Callee owns |done| after this call. After it calls |done->Run()|, it must
+   * delete |done|.
    */
   virtual void ReadKey(const string& key, ReadKeyCallback* done) = 0;
 
   /* Deletes the key, value pair corresponding to key. If the deletion succeeds,
    * calls done with true; else calls it with false.
+   * Callee owns |done| after this call. After it calls |done->Run()|, it must
+   * delete |done|.
    */
   virtual void DeleteKey(const string& key, DeleteKeyCallback* done) = 0;
 
@@ -201,6 +209,7 @@ class Storage : public ResourceComponent {
    * with each key that was written earlier and not deleted. When all the keys
    * are done, calls key_callback with null. With each key, the code can
    * indicate a failed status, in which case the iteration stops.
+   * Caller continues to own |key_callback|.
    */
   virtual void ReadAllKeys(ReadAllKeysCallback* key_callback) = 0;
 };

@@ -139,6 +139,39 @@ string ProtoHelpers::ToString(const string& bytes) {
   return builder;
 }
 
+void ProtoHelpers::InitRegistrationP(const ObjectIdP& oid,
+    RegistrationP::OpType op_type, RegistrationP* reg) {
+  reg->mutable_object_id()->CopyFrom(oid);
+  reg->set_op_type(op_type);
+}
+
+void ProtoHelpers::InitInitializeMessage(
+    const ApplicationClientIdP& application_client_id, const string& nonce,
+    InitializeMessage* init_msg) {
+  init_msg->set_client_type(application_client_id.client_type());
+  init_msg->mutable_application_client_id()->CopyFrom(
+      application_client_id);
+  init_msg->set_nonce(nonce);
+  init_msg->set_digest_serialization_type(
+      InitializeMessage_DigestSerializationType_BYTE_BASED);
+}
+
+void ProtoHelpers::InitClientVersion(const string& platform,
+    const string& application_info, ClientVersion* client_version) {
+  Version* version = client_version->mutable_version();
+  version->set_major_version(Constants::kClientMajorVersion);
+  version->set_minor_version(Constants::kClientMinorVersion);
+  client_version->set_platform(platform);
+  client_version->set_language("C++");
+  client_version->set_application_info(application_info);
+}
+
+void ProtoHelpers::InitProtocolVersion(ProtocolVersion* protocol_version) {
+  Version* version = protocol_version->mutable_version();
+  version->set_major_version(Constants::kProtocolMajorVersion);
+  version->set_minor_version(Constants::kProtocolMinorVersion);
+}
+
 DEFINE_TO_STRING(ErrorMessage::Code) {
   switch (message) {
     ENUM_VALUE(ErrorMessage_Code, AUTH_FAILURE);

@@ -20,15 +20,18 @@
 #include <sstream>
 #include <string>
 
-#include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
+#include "google/cacheinvalidation/v2/client_protocol.pb.h"
 #include "google/cacheinvalidation/v2/logging.h"
 #include "google/cacheinvalidation/v2/stl-namespace.h"
+#include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
+#include "google/cacheinvalidation/v2/constants.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
+using ::ipc::invalidation::ProtocolVersion;
 using ::google::protobuf::Message;
 using ::google::protobuf::RepeatedPtrField;
 using ::google::protobuf::TextFormat;
@@ -107,6 +110,21 @@ class ProtoHelpers {
   // Converts a value to a printable/readable string format.
   template<typename T>
   static string ToString(const T& value);
+
+  // Initializes |reg| to be a (un) registration for object |oid|.
+  static void InitRegistrationP(const ObjectIdP& oid,
+      RegistrationP::OpType op_type, RegistrationP* reg);
+
+  static void InitInitializeMessage(
+      const ApplicationClientIdP& application_client_id, const string& nonce,
+      InitializeMessage* init_msg);
+
+  // Initializes |protocol_version| to the current protocol version.
+  static void InitProtocolVersion(ProtocolVersion* protocol_version);
+
+  // Initializes |client_version| to the current client version.
+  static void InitClientVersion(const string& platform,
+      const string& application_info, ClientVersion* client_version);
 
  private:
   static const int NUM_CHARS = 256;

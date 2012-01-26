@@ -58,13 +58,8 @@ ProtocolHandler::ProtocolHandler(
       batching_task_(NewPermanentCallback(
           this, &ProtocolHandler::BatchingTask)) {
   // Initialize client version.
-  client_version_.mutable_version()->set_major_version(
-      Constants::kClientMajorVersion);
-  client_version_.mutable_version()->set_minor_version(
-      Constants::kClientMinorVersion);
-  client_version_.set_platform(resources->platform());
-  client_version_.set_language("C++");
-  client_version_.set_application_info(application_name);
+  ProtoHelpers::InitClientVersion(resources->platform(), application_name,
+     &client_version_);
 
   operation_scheduler_->SetOperation(
       config.batching_delay, batching_task_.get(), "[batching task]");
@@ -239,14 +234,8 @@ void ProtocolHandler::SendInitializeMessage(
   // Simply store the message in pending_initialize_message_ and send it
   // when the batching task runs.
   pending_initialize_message_.reset(new InitializeMessage());
-  pending_initialize_message_->set_client_type(
-      application_client_id.client_type());
-  pending_initialize_message_->mutable_application_client_id()->CopyFrom(
-      application_client_id);
-  pending_initialize_message_->set_nonce(nonce);
-  pending_initialize_message_->set_digest_serialization_type(
-      InitializeMessage_DigestSerializationType_BYTE_BASED);
-
+  ProtoHelpers::InitInitializeMessage(application_client_id, nonce,
+      pending_initialize_message_.get());
   TLOG(logger_, INFO, "Batching initialize message for client: %s, %s",
        debug_string.c_str(),
        ProtoHelpers::ToString(*pending_initialize_message_).c_str());
@@ -374,8 +363,7 @@ void ProtocolHandler::SendMessageToServer() {
     for (iter = pending_registrations_.begin();
          iter != pending_registrations_.end(); ++iter) {
       RegistrationP* reg = reg_message->add_registration();
-      reg->mutable_object_id()->CopyFrom(iter->first);
-      reg->set_op_type(iter->second);
+      ProtoHelpers::InitRegistrationP(iter->first, iter->second, reg);
     }
     pending_registrations_.clear();
     statistics_->RecordSentMessage(Statistics::SentMessageType_REGISTRATION);
@@ -422,10 +410,7 @@ void ProtocolHandler::SendMessageToServer() {
 
 void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  builder->mutable_protocol_version()->mutable_version()->set_major_version(
-      Constants::kProtocolMajorVersion);
-  builder->mutable_protocol_version()->mutable_version()->set_minor_version(
-      Constants::kProtocolMinorVersion);
+  ProtoHelpers::InitProtocolVersion(builder->mutable_protocol_version());
   builder->set_client_time_ms(GetCurrentTimeMs());
   builder->set_message_id(StringPrintf("%d", message_id_++));
   builder->set_max_known_server_time_ms(last_known_server_time_ms_);
