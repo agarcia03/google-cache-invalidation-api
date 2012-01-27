@@ -29,6 +29,7 @@
 #include "google/cacheinvalidation/v2/protocol-handler.h"
 #include "google/cacheinvalidation/v2/statistics.h"
 #include "google/cacheinvalidation/v2/test/deterministic-scheduler.h"
+#include "google/cacheinvalidation/v2/types.h"
 
 namespace invalidation {
 
@@ -46,6 +47,7 @@ using ::ipc::invalidation::ServerHeader;
 using ::ipc::invalidation::ServerToClientMessage;
 using ::ipc::invalidation::StatusP_Code_SUCCESS;
 using ::ipc::invalidation::Version;
+using ::google::protobuf::MessageLite;
 using ::testing::_;
 using ::testing::EqualsProto;
 using ::testing::Matcher;
@@ -180,7 +182,7 @@ class UnitTestBase : public testing::Test {
       TimeDelta delay);
 
   // Returns true iff the messages are equal (with lists interpreted as sets).
-  bool CompareMessages(const Message& expected, const Message& actual);
+  bool CompareMessages(const MessageLite& expected, const MessageLite& actual);
 
   // Checks that |vec1| and |vec2| contain the same number of elements
   // and each element in |vec1| is present in |vec2| and vice-versa (Uses the
@@ -192,9 +194,9 @@ class UnitTestBase : public testing::Test {
     if (vec1.size() != vec2.size()) {
       return false;
     }
-    for (int i = 0; i < vec1.size(); i++) {
+    for (size_t i = 0; i < vec1.size(); i++) {
       bool found = false;
-      for (int j = 0; (j < vec2.size()) && !found; j++) {
+      for (size_t j = 0; (j < vec2.size()) && !found; j++) {
         found = found || (vec1[i] == vec2[j]);
       }
       if (!found) {

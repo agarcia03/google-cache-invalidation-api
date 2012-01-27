@@ -34,7 +34,7 @@ Throttle::Throttle(
   // Find the largest 'count' in all of the rate limits, as this is the size of
   // the buffer of recent messages we need to retain.
   max_recent_events_ = 1;
-  for (size_t i = 0; i < rate_limits_.size(); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(rate_limits_.size()); ++i) {
     const RateLimitP& rate_limit = rate_limits.Get(i);
     CHECK(rate_limit.window_ms() > rate_limit.count()) <<
         "Windows size too small";
@@ -53,7 +53,7 @@ void Throttle::Fire() {
   // task to try again once that limit won't be violated.  If no limits would be
   // violated, send.
   Time now = scheduler_->GetCurrentTime();
-  for (size_t i = 0; i < rate_limits_.size(); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(rate_limits_.size()); ++i) {
     RateLimitP rate_limit   = rate_limits_.Get(i);
 
     // We're now checking whether sending would violate a rate limit of 'count'

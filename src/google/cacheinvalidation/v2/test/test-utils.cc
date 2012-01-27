@@ -25,8 +25,7 @@
 
 namespace invalidation {
 
-using proto2::io::StringOutputStream;
-using proto2::util::MessageDifferencer;
+using ::google::protobuf::io::StringOutputStream;
 using ::testing::DeleteArg;
 using ::testing::StrictMock;
 
@@ -107,7 +106,7 @@ void UnitTestBase::InitRegistrationMessage(const vector<ObjectIdP>& oids,
     bool is_reg, RegistrationMessage *reg_message) {
   RegistrationP::OpType op_type = is_reg ?
       RegistrationP::REGISTER : RegistrationP::UNREGISTER;
-  for (int i = 0; i < oids.size(); i++) {
+  for (size_t i = 0; i < oids.size(); i++) {
     ProtoHelpers::InitRegistrationP(
         oids[i], op_type, reg_message->add_registration());
   }
@@ -121,7 +120,7 @@ void UnitTestBase::InitErrorMessage(ErrorMessage::Code error_code,
 
 void UnitTestBase::InitInvalidationMessage(const vector<InvalidationP>& invs,
     InvalidationMessage *inv_message) {
-  for (int i = 0; i < invs.size(); ++i) {
+  for (size_t i = 0; i < invs.size(); ++i) {
     inv_message->add_invalidation()->CopyFrom(invs[i]);
   }
 }
@@ -145,7 +144,7 @@ void UnitTestBase::InitTestObjectIds(int count, vector<ObjectIdP>* object_ids) {
 
 void UnitTestBase::ConvertFromObjectIdProtos(
     const vector<ObjectIdP>& oid_protos, vector<ObjectId> *oids) {
-  for (int i = 0; i < oid_protos.size(); ++i) {
+  for (size_t i = 0; i < oid_protos.size(); ++i) {
     ObjectId object_id;
     ProtoConverter::ConvertFromObjectIdProto(oid_protos[i], &object_id);
     oids->push_back(object_id);
@@ -154,7 +153,7 @@ void UnitTestBase::ConvertFromObjectIdProtos(
 
 void UnitTestBase::ConvertFromInvalidationProtos(
       const vector<InvalidationP>& inv_protos, vector<Invalidation> *invs) {
-  for (int i = 0; i < inv_protos.size(); ++i) {
+  for (size_t i = 0; i < inv_protos.size(); ++i) {
     Invalidation inv;
     ProtoConverter::ConvertFromInvalidationProto(inv_protos[i], &inv);
     invs->push_back(inv);
@@ -164,7 +163,7 @@ void UnitTestBase::ConvertFromInvalidationProtos(
 void UnitTestBase::MakeInvalidationsFromObjectIds(
     const vector<ObjectIdP>& object_ids,
     vector<InvalidationP>* invalidations) {
-  for (int i = 0; i < object_ids.size(); ++i) {
+  for (size_t i = 0; i < object_ids.size(); ++i) {
     InvalidationP invalidation;
     invalidation.mutable_object_id()->CopyFrom(object_ids[i]);
     invalidation.set_is_known_version(true);
@@ -179,7 +178,7 @@ void UnitTestBase::MakeInvalidationsFromObjectIds(
 void UnitTestBase::MakeRegistrationStatusesFromObjectIds(
     const vector<ObjectIdP>& object_ids, bool is_reg, bool is_success,
     vector<RegistrationStatus>* registration_statuses) {
-  for (int i = 0; i < object_ids.size(); ++i) {
+  for (size_t i = 0; i < object_ids.size(); ++i) {
     RegistrationStatus registration_status;
     registration_status.mutable_registration()->mutable_object_id()->CopyFrom(
         object_ids[i]);
@@ -219,8 +218,8 @@ void UnitTestBase::InitServerHeader(const string& token, ServerHeader* header) {
   header->set_message_id("message-id-for-test");
 }
 
-bool UnitTestBase::CompareMessages(const Message& expected,
-    const Message& actual) {
+bool UnitTestBase::CompareMessages(const MessageLite& expected,
+    const MessageLite& actual) {
   // TODO: Fill in proper implementation.
   return true;
 }

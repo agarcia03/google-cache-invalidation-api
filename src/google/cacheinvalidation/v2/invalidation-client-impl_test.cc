@@ -31,7 +31,7 @@
 #include "google/cacheinvalidation/v2/test/test-utils.h"
 #include "google/cacheinvalidation/v2/throttle.h"
 #include "google/cacheinvalidation/v2/ticl-message-validator.h"
-#include "testing/base/public/gunit.h"
+#include "google/cacheinvalidation/v2/googletest.h"
 
 namespace invalidation {
 
@@ -498,8 +498,8 @@ TEST_F(InvalidationClientImplTest, NoRegistrationSummary) {
 
   // Check that the registration manager state's number of registrations is 1.
   TLOG(logger, INFO, "Reg manager state: %s",
-       reg_manager_state.Utf8DebugString().c_str());
-  ASSERT_EQUALS(1, reg_manager_state.server_summary().num_registrations());
+       ProtoHelpers::ToString(reg_manager_state).c_str());
+  ASSERT_EQ(1, reg_manager_state.server_summary().num_registrations());
 }
 
 // Tests that heartbeats are sent out as time advances.

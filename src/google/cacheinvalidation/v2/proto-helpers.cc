@@ -16,10 +16,13 @@
 
 #include <sstream>
 
+#include "google/cacheinvalidation/v2/client_test_internal.pb.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
 #include "google/cacheinvalidation/v2/string_util.h"
 
 namespace invalidation {
+
+using ::ipc::invalidation::RegistrationManagerStateP;
 
 // Defines a ToString template method specialization for the given type.
 #define DEFINE_TO_STRING(type)                                          \
@@ -454,6 +457,13 @@ DEFINE_TO_STRING(ServerToClientMessage) {
   OPTIONAL(registration_status_message);
   OPTIONAL(registration_sync_request_message);
   OPTIONAL(info_request_message);
+  END();
+}
+
+DEFINE_TO_STRING(RegistrationManagerStateP) {
+  BEGIN();
+  OPTIONAL(client_summary);
+  OPTIONAL(server_summary);
   END();
 }
 

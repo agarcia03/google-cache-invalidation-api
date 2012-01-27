@@ -290,7 +290,7 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
   vector<InvalidationP> invalidations;
   MakeInvalidationsFromObjectIds(oids, &invalidations);
   invalidations.pop_back();
-  for (int i = 0; i < invalidations.size(); ++i) {
+  for (size_t i = 0; i < invalidations.size(); ++i) {
     internal_scheduler->Schedule(
         Scheduler::NoDelay(),
         NewPermanentCallback(
