@@ -24,6 +24,7 @@
 
 #include "google/cacheinvalidation/v2/callback.h"
 #include "google/cacheinvalidation/v2/logging.h"
+#include "google/cacheinvalidation/v2/log-macro.h"
 #include "google/cacheinvalidation/v2/run-state.h"
 #include "google/cacheinvalidation/v2/string_util.h"
 #include "google/cacheinvalidation/v2/system-resources.h"
@@ -50,8 +51,9 @@ struct TaskEntry {
 
 class DeterministicScheduler : public Scheduler {
  public:
-  DeterministicScheduler()
-      : current_id_(0), running_internal_(false) {}
+  // Caller retains ownershup of |logger|.
+  explicit DeterministicScheduler(Logger* logger)
+      : current_id_(0), running_internal_(false), logger_(logger) {}
 
   virtual ~DeterministicScheduler() {
     StopScheduler();
@@ -128,6 +130,9 @@ class DeterministicScheduler : public Scheduler {
 
   // A priority queue on which the actual tasks are enqueued.
   std::priority_queue<TaskEntry> work_queue_;
+
+  // A logger.
+  Logger* logger_;
 };
 
 }  // namespace invalidation

@@ -86,8 +86,9 @@ class MockStorage : public Storage {
 // A base class for unit tests to share common methods and helper routines.
 class UnitTestBase : public testing::Test {
  public:
-  /* Default smearing to be done to randomize delays. */
-  static const int kDefaultSmearPercent = 20;
+  // Default smearing to be done to randomize delays. Zero to get
+  // precise delays.
+  static const int kDefaultSmearPercent = 0;
 
   // The token or nonce used by default for a client in client to server or
   // server to client messages.

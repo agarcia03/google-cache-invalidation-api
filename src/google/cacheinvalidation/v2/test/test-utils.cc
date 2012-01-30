@@ -63,15 +63,16 @@ void UnitTestBase::TearDown() {
 }
 
 void UnitTestBase::InitSystemResources() {
+  logger = new TestLogger();
+
   // Use a deterministic scheduler for the protocol handler's internals, since
   // we want precise control over when batching intervals expire.
-  internal_scheduler = new DeterministicScheduler();
+  internal_scheduler = new DeterministicScheduler(logger);
   internal_scheduler->SetInitialTime(start_time);
 
   // Use a mock network to let us trap the protocol handler's message receiver
   // and its attempts to send messages.
   network = new StrictMock<MockNetwork>();
-  logger = new TestLogger();
   listener_scheduler = new StrictMock<MockScheduler>();
 
   // Storage shouldn't be used by the protocol handler, so use a strict mock

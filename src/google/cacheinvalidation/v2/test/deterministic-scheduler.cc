@@ -29,6 +29,8 @@ void DeterministicScheduler::StopScheduler() {
 void DeterministicScheduler::Schedule(TimeDelta delay, Closure* task) {
   CHECK(IsCallbackRepeatable(task));
   CHECK(run_state_.IsStarted());
+  TLOG(logger_, INFO, "(Now: %d) Enqueuing %p with delay %d",
+       current_time_.ToInternalValue(), task, delay.InMilliseconds());
   work_queue_.push(TaskEntry(GetCurrentTime() + delay, current_id_++, task));
 }
 
@@ -69,6 +71,8 @@ bool DeterministicScheduler::RunNextTask() {
       // The task is scheduled to run in the past or present, so remove it
       // from the queue and run the task.
       work_queue_.pop();
+      TLOG(logger_, FINE, "(Now: %d) Running task %p",
+           current_time_.ToInternalValue(), top_elt.task);
       top_elt.task->Run();
       delete top_elt.task;
       return true;

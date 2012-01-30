@@ -536,7 +536,7 @@ TEST_F(ProtocolHandlerTest, ConfigMessage) {
   InitServerHeader(token, message.mutable_header());
   token = "token-that-should-mismatch";
 
-  int next_message_delay_ms = 2000000;
+  int next_message_delay_ms = 2000 * 1000;
   message.mutable_config_change_message()->set_next_message_delay_ms(
       next_message_delay_ms);
 

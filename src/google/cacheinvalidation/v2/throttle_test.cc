@@ -17,6 +17,7 @@
 #include "google/cacheinvalidation/v2/googletest.h"
 #include "google/cacheinvalidation/v2/test/deterministic-scheduler.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
+#include "google/cacheinvalidation/v2/test/test-logger.h"
 #include "google/cacheinvalidation/v2/throttle.h"
 
 namespace invalidation {
@@ -50,7 +51,8 @@ class ThrottleTest : public testing::Test {
   }
 
   void SetUp() {
-    scheduler_.reset(new DeterministicScheduler());
+    logger_.reset(new TestLogger());
+    scheduler_.reset(new DeterministicScheduler(logger_.get()));
     start_time_ = scheduler_->GetCurrentTime();
     call_count_ = 0;
     last_call_time_ = Time() - TimeDelta::FromHours(1);
@@ -63,6 +65,7 @@ class ThrottleTest : public testing::Test {
   Time start_time_;
   Time last_call_time_;
   scoped_ptr<DeterministicScheduler> scheduler_;
+  scoped_ptr<Logger> logger_;
   RepeatedPtrField<RateLimitP> rate_limits_;
 
   static const int kMessagesPerSecond;

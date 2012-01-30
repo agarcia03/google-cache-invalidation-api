@@ -131,6 +131,7 @@ class InvalidationClientImplTest : public UnitTestBase {
 
     // Clear throttle limits so that it does not interfere with any test.
     InvalidationClientImpl::InitConfig(&config);
+    config.set_smear_percent(kDefaultSmearPercent);
     config.mutable_protocol_handler_config()->clear_rate_limit();
 
     // Set up the listener scheduler to run any runnable that it receives.
@@ -511,7 +512,8 @@ TEST_F(InvalidationClientImplTest, Heartbeats) {
   StartClient();
 
   // Now let the heartbeat occur and an info message be sent.
-  TimeDelta heartbeat_delay = GetMaxDelay(config.heartbeat_interval_ms());
+  TimeDelta heartbeat_delay = GetMaxDelay(config.heartbeat_interval_ms() +
+      config.protocol_handler_config().batching_delay_ms());
   internal_scheduler->PassTime(heartbeat_delay);
 
   // Check that the heartbeat is sent and it does not ask for the server's
