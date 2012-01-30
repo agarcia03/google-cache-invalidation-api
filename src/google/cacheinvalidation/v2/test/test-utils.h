@@ -182,7 +182,9 @@ class UnitTestBase : public testing::Test {
       TimeDelta delay);
 
   // Returns true iff the messages are equal (with lists interpreted as sets).
-  bool CompareMessages(const MessageLite& expected, const MessageLite& actual);
+  bool CompareMessages(
+      const ::google::protobuf::MessageLite& expected,
+      const ::google::protobuf::MessageLite& actual);
 
   // Checks that |vec1| and |vec2| contain the same number of elements
   // and each element in |vec1| is present in |vec2| and vice-versa (Uses the

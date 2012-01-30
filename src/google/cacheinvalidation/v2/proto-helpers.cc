@@ -464,6 +464,7 @@ DEFINE_TO_STRING(RegistrationManagerStateP) {
   BEGIN();
   OPTIONAL(client_summary);
   OPTIONAL(server_summary);
+  REPEATED(registered_objects);
   END();
 }
 

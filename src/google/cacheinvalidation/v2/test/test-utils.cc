@@ -218,8 +218,9 @@ void UnitTestBase::InitServerHeader(const string& token, ServerHeader* header) {
   header->set_message_id("message-id-for-test");
 }
 
-bool UnitTestBase::CompareMessages(const MessageLite& expected,
-    const MessageLite& actual) {
+bool UnitTestBase::CompareMessages(
+    const ::google::protobuf::MessageLite& expected,
+    const ::google::protobuf::MessageLite& actual) {
   // TODO: Fill in proper implementation.
   return true;
 }
