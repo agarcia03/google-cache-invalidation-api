@@ -1,2 +1,12 @@
 This directory contains the implementation of the client library for a cache
 invalidation service.
+
+The public (stable) interfaces are those defined in:
+* invalidation-client.h
+* invalidation-client-factory.h
+* invalidation-listener.h
+* system-resources.h
+* types.h
+
+Interfaces and implementations in other files are subject to change.  Please do
+not depend on them.
