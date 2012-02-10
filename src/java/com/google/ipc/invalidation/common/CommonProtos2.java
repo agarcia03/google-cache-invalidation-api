@@ -34,6 +34,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.PropertyRecord;
+import com.google.protos.ipc.invalidation.ClientProtocol.RateLimitP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatusMessage;
@@ -97,6 +98,13 @@ public class CommonProtos2 {
 
   public static ObjectIdP newObjectIdP(int source, byte[] name) {
     return newObjectIdP(source, ByteString.copyFrom(name));
+  }
+
+  public static RateLimitP newRateLimitP(int windowMs, int count) {
+    return RateLimitP.newBuilder()
+        .setWindowMs(windowMs)
+        .setCount(count)
+        .build();
   }
 
   public static ApplicationClientIdP newApplicationClientIdP(int clientType,

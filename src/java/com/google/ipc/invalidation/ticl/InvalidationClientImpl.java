@@ -42,6 +42,7 @@ import com.google.ipc.invalidation.ticl.ProtocolHandler.ProtocolListener;
 import com.google.ipc.invalidation.ticl.ProtocolHandler.ServerMessageHeader;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
 import com.google.ipc.invalidation.ticl.Statistics.IncomingOperationType;
+import com.google.ipc.invalidation.util.Box;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.ipc.invalidation.util.InternalBase;
@@ -55,6 +56,7 @@ import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
 import com.google.protos.ipc.invalidation.Client.AckHandleP;
 import com.google.protos.ipc.invalidation.Client.PersistentTiclState;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
+import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ErrorMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InfoRequestMessage.InfoType;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
@@ -77,6 +79,127 @@ import java.util.Random;
 public class InvalidationClientImpl extends InternalBase
     implements TestableInvalidationClient, ProtocolListener {
 
+  /** A task for acquiring tokens from the server. */
+  private class AcquireTokenTask extends RecurringTask {
+    AcquireTokenTask() {
+      super("AcquireToken", internalScheduler, logger, smearer,
+          createExpBackOffGenerator(config.getNetworkTimeoutDelayMs()), NO_DELAY,
+          config.getNetworkTimeoutDelayMs());
+    }
+
+    @Override
+    public boolean runTask() {
+      // If token is still not assigned (as expected), sends a request. Otherwise, ignore.
+      if (clientToken == null) {
+        // Allocate a nonce and send a message requesting a new token.
+        setNonce(ByteString.copyFromUtf8(Long.toString(
+            internalScheduler.getCurrentTimeMs())));
+        protocolHandler.sendInitializeMessage(applicationClientId, nonce, "AcquireToken");
+        return true;  // Reschedule to check state, retry if necessary after timeout.
+      } else {
+        return false;  // Don't reschedule.
+      }
+    }
+  }
+
+  /**
+   * A task that schedules heartbeats when the registration summary at the client is not
+   * in sync with the registration summary from the server.
+   */
+  private class RegSyncHeartbeatTask extends RecurringTask {
+    RegSyncHeartbeatTask() {
+      super("RegSyncHeartbeat", internalScheduler, logger, smearer,
+          createExpBackOffGenerator(config.getNetworkTimeoutDelayMs()),
+          config.getNetworkTimeoutDelayMs(), config.getNetworkTimeoutDelayMs());
+    }
+
+    @Override
+    public boolean runTask() {
+      if (!registrationManager.isStateInSyncWithServer()) {
+        // Simply send an info message to ensure syncing happens.
+        logger.info("Registration state not in sync with server: %s", registrationManager);
+        sendInfoMessageToServer(false, true /* request server summary */);
+        return true;
+      } else {
+        logger.info("Not sending message since state is now in sync");
+        return false;
+      }
+    }
+  }
+
+  /** A task that writes the token to persistent storage. */
+  private class PersistentWriteTask extends RecurringTask {
+    /** The last client token that was written to to persistent state successfully. */
+    private final Box<ByteString> lastWrittenToken = Box.of(null);
+
+    PersistentWriteTask() {
+      super("PersistentWrite", internalScheduler,
+        logger, smearer, createExpBackOffGenerator(config.getWriteRetryDelayMs()), NO_DELAY,
+        config.getWriteRetryDelayMs());
+    }
+
+    @Override
+    public boolean runTask() {
+      if ((clientToken == null) || clientToken.equals(lastWrittenToken.get())) {
+        // No work to be done
+        return false;  // Do not reschedule
+      }
+
+      // Persistent write needs to happen.
+      final PersistentTiclState state = CommonProtos2.newPersistentTiclState(clientToken);
+      byte[] serializedState = PersistenceUtils.serializeState(state, digestFn);
+
+      storage.writeKey(CLIENT_TOKEN_KEY, serializedState, new Callback<Status>() {
+        @Override
+        public void accept(Status status) {
+          logger.info("Write state completed: %s", status);
+          if (status.isSuccess()) {
+
+            // Set lastWrittenToken to be the token that was written (NOT clientToken - which
+            // could have changed while the write was happening).
+            lastWrittenToken.set(state.getClientToken());
+          } else {
+            statistics.recordError(ClientErrorType.PERSISTENT_WRITE_FAILURE);
+          }
+        }
+      });
+      return true;  // Reschedule after timeout to make sure that write does happen.
+    }
+  }
+
+  /** A task for sending heartbeats to the server. */
+  private class HeartbeatTask extends RecurringTask {
+
+    /** Next time that the performance counters are sent to the server. */
+    private long nextPerformanceSendTimeMs;
+
+    HeartbeatTask() {
+      super("Heartbeat", internalScheduler, logger, smearer, null, config.getHeartbeatIntervalMs(),
+          NO_DELAY);
+      this.nextPerformanceSendTimeMs = internalScheduler.getCurrentTimeMs() +
+          smearer.getSmearedDelay(config.getPerfCounterDelayMs());
+    }
+
+    @Override
+    public boolean runTask() {
+      // Send info message. If needed, send performance counters and reset the next performance
+      // counter send time.
+      logger.info("Sending heartbeat to server: %s", this);
+      boolean mustSendPerfCounters =
+          nextPerformanceSendTimeMs > internalScheduler.getCurrentTimeMs();
+      if (mustSendPerfCounters) {
+        this.nextPerformanceSendTimeMs = internalScheduler.getCurrentTimeMs() +
+            getSmearer().getSmearedDelay(config.getPerfCounterDelayMs());
+      }
+      sendInfoMessageToServer(mustSendPerfCounters, !registrationManager.isStateInSyncWithServer());
+      return true;  // Reschedule.
+    }
+  }
+
+  //
+  // End of nested classes.
+  //
+
   /** The single key used to write all the Ticl state. */
   
   public static final String CLIENT_TOKEN_KEY = "ClientToken";
@@ -85,19 +208,22 @@ public class InvalidationClientImpl extends InternalBase
   private final SystemResources resources;
 
   /**
-   * Reference into the resources object for cleaner code. All Ticl code must be scheduled
-   * on this scheduler.
+   * Reference into the resources object for cleaner code. All Ticl code must be scheduled on this
+   * scheduler.
    */
   private final Scheduler internalScheduler;
 
   /** Logger reference into the resources object for cleaner code. */
   private final Logger logger;
 
+  /** A storage layer which schedules the callbacks on the internal scheduler thread. */
+  private final SafeStorage storage;
+
   /** Application callback interface. */
   private final CheckingInvalidationListener listener;
 
   /** Configuration for this instance. */
-  private final InvalidationClientConfig config;
+  private ClientConfigP config;
 
   /** Application identifier for this client. */
   private final ApplicationClientIdP applicationClientId;
@@ -107,9 +233,6 @@ public class InvalidationClientImpl extends InternalBase
 
   /** Object handling low-level wire format interactions. */
   private final ProtocolHandler protocolHandler;
-
-  /** Object to schedule future events. */
-  private final OperationScheduler operationScheduler;
 
   /** Used to validate messages */
   private final TiclMessageValidator2 msgValidator;
@@ -122,18 +245,6 @@ public class InvalidationClientImpl extends InternalBase
 
   /** Statistics objects to track number of sent messages, etc. */
   private final Statistics statistics = new Statistics();
-
-  /** Last time performance counters were sent to the server. */
-  private long lastPerformanceSendTimeMs = 0;
-
-  /** Exponential backoff generator for acquire-token timeouts. */
-  private final ExponentialBackoffDelayGenerator tokenExponentialBackoff;
-
-  /** Exponential backoff generator for persistence timeouts. */
-  private final ExponentialBackoffDelayGenerator persistenceExponentialBackoff;
-
-  /** Exponential backoff generator for heartbeat timeouts if registrations are out of sync. */
-  private final ExponentialBackoffDelayGenerator regSyncHeartbeatExponentialBackoff;
 
   /** A smearer to make sure that delays are randomized a little bit. */
   private final Smearer smearer;
@@ -151,24 +262,20 @@ public class InvalidationClientImpl extends InternalBase
   // and replace this variable with a test for whether it's null or not.
   private boolean shouldSendRegistrations;
 
-  /** A task for periodic heartbeats. */
-  private final Runnable heartbeatTask = new NamedRunnable("Invclient.heartbeat") {
-    @Override
-    public void run() {
-      // Send info message
-      logger.info("Sending heartbeat to server: %s", this);
-      sendInfoMessageToServer(false, !registrationManager.isStateInSyncWithServer());
-      operationScheduler.schedule(this);
-    }
-  };
+  /** A random number generator. */
+  private final Random random;
 
-  /** A task to periodically check network timeouts. */
-  private final Runnable timeoutTask = new NamedRunnable("Invclient.timeout") {
-    @Override
-    public void run() {
-      checkNetworkTimeouts();
-    }
-  };
+  /** A task for acquiring the token (if the client has no token). */
+  private AcquireTokenTask acquireTokenTask;
+
+  /** Task for checking if reg summary is out of sync and then sending a heartbeat to the server. */
+  private RegSyncHeartbeatTask regSyncHeartbeatTask;
+
+  /** Task for writing the state blob to persistent storage. */
+  private PersistentWriteTask persistentWriteTask;
+
+  /** A task for periodic heartbeats. */
+  private HeartbeatTask heartbeatTask;
 
   /**
    * Constructs a client.
@@ -182,41 +289,67 @@ public class InvalidationClientImpl extends InternalBase
    * @param listener application callback
    */
   public InvalidationClientImpl(final SystemResources resources, Random random, int clientType,
-      final byte[] clientName, InvalidationClientConfig config, String applicationName,
+      final byte[] clientName, ClientConfigP config, String applicationName,
       InvalidationListener listener) {
     this.resources = resources;
+    this.random = random;
     this.logger = resources.getLogger();
     this.internalScheduler = resources.getInternalScheduler();
+    this.storage = new SafeStorage(resources.getStorage());
+    storage.setSystemResources(resources);
     this.config = config;
     this.registrationManager = new RegistrationManager(logger, statistics, digestFn);
-    this.tokenExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
-        config.maxExponentialBackoffFactor * config.networkTimeoutDelayMs,
-        config.networkTimeoutDelayMs);
-    this.regSyncHeartbeatExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
-        config.maxExponentialBackoffFactor * config.networkTimeoutDelayMs,
-        config.networkTimeoutDelayMs);
-    this.persistenceExponentialBackoff = new ExponentialBackoffDelayGenerator(random,
-        config.maxExponentialBackoffFactor * config.writeRetryDelayMs, config.writeRetryDelayMs);
-    this.smearer = new Smearer(random, config.smearPercent);
+    this.smearer = new Smearer(random, this.config.getSmearPercent());
     this.applicationClientId =
         CommonProtos2.newApplicationClientIdP(clientType, ByteString.copyFrom(clientName));
     this.listener = new CheckingInvalidationListener(listener, statistics, internalScheduler,
         resources.getListenerScheduler(), logger);
-    this.operationScheduler = new OperationScheduler(smearer, logger, internalScheduler);
     this.msgValidator = new TiclMessageValidator2(resources.getLogger());
 
-    operationScheduler.setOperation(config.networkTimeoutDelayMs, timeoutTask);
-    operationScheduler.setOperation(config.heartbeatIntervalMs, heartbeatTask);
-    this.protocolHandler = new ProtocolHandler(config.protocolHandlerConfig, resources, smearer,
-        statistics, applicationName, this, msgValidator);
+    // Creates the tasks used by the Ticl for token acquisition, heartbeats, persistent writes and
+    // registration sync.
+    createSchedulingTasks();
+
+    this.protocolHandler = new ProtocolHandler(config.getProtocolHandlerConfig(), resources,
+        smearer, statistics, applicationName, this, msgValidator);
     logger.info("Created client: %s", this);
   }
 
-  // Methods for TestableInvalidationClient.
+  /** Returns a default config builder for the client. */
+  public static ClientConfigP.Builder createConfig() {
+    return ClientConfigP.newBuilder()
+        .setVersion(CommonProtos2.newVersion(CommonInvalidationConstants2.CONFIG_MAJOR_VERSION,
+            CommonInvalidationConstants2.CONFIG_MINOR_VERSION))
+        .setProtocolHandlerConfig(ProtocolHandler.createConfig());
+  }
+
+  /** Returns a configuration builder with parameters set for unit tests. */
+  public static ClientConfigP.Builder createConfigForTest() {
+    return ClientConfigP.newBuilder()
+        .setVersion(CommonProtos2.newVersion(CommonInvalidationConstants2.CONFIG_MAJOR_VERSION,
+            CommonInvalidationConstants2.CONFIG_MINOR_VERSION))
+        .setProtocolHandlerConfig(ProtocolHandler.createConfigForTest())
+        .setNetworkTimeoutDelayMs(2 * 1000)
+        .setHeartbeatIntervalMs(5 * 1000)
+        .setWriteRetryDelayMs(500);
+  }
+
+  /**
+   * Creates the tasks used by the Ticl for token acquisition, heartbeats, persistent writes and
+   * registration sync.
+   */
+  private void createSchedulingTasks() {
+    this.acquireTokenTask = new AcquireTokenTask();
+    this.heartbeatTask = new HeartbeatTask();
+    this.regSyncHeartbeatTask = new RegSyncHeartbeatTask();
+    this.persistentWriteTask = new PersistentWriteTask();
+  }
+
+   // Methods for TestableInvalidationClient.
 
   @Override
   
-  public InvalidationClientConfig getConfigForTest() {
+  public ClientConfigP getConfigForTest() {
     return this.config;
   }
 
@@ -267,14 +400,17 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   
-  public void changeNetworkTimeoutDelayForTest(int delayMs) {
-    operationScheduler.changeDelayForTest(timeoutTask, delayMs);
+  public void changeNetworkTimeoutDelayForTest(int networkTimeoutDelayMs) {
+    config = ClientConfigP.newBuilder(config).setNetworkTimeoutDelayMs(networkTimeoutDelayMs)
+        .build();
+    createSchedulingTasks();
   }
 
   @Override
   
-  public void changeHeartbeatDelayForTest(int delayMs) {
-    operationScheduler.changeDelayForTest(heartbeatTask, delayMs);
+  public void changeHeartbeatDelayForTest(int heartbeatDelayMs) {
+    config = ClientConfigP.newBuilder(config).setHeartbeatIntervalMs(heartbeatDelayMs).build();
+    createSchedulingTasks();
   }
 
   @Override
@@ -318,7 +454,17 @@ public class InvalidationClientImpl extends InternalBase
 
   @Override
   public Storage getStorage() {
-    return resources.getStorage();
+    return storage;
+  }
+
+  @Override
+  public NetworkEndpointId getNetworkIdForTest() {
+    NetworkChannel network = resources.getNetwork();
+    if (!(network instanceof TestableNetworkChannel)) {
+      throw new UnsupportedOperationException(
+          "getNetworkIdForTest requires a TestableNetworkChannel, not: " + network.getClass());
+    }
+    return ((TestableNetworkChannel) network).getNetworkIdForTest();
   }
 
   // End of methods for TestableInvalidationClient
@@ -376,7 +522,7 @@ public class InvalidationClientImpl extends InternalBase
       // Schedule an info message for the near future. We delay a little bit to allow the
       // application to reissue its registrations locally and avoid triggering registration
       // sync with the data center due to a hash mismatch.
-      internalScheduler.schedule(InvalidationClientConfig.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS,
+      internalScheduler.schedule(config.getInitialPersistentHeartbeatDelayMs(),
           new NamedRunnable("InvClient.sendInfoMessageAfterPersistentRead") {
         @Override
         public void run() {
@@ -384,11 +530,10 @@ public class InvalidationClientImpl extends InternalBase
         }
       });
 
-      // We need to ensure that heartbeats are sent, regardless of whether we
-      // start fresh or from persistent state.  The line below ensures that they
-      // are scheduled in the persistent startup case.  For the other case, the
-      // task is scheduled when we acquire a token.
-      operationScheduler.schedule(heartbeatTask);
+      // We need to ensure that heartbeats are sent, regardless of whether we start fresh or from
+      // persistent state. The line below ensures that they are scheduled in the persistent startup
+      // case. For the other case, the task is scheduled when we acquire a token.
+      heartbeatTask.ensureScheduled("Startup-after-persistence");
     } else {
       // If we had no persistent state or couldn't deserialize the state that we had, start fresh.
       // Request a new client identifier.
@@ -483,8 +628,7 @@ public class InvalidationClientImpl extends InternalBase
         if (shouldSendRegistrations) {
           protocolHandler.sendRegistrations(objectIdProtos, regOpType);
         }
-
-        operationScheduler.schedule(timeoutTask);
+        InvalidationClientImpl.this.regSyncHeartbeatTask.ensureScheduled("performRegister");
       }
     });
   }
@@ -549,7 +693,7 @@ public class InvalidationClientImpl extends InternalBase
         setNonce(null);
       } else {
         statistics.recordError(ClientErrorType.NONCE_MISMATCH);
-        logger.info("Rejecting server message with mismatched nonce: %s, %s",
+        logger.info("Rejecting server message with mismatched nonce: Client = %s, Server = %s",
             CommonProtoStrings2.toLazyCompactString(nonce),
             CommonProtoStrings2.toLazyCompactString(header.token));
         return;
@@ -564,14 +708,15 @@ public class InvalidationClientImpl extends InternalBase
         CommonProtoStrings2.toLazyCompactString(clientToken));
       acquireToken("Destroy");
     } else {
-      // We just received a new token. Start the regular heartbeats now.
-      operationScheduler.schedule(heartbeatTask);
-      setNonce(null);
-      setClientToken(newToken);
-      writeStateBlob();
-      logger.info("New token assigned at client: %s, Old = %s",
+      logger.info("New token being assigned at client: %s, Old = %s",
         CommonProtoStrings2.toLazyCompactString(newToken),
         CommonProtoStrings2.toLazyCompactString(clientToken));
+
+      // We just received a new token. Start the regular heartbeats now.
+      heartbeatTask.ensureScheduled("Heartbeat-after-new-token");
+      setNonce(null);
+      setClientToken(newToken);
+      persistentWriteTask.ensureScheduled("Write-after-new-token");
     }
   }
 
@@ -585,12 +730,6 @@ public class InvalidationClientImpl extends InternalBase
       // registrations, we should now allow them to go to the registrar.
       shouldSendRegistrations = true;
       registrationManager.informServerRegistrationSummary(header.registrationSummary);
-    }
-
-    // Check and reset the exponential back off for the reg sync-based heartbeats on receipt of a
-    // message.
-    if (registrationManager.isStateInSyncWithServer()) {
-      regSyncHeartbeatExponentialBackoff.reset();
     }
   }
 
@@ -753,62 +892,10 @@ public class InvalidationClientImpl extends InternalBase
    */
   private void acquireToken(final String debugString) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
+
+    // Clear the current token and schedule the token acquisition.
     setClientToken(null);
-
-    // Schedule the token acquisition while respecting exponential backoff.
-    internalScheduler.schedule(tokenExponentialBackoff.getNextDelay(),
-        new NamedRunnable("InvClient.acquireToken") {
-      @Override
-      public void run() {
-        // If token is still not assigned (as expected), sends a request. Otherwise, ignore.
-        if (clientToken == null) {
-          // Allocate a nonce and send a message requesting a new token.
-          setNonce(ByteString.copyFromUtf8(Long.toString(internalScheduler.getCurrentTimeMs())));
-          protocolHandler.sendInitializeMessage(applicationClientId, nonce, debugString);
-
-          // Schedule a timeout to retry if we don't receive a response.
-          operationScheduler.schedule(timeoutTask);
-        }
-      }
-    });
-  }
-
-  /** Function called to check for timed-out network messages. */
-  private void checkNetworkTimeouts() {
-    /*
-     * Timeouts can happen for two reasons:
-     * 1) Request to obtain an token does not receive a reply.
-     * 2) Registration state is not in sync with the server.
-     *
-     * We simply check for both conditions and take corrective action when needed.
-     */
-    // If we have no token, send a message for one.
-    Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    if (clientToken == null) {
-      logger.info("Request for token timed out");
-      acquireToken("Network timeout");
-      return;
-    }
-
-    // Simply send an info message to ensure syncing happens.
-    if (!registrationManager.isStateInSyncWithServer()) {
-      logger.info("Registration state not in sync with server: %s", registrationManager);
-
-      // Send the info message for syncing while respecting exponential backoff.
-      internalScheduler.schedule(regSyncHeartbeatExponentialBackoff.getNextDelay(),
-          new NamedRunnable("InvClient.infoMessageForSync") {
-        @Override
-        public void run() {
-          if (registrationManager.isStateInSyncWithServer()) {
-            logger.info("Not sending message since state is now in sync");
-          } else {
-            // Schedule a timeout after sending the message to make sure that we get into sync.
-            sendInfoMessageToServer(false, true /* request server summary */);
-            operationScheduler.schedule(timeoutTask);
-          }
-        }
-      });
-    }
+    acquireTokenTask.ensureScheduled(debugString);
   }
 
   /**
@@ -820,69 +907,31 @@ public class InvalidationClientImpl extends InternalBase
     logger.info("Sending info message to server");
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
-    long nextPerformanceSendTimeMs = lastPerformanceSendTimeMs +
-        smearer.getSmearedDelay(config.perfCounterDelayMs);
     List<SimplePair<String, Integer>> performanceCounters =
         new ArrayList<SimplePair<String, Integer>>();
     List<SimplePair<String, Integer>> configParams =
         new ArrayList<SimplePair<String, Integer>>();
-    if (mustSendPerformanceCounters ||
-        (nextPerformanceSendTimeMs < internalScheduler.getCurrentTimeMs())) {
+    ClientConfigP configToSend = null;
+    if (mustSendPerformanceCounters) {
       statistics.getNonZeroStatistics(performanceCounters);
-      config.getConfigParams(configParams);
-      lastPerformanceSendTimeMs = internalScheduler.getCurrentTimeMs();
+      configToSend = config;
     }
-    protocolHandler.sendInfoMessage(performanceCounters, configParams, requestServerSummary);
-  }
-
-  /** Writes the Ticl state to persistent storage. */
-  private void writeStateBlob() {
-    Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    Preconditions.checkNotNull(clientToken);
-    PersistentTiclState state = CommonProtos2.newPersistentTiclState(clientToken);
-    byte[] serializedState = PersistenceUtils.serializeState(state, digestFn);
-    resources.getStorage().writeKey(CLIENT_TOKEN_KEY, serializedState,
-      new Callback<Status>() {
-      @Override
-      public void accept(Status status) {
-        logger.info("Write state completed: %s", status);
-        if (!status.isSuccess()) {
-          // Retry with exponential backoff.
-          statistics.recordError(ClientErrorType.PERSISTENT_WRITE_FAILURE);
-          internalScheduler.schedule(
-            persistenceExponentialBackoff.getNextDelay(), new NamedRunnable("InvClient.writeBlob") {
-            @Override
-            public void run() {
-              writeStateBlob();
-            }
-          });
-        } else {
-          // Write succeeded - reset the backoff delay.
-          persistenceExponentialBackoff.reset();
-        }
-      }
-    });
+    protocolHandler.sendInfoMessage(performanceCounters, configToSend, requestServerSummary);
   }
 
   /** Reads the Ticl state from persistent storage (if any) and calls {@code startInternal}. */
   private void scheduleStartAfterReadingStateBlob() {
-    resources.getStorage().readKey(CLIENT_TOKEN_KEY, new Callback<SimplePair<Status, byte[]>>() {
+    storage.readKey(CLIENT_TOKEN_KEY, new Callback<SimplePair<Status, byte[]>>() {
       @Override
-      public void accept(SimplePair<Status, byte[]> readResult) {
+      public void accept(final SimplePair<Status, byte[]> readResult) {
         final byte[] serializedState = readResult.getFirst().isSuccess() ?
             readResult.getSecond() : null;
+        // Call start now.
         if (!readResult.getFirst().isSuccess()) {
           statistics.recordError(ClientErrorType.PERSISTENT_READ_FAILURE);
-          logger.warning("Could not read state blob: %s",
-              readResult.getFirst().getMessage());
+          logger.warning("Could not read state blob: %s", readResult.getFirst().getMessage());
         }
-        // Call start now.
-        internalScheduler.schedule(NO_DELAY, new NamedRunnable("InvClient.scheduleAfterRead") {
-          @Override
-          public void run() {
-            startInternal(serializedState);
-          }
-        });
+        startInternal(serializedState);
       }
     });
   }
@@ -930,12 +979,6 @@ public class InvalidationClientImpl extends InternalBase
        (clientToken == null) && (newClientToken != null);
     this.clientToken = newClientToken;
 
-    if (newClientToken != null) {
-      // Token control message succeeded - reset the network delay so that the next time we acquire
-      // a token, the delay starts from the original value.
-      tokenExponentialBackoff.reset();
-    }
-
     if (finishStartingTicl) {
       finishStartingTiclAndInformListener();
     }
@@ -954,19 +997,18 @@ public class InvalidationClientImpl extends InternalBase
     logger.info("Ticl started: %s", this);
   }
 
+  /**
+   * Returns an exponential backoff generator with a max exponential factor given by
+   * {@code config.getMaxExponentialBackoffFactor()} and initial delay {@code initialDelayMs}.
+   */
+  private ExponentialBackoffDelayGenerator createExpBackOffGenerator(int initialDelayMs) {
+    return new ExponentialBackoffDelayGenerator(random, initialDelayMs,
+        config.getMaxExponentialBackoffFactor());
+  }
+
   @Override
   public void toCompactString(TextBuilder builder) {
     builder.appendFormat("Client: %s, %s", applicationClientId,
         CommonProtoStrings2.toLazyCompactString(clientToken));
-  }
-
-  @Override
-  public NetworkEndpointId getNetworkIdForTest() {
-    NetworkChannel network = resources.getNetwork();
-    if (!(network instanceof TestableNetworkChannel)) {
-      throw new UnsupportedOperationException(
-          "getNetworkIdForTest requires a TestableNetworkChannel, not: " + network.getClass());
-    }
-    return ((TestableNetworkChannel) network).getNetworkIdForTest();
   }
 }

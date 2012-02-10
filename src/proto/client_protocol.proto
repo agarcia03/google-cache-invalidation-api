@@ -349,6 +349,7 @@ message InfoMessage {
   optional ClientVersion client_version = 1;
 
   // Config parameters used by the client.
+  // Deprecated and removed - the client_config parameter is what is used now.
   repeated PropertyRecord config_parameter = 2;
 
   // Performance counters from the client.
@@ -358,6 +359,9 @@ message InfoMessage {
   // registration summary, so the server should respond with it even if the
   // client's summary matches the server's.
   optional bool server_registration_summary_requested = 4;
+
+  // Configuration parameters for this client.
+  optional ClientConfigP client_config = 5;
 }
 
 // Information about a single config/performance counter value in the
@@ -455,6 +459,67 @@ message InfoRequestMessage {
     GET_PERFORMANCE_COUNTERS = 1;
   }
   repeated InfoType info_type = 1;
+}
+
+// A rate limit: a count of events and a window duration in which the events
+// may occur.
+message RateLimitP {
+
+  // The size of the window over which the rate limit applies.
+  optional int32 window_ms = 1;
+
+  // The number of events allowed within a given window.
+  optional int32 count = 2;
+}
+
+// Configuration parameters for the protocol handler in the Ticl.
+message ProtocolHandlerConfigP {
+  // Batching delay - certain messages (e.g., registrations, invalidation acks)
+  // are sent to the server after this delay.
+  optional int32 batching_delay_ms = 1;
+
+  // Rate limits for sending messages. Only two levels allowed currently.
+  repeated RateLimitP rate_limit = 2;
+}
+
+// Configuration parameters for the Ticl.
+message ClientConfigP {
+
+  optional Version version = 1;
+
+  // The delay after which a network message sent to the server is considered
+  // timed out.
+  optional int32 network_timeout_delay_ms = 2;
+
+  // Retry delay for a persistent write if it fails
+  optional int32 write_retry_delay_ms = 3;
+
+  // Delay for sending heartbeats to the server.
+  optional int32 heartbeat_interval_ms = 4;
+
+  // Delay after which performance counters are sent to the server.
+  optional int32 perf_counter_delay_ms = 5;  // 6 hours.
+
+  // The maximum exponential backoff factor used for network and persistence
+  /// timeouts.
+  optional int32 max_exponential_backoff_factor = 6;
+
+  // Smearing percent for randomizing delays.
+  optional int32 smear_percent = 7;
+
+  // Whether the client is transient, that is, does not write its session
+  // token to durable storage.
+  // TODO: need to expose to the clients.
+  // For android the default is false. But for mtrx the default is true.
+  optional bool is_transient = 8;
+
+  // Initial delay for a heartbeat after restarting from persistent state. We
+  // use this so that the application has a chance to respond to the
+  // reissueRegistrations call.
+  optional int32 initial_persistent_heartbeat_delay_ms = 9;
+
+  // Configuration for the protocol client to control batching etc.
+  optional ProtocolHandlerConfigP protocol_handler_config = 10;
 }
 
 // A message asking the client to change its configuration parameters

@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.protobuf.GeneratedMessage;
 
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
+import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientToServerMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientVersion;
@@ -32,7 +33,9 @@ import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.PropertyRecord;
+import com.google.protos.ipc.invalidation.ClientProtocol.ProtocolHandlerConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ProtocolVersion;
+import com.google.protos.ipc.invalidation.ClientProtocol.RateLimitP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
@@ -125,6 +128,120 @@ public class ClientProtocolAccessor {
     }
   }
   public static final ApplicationClientIdPAccessor APPLICATION_CLIENT_ID_P_ACCESSOR = new ApplicationClientIdPAccessor();
+  
+  /** Class to access fields in {@link ClientConfigP} protos. */
+  public static class ClientConfigPAccessor implements Accessor {
+    private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
+      Arrays.<String>asList(
+        "version",
+        "network_timeout_delay_ms",
+        "write_retry_delay_ms",
+        "heartbeat_interval_ms",
+        "perf_counter_delay_ms",
+        "max_exponential_backoff_factor",
+        "smear_percent",
+        "is_transient",
+        "initial_persistent_heartbeat_delay_ms",
+        "protocol_handler_config"
+      ));
+    
+    public static final Descriptor VERSION = new Descriptor("version");
+    public static final Descriptor NETWORK_TIMEOUT_DELAY_MS = new Descriptor("network_timeout_delay_ms");
+    public static final Descriptor WRITE_RETRY_DELAY_MS = new Descriptor("write_retry_delay_ms");
+    public static final Descriptor HEARTBEAT_INTERVAL_MS = new Descriptor("heartbeat_interval_ms");
+    public static final Descriptor PERF_COUNTER_DELAY_MS = new Descriptor("perf_counter_delay_ms");
+    public static final Descriptor MAX_EXPONENTIAL_BACKOFF_FACTOR = new Descriptor("max_exponential_backoff_factor");
+    public static final Descriptor SMEAR_PERCENT = new Descriptor("smear_percent");
+    public static final Descriptor IS_TRANSIENT = new Descriptor("is_transient");
+    public static final Descriptor INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS = new Descriptor("initial_persistent_heartbeat_delay_ms");
+    public static final Descriptor PROTOCOL_HANDLER_CONFIG = new Descriptor("protocol_handler_config");
+    
+    /** Returns whether {@code field} is present in {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      ClientConfigP message = (ClientConfigP) rawMessage;
+      if (field == VERSION) {
+        return message.hasVersion();
+      }
+      if (field == NETWORK_TIMEOUT_DELAY_MS) {
+        return message.hasNetworkTimeoutDelayMs();
+      }
+      if (field == WRITE_RETRY_DELAY_MS) {
+        return message.hasWriteRetryDelayMs();
+      }
+      if (field == HEARTBEAT_INTERVAL_MS) {
+        return message.hasHeartbeatIntervalMs();
+      }
+      if (field == PERF_COUNTER_DELAY_MS) {
+        return message.hasPerfCounterDelayMs();
+      }
+      if (field == MAX_EXPONENTIAL_BACKOFF_FACTOR) {
+        return message.hasMaxExponentialBackoffFactor();
+      }
+      if (field == SMEAR_PERCENT) {
+        return message.hasSmearPercent();
+      }
+      if (field == IS_TRANSIENT) {
+        return message.hasIsTransient();
+      }
+      if (field == INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS) {
+        return message.hasInitialPersistentHeartbeatDelayMs();
+      }
+      if (field == PROTOCOL_HANDLER_CONFIG) {
+        return message.hasProtocolHandlerConfig();
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    /** Returns the {@code field} from {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      ClientConfigP message = (ClientConfigP) rawMessage;
+      if (field == VERSION) {
+        return message.getVersion();
+      }
+      if (field == NETWORK_TIMEOUT_DELAY_MS) {
+        return message.getNetworkTimeoutDelayMs();
+      }
+      if (field == WRITE_RETRY_DELAY_MS) {
+        return message.getWriteRetryDelayMs();
+      }
+      if (field == HEARTBEAT_INTERVAL_MS) {
+        return message.getHeartbeatIntervalMs();
+      }
+      if (field == PERF_COUNTER_DELAY_MS) {
+        return message.getPerfCounterDelayMs();
+      }
+      if (field == MAX_EXPONENTIAL_BACKOFF_FACTOR) {
+        return message.getMaxExponentialBackoffFactor();
+      }
+      if (field == SMEAR_PERCENT) {
+        return message.getSmearPercent();
+      }
+      if (field == IS_TRANSIENT) {
+        return message.getIsTransient();
+      }
+      if (field == INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS) {
+        return message.getInitialPersistentHeartbeatDelayMs();
+      }
+      if (field == PROTOCOL_HANDLER_CONFIG) {
+        return message.getProtocolHandlerConfig();
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    @Override
+    public Set<String> getAllFieldNames() {
+      return ALL_FIELD_NAMES;
+    }
+  }
+  public static final ClientConfigPAccessor CLIENT_CONFIG_P_ACCESSOR = new ClientConfigPAccessor();
   
   /** Class to access fields in {@link ClientHeader} protos. */
   public static class ClientHeaderAccessor implements Accessor {
@@ -455,13 +572,15 @@ public class ClientProtocolAccessor {
         "client_version",
         "config_parameter",
         "performance_counter",
-        "server_registration_summary_requested"
+        "server_registration_summary_requested",
+        "client_config"
       ));
     
     public static final Descriptor CLIENT_VERSION = new Descriptor("client_version");
     public static final Descriptor CONFIG_PARAMETER = new Descriptor("config_parameter");
     public static final Descriptor PERFORMANCE_COUNTER = new Descriptor("performance_counter");
     public static final Descriptor SERVER_REGISTRATION_SUMMARY_REQUESTED = new Descriptor("server_registration_summary_requested");
+    public static final Descriptor CLIENT_CONFIG = new Descriptor("client_config");
     
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
@@ -481,6 +600,9 @@ public class ClientProtocolAccessor {
       }
       if (field == SERVER_REGISTRATION_SUMMARY_REQUESTED) {
         return message.hasServerRegistrationSummaryRequested();
+      }
+      if (field == CLIENT_CONFIG) {
+        return message.hasClientConfig();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -503,6 +625,9 @@ public class ClientProtocolAccessor {
       }
       if (field == SERVER_REGISTRATION_SUMMARY_REQUESTED) {
         return message.getServerRegistrationSummaryRequested();
+      }
+      if (field == CLIENT_CONFIG) {
+        return message.getClientConfig();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -830,6 +955,56 @@ public class ClientProtocolAccessor {
   }
   public static final PropertyRecordAccessor PROPERTY_RECORD_ACCESSOR = new PropertyRecordAccessor();
   
+  /** Class to access fields in {@link ProtocolHandlerConfigP} protos. */
+  public static class ProtocolHandlerConfigPAccessor implements Accessor {
+    private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
+      Arrays.<String>asList(
+        "batching_delay_ms",
+        "rate_limit"
+      ));
+    
+    public static final Descriptor BATCHING_DELAY_MS = new Descriptor("batching_delay_ms");
+    public static final Descriptor RATE_LIMIT = new Descriptor("rate_limit");
+    
+    /** Returns whether {@code field} is present in {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      ProtocolHandlerConfigP message = (ProtocolHandlerConfigP) rawMessage;
+      if (field == BATCHING_DELAY_MS) {
+        return message.hasBatchingDelayMs();
+      }
+      if (field == RATE_LIMIT) {
+        return message.getRateLimitCount() > 0;
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    /** Returns the {@code field} from {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      ProtocolHandlerConfigP message = (ProtocolHandlerConfigP) rawMessage;
+      if (field == BATCHING_DELAY_MS) {
+        return message.getBatchingDelayMs();
+      }
+      if (field == RATE_LIMIT) {
+        return message.getRateLimitList();
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    @Override
+    public Set<String> getAllFieldNames() {
+      return ALL_FIELD_NAMES;
+    }
+  }
+  public static final ProtocolHandlerConfigPAccessor PROTOCOL_HANDLER_CONFIG_P_ACCESSOR = new ProtocolHandlerConfigPAccessor();
+  
   /** Class to access fields in {@link ProtocolVersion} protos. */
   public static class ProtocolVersionAccessor implements Accessor {
     private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
@@ -871,6 +1046,56 @@ public class ClientProtocolAccessor {
     }
   }
   public static final ProtocolVersionAccessor PROTOCOL_VERSION_ACCESSOR = new ProtocolVersionAccessor();
+  
+  /** Class to access fields in {@link RateLimitP} protos. */
+  public static class RateLimitPAccessor implements Accessor {
+    private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
+      Arrays.<String>asList(
+        "window_ms",
+        "count"
+      ));
+    
+    public static final Descriptor WINDOW_MS = new Descriptor("window_ms");
+    public static final Descriptor COUNT = new Descriptor("count");
+    
+    /** Returns whether {@code field} is present in {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      RateLimitP message = (RateLimitP) rawMessage;
+      if (field == WINDOW_MS) {
+        return message.hasWindowMs();
+      }
+      if (field == COUNT) {
+        return message.hasCount();
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    /** Returns the {@code field} from {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      RateLimitP message = (RateLimitP) rawMessage;
+      if (field == WINDOW_MS) {
+        return message.getWindowMs();
+      }
+      if (field == COUNT) {
+        return message.getCount();
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    @Override
+    public Set<String> getAllFieldNames() {
+      return ALL_FIELD_NAMES;
+    }
+  }
+  public static final RateLimitPAccessor RATE_LIMIT_P_ACCESSOR = new RateLimitPAccessor();
   
   /** Class to access fields in {@link RegistrationMessage} protos. */
   public static class RegistrationMessageAccessor implements Accessor {

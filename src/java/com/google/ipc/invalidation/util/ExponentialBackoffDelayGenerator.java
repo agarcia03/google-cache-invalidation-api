@@ -30,11 +30,11 @@ import java.util.Random;
  */
 public class ExponentialBackoffDelayGenerator {
 
-  /** Maximum allowed delay time. */
-  private final int maxDelay;
+  /** Initial allowed delay time. */
+  private int initialMaxDelay;
 
-  /** Initial allowed delay time.*/
-  private final int initialMaxDelay;
+  /** Maximum allowed delay time as a factor of {@code initialMaxDelay} */
+  private int maxExponentialFactor;
 
   /** Next delay time to use. */
   private int currentMaxDelay;
@@ -44,15 +44,17 @@ public class ExponentialBackoffDelayGenerator {
 
   private final Random random;
 
-  /** Creates a generator with the given maximum and initial delays. */
-  public ExponentialBackoffDelayGenerator(Random random, int maxDelay, int initialMaxDelay) {
-    Preconditions.checkArgument(maxDelay > 0, "max delay must be positive");
+  /**
+   * Creates a generator with the given initial delay and the maximum delay (in terms of a factor of
+   * the initial delay).
+   */
+  public ExponentialBackoffDelayGenerator(Random random, int initialMaxDelay,
+      int maxExponentialFactor) {
+    Preconditions.checkArgument(maxExponentialFactor > 0, "max factor must be positive");
     this.random = Preconditions.checkNotNull(random);
-    this.maxDelay = maxDelay;
+    this.maxExponentialFactor = maxExponentialFactor;
     this.initialMaxDelay = initialMaxDelay;
     Preconditions.checkArgument(initialMaxDelay > 0, "initial delay must be positive");
-    Preconditions.checkArgument(initialMaxDelay <= maxDelay,
-        "initial delay cannot be more than max delay");
     reset();
   }
 
@@ -71,7 +73,8 @@ public class ExponentialBackoffDelayGenerator {
       delay = (int) (random.nextDouble() * currentMaxDelay);
 
       // Adjust the max for the next run.
-      if (currentMaxDelay <= maxDelay) { // Guard against overflow.
+      int maxDelay = initialMaxDelay * maxExponentialFactor;
+      if (currentMaxDelay <= maxDelay) {  // Guard against overflow.
         currentMaxDelay *= 2;
         if (currentMaxDelay > maxDelay) {
           currentMaxDelay = maxDelay;

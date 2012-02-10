@@ -72,6 +72,6 @@ public final class ApplicationClientId {
 
   @Override
   public String toString() {
-    return String.format("AppClientId: <, %s>", BytesFormatter.toString(clientName));
+    return "AppClientId: <, " + BytesFormatter.toString(clientName) + ">";
   }
 }

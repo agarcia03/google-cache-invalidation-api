@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.common;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ApplicationClientIdPAccessor;
+import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientConfigPAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientHeaderAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientToServerMessageAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientVersionAccessor;
@@ -30,6 +31,8 @@ import com.google.ipc.invalidation.common.ClientProtocolAccessor.InitializeMessa
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.InvalidationMessageAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.InvalidationPAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ObjectIdPAccessor;
+import com.google.ipc.invalidation.common.ClientProtocolAccessor.ProtocolHandlerConfigPAccessor;
+import com.google.ipc.invalidation.common.ClientProtocolAccessor.RateLimitPAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.RegistrationMessageAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.RegistrationPAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.RegistrationStatusAccessor;
@@ -52,6 +55,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ConfigChangeMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InitializeMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
+import com.google.protos.ipc.invalidation.ClientProtocol.RateLimitP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
@@ -301,6 +305,40 @@ public class TiclMessageValidator2 {
       }
     };
 
+    final MessageInfo RATE_LIMIT = new MessageInfo(
+        ClientProtocolAccessor.RATE_LIMIT_P_ACCESSOR,
+        FieldInfo.newRequired(RateLimitPAccessor.WINDOW_MS),
+        FieldInfo.newRequired(RateLimitPAccessor.COUNT)) {
+      @Override
+      public boolean postValidate(GeneratedMessage message) {
+        RateLimitP rateLimit = (RateLimitP) message;
+        return (rateLimit.getWindowMs() >= 1000) &&
+            (rateLimit.getWindowMs() > rateLimit.getCount());
+      }
+    };
+
+    final MessageInfo PROTOCOL_HANDLER_CONFIG = new MessageInfo(
+        ClientProtocolAccessor.PROTOCOL_HANDLER_CONFIG_P_ACCESSOR,
+        FieldInfo.newOptional(ProtocolHandlerConfigPAccessor.BATCHING_DELAY_MS),
+        FieldInfo.newOptional(ProtocolHandlerConfigPAccessor.RATE_LIMIT, RATE_LIMIT)
+        );
+
+    // Validation for Client Config. */
+    final MessageInfo CLIENT_CONFIG = new MessageInfo(
+        ClientProtocolAccessor.CLIENT_CONFIG_P_ACCESSOR,
+        FieldInfo.newRequired(ClientConfigPAccessor.VERSION, VERSION),
+        FieldInfo.newOptional(ClientConfigPAccessor.NETWORK_TIMEOUT_DELAY_MS),
+        FieldInfo.newOptional(ClientConfigPAccessor.WRITE_RETRY_DELAY_MS),
+        FieldInfo.newOptional(ClientConfigPAccessor.HEARTBEAT_INTERVAL_MS),
+        FieldInfo.newOptional(ClientConfigPAccessor.PERF_COUNTER_DELAY_MS),
+        FieldInfo.newOptional(ClientConfigPAccessor.MAX_EXPONENTIAL_BACKOFF_FACTOR),
+        FieldInfo.newOptional(ClientConfigPAccessor.SMEAR_PERCENT),
+        FieldInfo.newOptional(ClientConfigPAccessor.IS_TRANSIENT),
+        FieldInfo.newOptional(ClientConfigPAccessor.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS),
+        FieldInfo.newRequired(ClientConfigPAccessor.PROTOCOL_HANDLER_CONFIG,
+            PROTOCOL_HANDLER_CONFIG)
+        );
+
     private CommonMsgInfos() {
       // Initialize in constructor since other instance fields are referenced
       INVALIDATION_MSG = new MessageInfo(
@@ -400,6 +438,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(InfoMessageAccessor.CLIENT_VERSION, CLIENT_VERSION),
         FieldInfo.newOptional(InfoMessageAccessor.CONFIG_PARAMETER),
         FieldInfo.newOptional(InfoMessageAccessor.PERFORMANCE_COUNTER),
+        FieldInfo.newOptional(InfoMessageAccessor.CLIENT_CONFIG, commonMsgInfos.CLIENT_CONFIG),
         FieldInfo.newOptional(InfoMessageAccessor.SERVER_REGISTRATION_SUMMARY_REQUESTED));
 
     /** Validation for registration subtrees. */

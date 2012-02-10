@@ -24,6 +24,7 @@ import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.util.InternalBase;
 import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
+import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
 
@@ -131,7 +132,7 @@ public interface TestableInvalidationClient extends InvalidationClient {
   long getNextMessageSendTimeMsForTest();
 
   /** Returns the configuration used by the client. */
-  InvalidationClientConfig getConfigForTest();
+  ClientConfigP getConfigForTest();
 
   /**
    * Returns the network endpoint id of the client. May throw {@code UnsupportedOperationException}.

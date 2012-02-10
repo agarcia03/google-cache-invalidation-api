@@ -19,6 +19,7 @@ package com.google.ipc.invalidation.ticl;
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.util.NamedRunnable;
+import com.google.protos.ipc.invalidation.ClientProtocol.RateLimitP;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -39,36 +40,8 @@ public class Throttle {
   // scheduled, simply returns and lets the existing task retry.)  Otherwise, if no limits would be
   // violated, allows the call and records the current time.
 
-  /**
-   * A rate limit: a count of events and a window duration in which the events
-   * may occur.
-   */
-  public static class RateLimit {
-
-    /** The size of the window over which the rate limit applies. */
-    private final int windowMs;
-
-    /** The number of events allowed within a given window. */
-    private final int count;
-
-    public RateLimit(int windowMs, int count) {
-      Preconditions.checkArgument(windowMs > count,
-          "rate limit window must exceed event count: {0} vs {1}", windowMs, count);
-      this.windowMs = windowMs;
-      this.count = count;
-    }
-
-    public int getWindowMs() {
-      return windowMs;
-    }
-
-    public int getCount() {
-      return count;
-    }
-  }
-
   /** Rate limits to be enforced by this throttler. */
-  private final List<RateLimit> rateLimits;
+  private final List<RateLimitP> rateLimits;
 
   /** Scheduling for running deferred tasks. */
   private final Scheduler scheduler;
@@ -91,19 +64,26 @@ public class Throttle {
   /** The maximum number of recent event times we need to remember. */
   private final int maxRecentEvents;
 
-  public Throttle(List<RateLimit> rateLimits, Scheduler scheduler,
+  public Throttle(final List<RateLimitP> rateLimits, Scheduler scheduler,
       Runnable listener) {
     this.rateLimits = rateLimits;
+    for (RateLimitP rateLimit : rateLimits) {
+      Preconditions.checkArgument(rateLimit.getWindowMs() > rateLimit.getCount(),
+          "rate limit window must exceed event count: {0} vs {1}", rateLimit.getWindowMs(),
+          rateLimit.getCount());
+    }
     this.scheduler = scheduler;
     this.listener = listener;
     this.recentEventTimes = new LinkedList<Long>();
-    this.maxRecentEvents = rateLimits.isEmpty() ? 0 : Collections.max(
-        rateLimits, new Comparator<RateLimit>() {
+    final Comparator<RateLimitP> comparator = new Comparator<RateLimitP>() {
       @Override
-      public int compare(RateLimit o1, RateLimit o2) {
+      public int compare(RateLimitP o1, RateLimitP o2) {
+        // Compare just based on the count.
         return o1.getCount() - o2.getCount();
       }
-    }).getCount();
+    };
+    this.maxRecentEvents = rateLimits.isEmpty() ?
+        0 : Collections.max(rateLimits, comparator).getCount();
   }
 
   /**
@@ -123,7 +103,7 @@ public class Throttle {
     // task to try again once that limit won't be violated.  If no limits would be
     // violated, send.
     long now = scheduler.getCurrentTimeMs();
-    for (RateLimit rateLimit : rateLimits) {
+    for (RateLimitP rateLimit : rateLimits) {
       // We're now checking whether sending would violate a rate limit of 'count'
       // messages per 'window_size'.
       int count = rateLimit.getCount();

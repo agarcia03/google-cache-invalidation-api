@@ -33,7 +33,7 @@ public class Smearer {
   private final Random random;
 
   /** The percentage (0, 1.0] for smearing the delay. */
-  private final double smearFraction;
+  private double smearFraction;
 
   /**
    * Creates a smearer with the given random number generator. If {@code smearPercent} is 0, uses an
@@ -41,7 +41,7 @@ public class Smearer {
    * <p>
    * REQUIRES: 0 < smearPercent <= 100
    */
-  public Smearer(Random random, int smearPercent) {
+  public Smearer(Random random, final int smearPercent) {
     Preconditions.checkState((smearPercent >= 0) && (smearPercent <= 100));
     this.random = random;
     this.smearFraction = smearPercent / 100.0;
@@ -56,5 +56,9 @@ public class Smearer {
     // fraction.
     double smearFactor = (2 * random.nextDouble() - 1.0) * smearFraction;
     return (int) Math.ceil(delay + delay * smearFactor);
+  }
+
+  /** Changes the smear percent of this object to be {@code smearPercent}. */
+  public void changeSmearPercent(int smearPercent) {
   }
 }

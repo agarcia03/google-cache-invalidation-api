@@ -33,13 +33,19 @@ public class CommonInvalidationConstants2 {
   public static final int CLIENT_MAJOR_VERSION = 3;
 
   /** Minor version of the client library. */
-  public static final int CLIENT_MINOR_VERSION = 1;
+  public static final int CLIENT_MINOR_VERSION = 2;
 
   /** Major version of the protocol between the client and the server. */
   public static final int PROTOCOL_MAJOR_VERSION = 3;
 
   /** Minor version of the protocol between the client and the server. */
-  public static final int PROTOCOL_MINOR_VERSION = 1;
+  public static final int PROTOCOL_MINOR_VERSION = 2;
+
+  /** Major version of the client config. */
+  public static final int CONFIG_MAJOR_VERSION = 3;
+
+  /** Minor version of the client config. */
+  public static final int CONFIG_MINOR_VERSION = 2;
 
   /** Version of the protocol currently being used by the client/server for v2 clients. */
   public static final ProtocolVersion PROTOCOL_VERSION = ProtocolVersion.newBuilder()

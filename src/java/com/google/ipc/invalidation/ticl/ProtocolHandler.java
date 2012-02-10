@@ -31,7 +31,6 @@ import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
 import com.google.ipc.invalidation.ticl.Statistics.ReceivedMessageType;
 import com.google.ipc.invalidation.ticl.Statistics.SentMessageType;
-import com.google.ipc.invalidation.ticl.Throttle.RateLimit;
 import com.google.ipc.invalidation.util.InternalBase;
 import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.ipc.invalidation.util.Smearer;
@@ -40,6 +39,7 @@ import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
+import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientToServerMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientVersion;
@@ -53,6 +53,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.PropertyRecord;
+import com.google.protos.ipc.invalidation.ClientProtocol.ProtocolHandlerConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
@@ -63,7 +64,6 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ServerHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.TokenControlMessage;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -77,6 +77,25 @@ import java.util.Set;
  *
  */
 class ProtocolHandler {
+
+  /**
+   * The task that is scheduled to send batched messages to the server (when
+   * needed).
+   **/
+  private class BatchingTask extends RecurringTask {
+    BatchingTask(Smearer smearer, int batchingDelayMs) {
+      super("Batching", internalScheduler, logger, smearer, null,
+          batchingDelayMs, NO_DELAY);
+    }
+
+    @Override
+    public boolean runTask() {
+      // Send message to server - the batching information is picked up in sendMessageToServer.
+      // Go through a throttler to ensure that we obey rate limits in sending messages.
+      throttle.fire();
+      return false;  // Don't reschedule.
+    }
+  }
 
   /** Representation of a message header for use in a server message. */
   static class ServerMessageHeader extends InternalBase {
@@ -170,47 +189,6 @@ class ProtocolHandler {
     ByteString getClientToken();
   }
 
-  /**
-   * Configuration for the protocol client.
-   */
-  public static class Config extends InternalBase {
-    /**
-     * Batching delay - certain messages (e.g., registrations, invalidation acks) are sent to the
-     * server after this delay.
-     */
-    public int batchingDelayMs = 500;
-
-    /** Rate limits for sending message. */
-    public List<RateLimit> rateLimits = new ArrayList<Throttle.RateLimit>();
-
-    public Config() {
-      // Set default rate limits.
-      rateLimits.add(new RateLimit(1000, 1));  // one message per second
-      rateLimits.add(new RateLimit(60 * 1000, 6));  // six messages per minute
-    }
-
-    /** Returns a configuration object with parameters set for unit tests. */
-    public static Config createConfigForTest() {
-      Config config = new Config();
-      config.rateLimits.clear();
-      config.batchingDelayMs = 200;
-      return config;
-    }
-
-    /**
-     * Modifies {@code configParams} to contain the list of configuration parameter names and their
-     * values.
-     */
-    public void getConfigParams(List<SimplePair<String, Integer>> configParams) {
-      configParams.add(SimplePair.of("batchingDelayMs", batchingDelayMs));
-    }
-
-    @Override
-    public void toCompactString(TextBuilder builder) {
-      builder.appendFormat("Batching delay: %s", batchingDelayMs);
-    }
-  }
-
   private final ClientVersion clientVersion;
   private final SystemResources resources;
 
@@ -219,7 +197,6 @@ class ProtocolHandler {
   private final Scheduler internalScheduler;
 
   private final ProtocolListener listener;
-  private final OperationScheduler operationScheduler;
   private final TiclMessageValidator2 msgValidator;
   private final Throttle throttle;
 
@@ -258,37 +235,27 @@ class ProtocolHandler {
   private final Statistics statistics;
 
   /** Task to send all batched messages to the server. */
-  private final Runnable batchingTask = new NamedRunnable("ProtocolHandler.batching") {
-    @Override
-    public void run() {
-      // Send message to server - the batching information is picked up in sendMessageToServer.
-      // Go through a throttler to ensure that we obey rate limits in sending
-      // messages.
-      throttle.fire();
-    }
-  };
-
+  private final RecurringTask batchingTask;
   /**
    * Creates an instance.
    *
-   * @param config configuration for the protocol handler
+   * @param config configuration for the client
    * @param resources resources to use
    * @param smearer a smearer to randomize delays
    * @param statistics track information about messages sent/received, etc
    * @param applicationName name of the application using the library (for debugging/monitoring)
    * @param listener callback for protocol events
    */
-  ProtocolHandler(Config config, final SystemResources resources, Smearer smearer,
-      Statistics statistics, String applicationName, ProtocolListener listener,
+  ProtocolHandler(ProtocolHandlerConfigP config, final SystemResources resources,
+      Smearer smearer, Statistics statistics, String applicationName, ProtocolListener listener,
       TiclMessageValidator2 msgValidator) {
     this.resources = resources;
     this.logger = resources.getLogger();
     this.statistics = statistics;
     this.internalScheduler = resources.getInternalScheduler();
     this.listener = listener;
-    this.operationScheduler = new OperationScheduler(smearer, logger, internalScheduler);
     this.msgValidator = msgValidator;
-    this.throttle = new Throttle(config.rateLimits, internalScheduler,
+    this.throttle = new Throttle(config.getRateLimitList(), internalScheduler,
         new NamedRunnable("ProtocolHandler.throttle") {
       @Override
       public void run() {
@@ -296,9 +263,10 @@ class ProtocolHandler {
       }
     });
 
+    this.batchingTask = new BatchingTask(smearer, config.getBatchingDelayMs());
+
     this.clientVersion = CommonProtos2.newClientVersion(resources.getPlatform(), "Java",
         applicationName);
-    operationScheduler.setOperation(config.batchingDelayMs, batchingTask);
 
     // Install ourselves as a receiver for server messages.
     resources.getNetwork().setMessageReceiver(new Callback<byte[]>() {
@@ -318,6 +286,19 @@ class ProtocolHandler {
         // Do nothing for now.
       }
     });
+  }
+
+  /** Returns a default config for the protocol handler. */
+  static ProtocolHandlerConfigP.Builder createConfig() {
+    return ProtocolHandlerConfigP.newBuilder()
+        .addRateLimit(CommonProtos2.newRateLimitP(1000, 1))  // one message per second
+        .addRateLimit(CommonProtos2.newRateLimitP(60 * 1000, 6));  // six messages per minute
+  }
+
+  /** Returns a configuration object with parameters set for unit tests. */
+  static ProtocolHandlerConfigP.Builder createConfigForTest() {
+    // No rate limits
+    return ProtocolHandlerConfigP.newBuilder().setBatchingDelayMs(200);
   }
 
   /** Returns the next time a message is allowed to be sent to the server (could be in the past). */
@@ -469,7 +450,7 @@ class ProtocolHandler {
         DigestSerializationType.BYTE_BASED);
     logger.info("Batching initialize message for client: %s, %s", debugString,
         pendingInitializeMessage);
-    operationScheduler.schedule(batchingTask);
+    batchingTask.ensureScheduled(debugString);
   }
 
   /**
@@ -481,16 +462,14 @@ class ProtocolHandler {
    *        server's registration summary
    */
   void sendInfoMessage(List<SimplePair<String, Integer>> performanceCounters,
-      List<SimplePair<String, Integer>> configParams, boolean requestServerRegistrationSummary) {
+      ClientConfigP clientConfig, boolean requestServerRegistrationSummary) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     InfoMessage.Builder infoMessage = InfoMessage.newBuilder()
         .setClientVersion(clientVersion);
 
     // Add configuration parameters.
-    for (SimplePair<String, Integer> configParam : configParams) {
-      PropertyRecord configRecord =
-        CommonProtos2.newPropertyRecord(configParam.first, configParam.second);
-      infoMessage.addConfigParameter(configRecord);
+    if (clientConfig != null) {
+      infoMessage.setClientConfig(clientConfig);
     }
 
     // Add performance counters.
@@ -505,7 +484,7 @@ class ProtocolHandler {
 
     // Simply store the message in pendingInfoMessage and send it when the batching task runs.
     pendingInfoMessage = infoMessage.build();
-    operationScheduler.schedule(batchingTask);
+    batchingTask.ensureScheduled("Send-info");
   }
 
   /**
@@ -519,7 +498,7 @@ class ProtocolHandler {
     for (ObjectIdP objectId : objectIds) {
       pendingRegistrations.put(objectId, regOpType);
     }
-    operationScheduler.schedule(batchingTask);
+    batchingTask.ensureScheduled("Send-registrations");
   }
 
   /** Sends an acknowledgement for {@code invalidation} to the server. */
@@ -528,7 +507,7 @@ class ProtocolHandler {
     // We could do squelching - we don't since it is unlikely to be too beneficial here.
     logger.fine("Sending ack for invalidation %s", invalidation);
     pendingAckedInvalidations.add(invalidation);
-    operationScheduler.schedule(batchingTask);
+    batchingTask.ensureScheduled("Send-Ack");
   }
 
   /**
@@ -540,7 +519,7 @@ class ProtocolHandler {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     pendingRegSubtrees.add(regSubtree);
     logger.info("Adding subtree: %s", regSubtree);
-    operationScheduler.schedule(batchingTask);
+    batchingTask.ensureScheduled("Send-reg-sync");
  }
 
   /** Sends pending data to the server (e.g., registrations, acks, registration sync messages). */
@@ -567,7 +546,7 @@ class ProtocolHandler {
 
     if ((listener.getClientToken() == null) && !builder.hasInitializeMessage()) {
       // Cannot send any message
-      logger.warning("Cannot send message since no token and no initialze msg: %s", builder);
+      logger.warning("Cannot send message since no token and no initialize msg: %s", builder);
       statistics.recordError(ClientErrorType.TOKEN_MISSING_FAILURE);
       return;
     }
@@ -579,25 +558,13 @@ class ProtocolHandler {
 
     // Add reg, acks, reg subtrees - clear them after adding.
     if (!pendingAckedInvalidations.isEmpty()) {
-      InvalidationMessage ackMessage =
-          CommonProtos2.newInvalidationMessage(pendingAckedInvalidations);
-      builder.setInvalidationAckMessage(ackMessage);
-      pendingAckedInvalidations.clear();
+      builder.setInvalidationAckMessage(createInvalidationAckMessage());
       statistics.recordSentMessage(SentMessageType.INVALIDATION_ACK);
     }
 
     // Check regs.
     if (!pendingRegistrations.isEmpty()) {
-      List<RegistrationP> registrations =
-          new ArrayList<RegistrationP>(pendingRegistrations.size());
-      for (Map.Entry<ObjectIdP, RegistrationP.OpType> entry : pendingRegistrations.entrySet()) {
-        boolean isReg = entry.getValue() == RegistrationP.OpType.REGISTER;
-        registrations.add(CommonProtos2.newRegistrationP(entry.getKey(), isReg));
-      }
-      RegistrationMessage.Builder regMessage =
-        RegistrationMessage.newBuilder().addAllRegistration(registrations);
-      pendingRegistrations.clear();
-      builder.setRegistrationMessage(regMessage);
+      builder.setRegistrationMessage(createRegistrationMessage());
       statistics.recordSentMessage(SentMessageType.REGISTRATION);
     }
 
@@ -628,6 +595,41 @@ class ProtocolHandler {
     logger.fine("Sending message to server: %s", message);
     statistics.recordSentMessage(SentMessageType.TOTAL);
     resources.getNetwork().sendMessage(message.toByteArray());
+  }
+
+  /**
+   * Creates a registration message based on registrations from {@code pendingRegistrations}
+   * and returns it.
+   * <p>
+   * REQUIRES: pendingRegistrations.size() > 0
+   */
+  private RegistrationMessage createRegistrationMessage() {
+    Preconditions.checkState(!pendingRegistrations.isEmpty());
+    RegistrationMessage.Builder regMessage = RegistrationMessage.newBuilder();
+
+    // Run through the pendingRegistrations map.
+    Set<Map.Entry<ObjectIdP, RegistrationP.OpType>> entrySet = pendingRegistrations.entrySet();
+    for (Map.Entry<ObjectIdP, RegistrationP.OpType> entry : entrySet) {
+      RegistrationP reg = CommonProtos2.newRegistrationP(entry.getKey(),
+          entry.getValue() == RegistrationP.OpType.REGISTER);
+      regMessage.addRegistration(reg);
+    }
+    pendingRegistrations.clear();
+    return regMessage.build();
+  }
+
+  /**
+   * Creates an invalidation ack message based on acks from {@code pendingAckedInvalidations} and
+   * returns it.
+   * <p>
+   * REQUIRES: pendingAckedInvalidations.size() > 0
+   */
+  private InvalidationMessage createInvalidationAckMessage() {
+    Preconditions.checkState(!pendingAckedInvalidations.isEmpty());
+    InvalidationMessage ackMessage =
+        CommonProtos2.newInvalidationMessage(pendingAckedInvalidations);
+    pendingAckedInvalidations.clear();
+    return ackMessage;
   }
 
   /** Returns the header to include on a message to the server. */
