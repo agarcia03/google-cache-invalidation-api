@@ -57,7 +57,6 @@ message ObjectSource {
   enum Type {
     INTERNAL = 1;
     TEST = 2; // Uncontrolled object space for use by anyone for testing.
-    UNKNOWN_VERSION = 3;
 
     // Numbers below 1000 are reserved for internal use.
     CHROME_SYNC = 1004;

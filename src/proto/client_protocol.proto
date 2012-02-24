@@ -478,7 +478,7 @@ message RateLimitP {
 message ProtocolHandlerConfigP {
   // Batching delay - certain messages (e.g., registrations, invalidation acks)
   // are sent to the server after this delay.
-  optional int32 batching_delay_ms = 1;
+  optional int32 batching_delay_ms = 1 [default = 500];
 
   // Rate limits for sending messages. Only two levels allowed currently.
   repeated RateLimitP rate_limit = 2;
@@ -491,34 +491,34 @@ message ClientConfigP {
 
   // The delay after which a network message sent to the server is considered
   // timed out.
-  optional int32 network_timeout_delay_ms = 2;
+  optional int32 network_timeout_delay_ms = 2 [default = 60000];
 
   // Retry delay for a persistent write if it fails
-  optional int32 write_retry_delay_ms = 3;
+  optional int32 write_retry_delay_ms = 3 [default = 10000];
 
   // Delay for sending heartbeats to the server.
-  optional int32 heartbeat_interval_ms = 4;
+  optional int32 heartbeat_interval_ms = 4 [default = 1200000];
 
   // Delay after which performance counters are sent to the server.
-  optional int32 perf_counter_delay_ms = 5;  // 6 hours.
+  optional int32 perf_counter_delay_ms = 5 [default = 21600000];  // 6 hours.
 
   // The maximum exponential backoff factor used for network and persistence
   /// timeouts.
-  optional int32 max_exponential_backoff_factor = 6;
+  optional int32 max_exponential_backoff_factor = 6 [default = 500];
 
   // Smearing percent for randomizing delays.
-  optional int32 smear_percent = 7;
+  optional int32 smear_percent = 7 [default = 20];
 
   // Whether the client is transient, that is, does not write its session
   // token to durable storage.
   // TODO: need to expose to the clients.
   // For android the default is false. But for mtrx the default is true.
-  optional bool is_transient = 8;
+  optional bool is_transient = 8 [default = false];
 
   // Initial delay for a heartbeat after restarting from persistent state. We
   // use this so that the application has a chance to respond to the
   // reissueRegistrations call.
-  optional int32 initial_persistent_heartbeat_delay_ms = 9;
+  optional int32 initial_persistent_heartbeat_delay_ms = 9 [default = 2000];
 
   // Configuration for the protocol client to control batching etc.
   optional ProtocolHandlerConfigP protocol_handler_config = 10;
