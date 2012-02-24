@@ -21,6 +21,8 @@ syntax = "proto2";
 
 package com.google.protos.ipc.invalidation;
 
+option optimize_for = LITE_RUNTIME;
+
 
 message ChannelMessageEncoding {
     // What kind of encoding is used for network_message

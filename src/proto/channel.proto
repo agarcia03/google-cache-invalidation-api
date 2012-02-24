@@ -23,6 +23,8 @@ syntax = "proto2";
 
 package com.google.protos.ipc.invalidation;
 
+option optimize_for = LITE_RUNTIME;
+
 
 import "proto/channel_common.proto";
 

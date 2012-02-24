@@ -47,7 +47,7 @@ import com.google.ipc.invalidation.common.ClientProtocolAccessor.TokenControlMes
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.VersionAccessor;
 import com.google.ipc.invalidation.util.BaseLogger;
 import com.google.ipc.invalidation.util.TypedUtil;
-import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.MessageLite;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientToServerMessage;
@@ -129,7 +129,7 @@ public class TiclMessageValidator2 {
      * messages have been verified. Should be overriden to enforce additional semantic constraints
      * beyond field presence/absence if needed.
      */
-    boolean postValidate(GeneratedMessage message) {
+    boolean postValidate(MessageLite message) {
       return true;
     }
   }
@@ -232,7 +232,7 @@ public class TiclMessageValidator2 {
       FieldInfo.newRequired(VersionAccessor.MAJOR_VERSION),
       FieldInfo.newRequired(VersionAccessor.MINOR_VERSION)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         // Versions must be non-negative.
         Version version = (Version) message;
         if ((version.getMajorVersion() < 0) || (version.getMinorVersion() < 0)) {
@@ -253,7 +253,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(ObjectIdPAccessor.NAME),
         FieldInfo.newRequired(ObjectIdPAccessor.SOURCE)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         // Must have non-negative source code.
         ObjectIdP oid = (ObjectIdP) message;
         if (oid.getSource() < 0) {
@@ -272,7 +272,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(InvalidationPAccessor.VERSION),
         FieldInfo.newOptional(InvalidationPAccessor.PAYLOAD)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         // Must have non-negative version.
         InvalidationP invalidation = (InvalidationP) message;
         if (invalidation.getVersion() < 0) {
@@ -298,7 +298,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(RegistrationSummaryAccessor.NUM_REGISTRATIONS),
         FieldInfo.newRequired(RegistrationSummaryAccessor.REGISTRATION_DIGEST)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         RegistrationSummary summary = (RegistrationSummary) message;
         return (summary.getNumRegistrations() >= 0)
             && (!summary.getRegistrationDigest().isEmpty());
@@ -310,7 +310,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(RateLimitPAccessor.WINDOW_MS),
         FieldInfo.newRequired(RateLimitPAccessor.COUNT)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         RateLimitP rateLimit = (RateLimitP) message;
         return (rateLimit.getWindowMs() >= 1000) &&
             (rateLimit.getWindowMs() > rateLimit.getCount());
@@ -362,7 +362,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(ClientHeaderAccessor.MAX_KNOWN_SERVER_TIME_MS),
         FieldInfo.newOptional(ClientHeaderAccessor.MESSAGE_ID)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         ClientHeader header = (ClientHeader) message;
 
         // If set, token must not be empty.
@@ -398,7 +398,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newOptional(ApplicationClientIdPAccessor.CLIENT_TYPE),
         FieldInfo.newRequired(ApplicationClientIdPAccessor.CLIENT_NAME)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         ApplicationClientIdP applicationClientId = (ApplicationClientIdP) message;
         return !applicationClientId.getClientName().isEmpty();
       }
@@ -413,7 +413,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(InitializeMessageAccessor.APPLICATION_CLIENT_ID,
             APPLICATION_CLIENT_ID)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         return ((InitializeMessage) message).getClientType() >= 0;
       }
     };
@@ -463,7 +463,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newOptional(ClientToServerMessageAccessor.REGISTRATION_SYNC_MESSAGE,
             REGISTRATION_SYNC)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         ClientToServerMessage parsedMessage = (ClientToServerMessage) message;
         // The message either has an initialize request from the client or it has the client token.
         return (parsedMessage.hasInitializeMessage() ^ parsedMessage.getHeader().hasClientToken());
@@ -485,7 +485,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(ServerHeaderAccessor.SERVER_TIME_MS),
         FieldInfo.newOptional(ServerHeaderAccessor.MESSAGE_ID)) {
       @Override
-      public boolean postValidate(GeneratedMessage message) {
+      public boolean postValidate(MessageLite message) {
         ServerHeader header = (ServerHeader) message;
         if (header.getClientToken().isEmpty()) {
           logger.info("Client token was empty: %s", header);
@@ -548,7 +548,7 @@ public class TiclMessageValidator2 {
         ClientProtocolAccessor.CONFIG_CHANGE_MESSAGE_ACCESSOR,
         FieldInfo.newOptional(ConfigChangeMessageAccessor.NEXT_MESSAGE_DELAY_MS)) {
           @Override
-          public boolean postValidate(GeneratedMessage message) {
+          public boolean postValidate(MessageLite message) {
             ConfigChangeMessage parsedMessage = (ConfigChangeMessage) message;
             // If the message has a next_message_delay_ms value, it must be positive.
             return !parsedMessage.hasNextMessageDelayMs() ||
@@ -606,7 +606,7 @@ public class TiclMessageValidator2 {
    * @param messageInfo specification of validity for {@code message}
    */
   
-  boolean checkMessage(GeneratedMessage message, MessageInfo messageInfo) {
+  boolean checkMessage(MessageLite message, MessageInfo messageInfo) {
     for (FieldInfo fieldInfo : messageInfo.getAllFields()) {
       Descriptor fieldDescriptor = fieldInfo.getFieldDescriptor();
       boolean isFieldPresent =
@@ -620,7 +620,7 @@ public class TiclMessageValidator2 {
 
       // If the field is present and requires its own validation, validate it.
       if (isFieldPresent && fieldInfo.requiresAdditionalValidation()) {
-        for (GeneratedMessage subMessage : TiclMessageValidator2.<GeneratedMessage>getFieldIterable(
+        for (MessageLite subMessage : TiclMessageValidator2.<MessageLite>getFieldIterable(
             message, messageInfo.messageAccessor, fieldDescriptor)) {
           if (!checkMessage(subMessage, fieldInfo.getMessageInfo())) {
             return false;
@@ -645,7 +645,7 @@ public class TiclMessageValidator2 {
    */
   @SuppressWarnings("unchecked")
   
-  static <FieldType> Iterable<FieldType> getFieldIterable(final GeneratedMessage message,
+  static <FieldType> Iterable<FieldType> getFieldIterable(final MessageLite message,
       final ClientProtocolAccessor.Accessor messageAccessor,
       final ClientProtocolAccessor.Descriptor fieldDescriptor) {
     final Object obj = messageAccessor.getField(message, fieldDescriptor);

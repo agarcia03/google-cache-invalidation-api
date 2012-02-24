@@ -25,6 +25,7 @@ import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.common.TiclMessageValidator2;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
@@ -73,7 +74,10 @@ import java.util.Set;
 
 
 /**
- * A layer for interacting with low-level protocol messages.
+ * A layer for interacting with low-level protocol messages.  Parses messages from the server and
+ * calls appropriate functions on the {@code ProtocolListener} to handle various types of message
+ * content.  Also buffers message data from the client and constructs and sends messages to the
+ * server.
  *
  */
 class ProtocolHandler {
@@ -113,7 +117,7 @@ class ProtocolHandler {
     /** Server-sent token. */
     ByteString token;
 
-    /** Summary over server registration state. */
+    /** Summary of the client's registration state at the server. */
     RegistrationSummary registrationSummary;
 
     @Override
@@ -189,16 +193,26 @@ class ProtocolHandler {
     ByteString getClientToken();
   }
 
+  /** Information about the client, e.g., application name, OS, etc. */
   private final ClientVersion clientVersion;
-  private final SystemResources resources;
 
-  // Cached from resources
+  /** A logger. */
   private final Logger logger;
+
+  /** Scheduler for the client's internal processing. */
   private final Scheduler internalScheduler;
 
-  private final ProtocolListener listener;
-  private final TiclMessageValidator2 msgValidator;
+  /** Network channel for sending and receiving messages to and from the server. */
+  private final NetworkChannel network;
+
+  /** A throttler to prevent the client from sending too many messages in a given interval. */
   private final Throttle throttle;
+
+  /** The protocol listener. */
+  private final ProtocolListener listener;
+
+  /** Checks that messages (inbound and outbound) conform to basic validity constraints. */
+  private final TiclMessageValidator2 msgValidator;
 
   /** A debug message id that is added to every message to the server. */
   private int messageId = 1;
@@ -249,10 +263,10 @@ class ProtocolHandler {
   ProtocolHandler(ProtocolHandlerConfigP config, final SystemResources resources,
       Smearer smearer, Statistics statistics, String applicationName, ProtocolListener listener,
       TiclMessageValidator2 msgValidator) {
-    this.resources = resources;
     this.logger = resources.getLogger();
     this.statistics = statistics;
     this.internalScheduler = resources.getInternalScheduler();
+    this.network = resources.getNetwork();
     this.listener = listener;
     this.msgValidator = msgValidator;
     this.throttle = new Throttle(config.getRateLimitList(), internalScheduler,
@@ -269,7 +283,7 @@ class ProtocolHandler {
         applicationName);
 
     // Install ourselves as a receiver for server messages.
-    resources.getNetwork().setMessageReceiver(new Callback<byte[]>() {
+    network.setMessageReceiver(new Callback<byte[]>() {
       @Override
       public void accept(final byte[] incomingMessage) {
         internalScheduler.schedule(NO_DELAY, new NamedRunnable("ProtocolHandler.handleMessage") {
@@ -280,7 +294,7 @@ class ProtocolHandler {
         });
       }
     });
-    resources.getNetwork().addNetworkStatusReceiver(new Callback<Boolean>() {
+    network.addNetworkStatusReceiver(new Callback<Boolean>() {
       @Override
       public void accept(Boolean isOnline) {
         // Do nothing for now.
@@ -301,7 +315,10 @@ class ProtocolHandler {
     return ProtocolHandlerConfigP.newBuilder().setBatchingDelayMs(200);
   }
 
-  /** Returns the next time a message is allowed to be sent to the server (could be in the past). */
+  /**
+   * Returns the next time a message is allowed to be sent to the server.  Typically, this will be
+   * in the past, meaning that the client is free to send a message at any time.
+   */
   public long getNextMessageSendTimeMsForTest() {
     return nextMessageSendTimeMs;
   }
@@ -333,7 +350,7 @@ class ProtocolHandler {
     ServerMessageHeader header = new ServerMessageHeader(messageHeader.getClientToken(),
         messageHeader.hasRegistrationSummary() ? messageHeader.getRegistrationSummary() : null);
 
-    // Check the version of the message
+    // Check the version of the message.
     if (messageHeader.getProtocolVersion().getVersion().getMajorVersion() !=
         CommonInvalidationConstants2.PROTOCOL_MAJOR_VERSION) {
       statistics.recordError(ClientErrorType.PROTOCOL_VERSION_FAILURE);
@@ -423,7 +440,7 @@ class ProtocolHandler {
     }
 
     if (!TypedUtil.<ByteString>equals(serverToken, clientToken)) {
-      // Bad token - reject whole message
+      // Bad token - reject whole message.
       logger.warning("Incoming message has bad token: %s, %s",
           CommonProtoStrings2.toLazyCompactString(serverToken),
           CommonProtoStrings2.toLazyCompactString(clientToken));
@@ -594,7 +611,7 @@ class ProtocolHandler {
 
     logger.fine("Sending message to server: %s", message);
     statistics.recordSentMessage(SentMessageType.TOTAL);
-    resources.getNetwork().sendMessage(message.toByteArray());
+    network.sendMessage(message.toByteArray());
   }
 
   /**

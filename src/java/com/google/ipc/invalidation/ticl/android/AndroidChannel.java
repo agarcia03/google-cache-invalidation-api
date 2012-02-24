@@ -41,11 +41,12 @@ import android.util.Base64;
 import android.util.Log;
 
 import org.apache.http.client.HttpClient;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 
 /**
@@ -60,6 +61,15 @@ import java.util.concurrent.ScheduledExecutorService;
 class AndroidChannel extends AndroidChannelBase implements TestableNetworkChannel {
 
   private static final String TAG = "AndroidChannel";
+
+  /**
+   * The maximum number of outbound messages that will be buffered while waiting for async delivery
+   * of the C2DM registration ID and authentication token.   The general flow for a new client is
+   * that an 'initialize' message is sent (and resent on a timed interval) until a session token is
+   * sent back and this just prevents accumulation a large number of initialize messages (and
+   * consuming memory) in a long delay or failure scenario.
+   */
+  private static final int MAX_BUFFERED_MESSAGES = 10;
 
   /** The channel version expected by this channel implementation */
   
@@ -103,13 +113,14 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
    * Returns the default HTTP client to use for requests from the channel based upon its execution
    * context.  The format of the User-Agent string is "<application-pkg>(<android-release>)".
    */
-  static HttpClient getDefaultHttpClient(Context context) {
+  static AndroidHttpClient getDefaultHttpClient(Context context) {
     return AndroidHttpClient.newInstance(
        context.getApplicationInfo().className + "(" + Build.VERSION.RELEASE + ")");
   }
 
   /** Executor used for HTTP calls to send messages to . */
-  private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+  
+  final ExecutorService scheduler = Executors.newSingleThreadExecutor();
 
   /**
    * Creates a new AndroidChannel.
@@ -198,7 +209,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   }
 
   /*
-   * Updates the registration ID for this channel, flushing any pending oubound messages that
+   * Updates the registration ID for this channel, flushing any pending outbound messages that
    * were waiting for an id.
    */
   synchronized void setRegistrationId(String updatedRegistrationId) {
@@ -242,9 +253,13 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
       if (pendingMessages == null) {
         pendingMessages = new ArrayList<byte[]>();
       }
-      Log.i(TAG, "Buffering outbound message: " + registrationId + ", " + authToken);
-      // TODO: Put some limit on maximum amount of requests buffered
-      pendingMessages.add(outgoingMessage);
+      Log.i(TAG, "Buffering outbound message: hasRegId: " + (registrationId != null) +
+          ", hasAuthToken: " + (authToken != null));
+      if (pendingMessages.size() < MAX_BUFFERED_MESSAGES) {
+        pendingMessages.add(outgoingMessage);
+      } else {
+        Log.w(TAG, "Exceeded maximum number of buffered messages, dropping outbound message");
+      }
       return;
     }
 
@@ -253,7 +268,11 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
     scheduler.execute(new Runnable() {
       @Override
       public void run() {
-        deliverOutboundMessage(outgoingMessage);
+        if (resources.isStarted()) {
+          deliverOutboundMessage(outgoingMessage);
+        } else {
+          Log.i(TAG, "Dropping outbound messages because resources are stopped");
+        }
       }
     });
   }
@@ -266,13 +285,14 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   private synchronized void checkReady() {
     if ((registrationId != null) && (authToken != null)) {
 
+      Log.i(TAG, "Enabling network endpoint: " + getWebEncodedEndpointId());
+
       // Notify the status receiver that we are now network enabled
       if (statusReceiver != null) {
         statusReceiver.accept(true);
       }
 
       // Flush any pending messages
-      Log.i(TAG, "Flushing pending messages for " + proxy.getClientKey());
       if (pendingMessages != null) {
         for (byte [] message : pendingMessages) {
           sendMessage(message);
@@ -334,5 +354,9 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   @Override
   protected Logger getLogger() {
     return resources.getLogger();
+  }
+
+  ExecutorService getExecutorServiceForTest() {
+    return scheduler;
   }
 }

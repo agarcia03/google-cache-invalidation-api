@@ -20,8 +20,9 @@ import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.ListenerBinder;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
-import com.google.ipc.invalidation.external.client.android.service.Message;
 import com.google.ipc.invalidation.external.client.android.service.Request;
+import com.google.ipc.invalidation.external.client.android.service.Request.Action;
+import com.google.ipc.invalidation.external.client.android.service.Request.Parameter;
 import com.google.ipc.invalidation.external.client.android.service.Response;
 import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
 import com.google.ipc.invalidation.ticl.android.AbstractInvalidationService;
@@ -123,7 +124,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
     public void sendEvent(Bundle eventBundle) {
 
       // Retrive info for that target client
-      String clientKey = eventBundle.getString(Request.Parameter.CLIENT);
+      String clientKey = eventBundle.getString(Parameter.CLIENT);
       ClientState state = clientMap.get(clientKey);
       Preconditions.checkNotNull(state);
 
@@ -210,14 +211,8 @@ public class InvalidationTestService extends AbstractInvalidationService {
 
   @Override
   protected void create(Request request, Builder response) {
-    validateRequest(request,
-        Request.Action.CREATE,
-        Request.Parameter.ACTION,
-        Request.Parameter.CLIENT,
-        Request.Parameter.CLIENT_TYPE,
-        Request.Parameter.ACCOUNT,
-        Request.Parameter.AUTH_TYPE,
-        Request.Parameter.INTENT);
+    validateRequest(request, Action.CREATE, Parameter.ACTION, Parameter.CLIENT,
+        Parameter.CLIENT_TYPE, Parameter.ACCOUNT, Parameter.AUTH_TYPE, Parameter.INTENT);
     Log.i(TAG, "Creating client " + request.getClientKey() + ":" + clientMap.keySet());
     clientMap.put(
         request.getClientKey(), new ClientState(request.getAccount(), request.getAuthType(),
@@ -228,7 +223,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   @Override
   protected void resume(Request request, Builder response) {
     validateRequest(
-        request, Request.Action.RESUME, Request.Parameter.ACTION, Request.Parameter.CLIENT);
+        request, Action.RESUME, Parameter.ACTION, Parameter.CLIENT);
     ClientState state = clientMap.get(request.getClientKey());
     if (state != null) {
       Log.i(TAG, "Resuming client " + request.getClientKey() + ":" + clientMap.keySet());
@@ -245,11 +240,9 @@ public class InvalidationTestService extends AbstractInvalidationService {
   protected void register(Request request, Builder response) {
     // Ensure that one (and only one) of the variant object id forms is used
     String objectParam =
-      request.getBundle().containsKey(Request.Parameter.OBJECT_ID) ?
-          Request.Parameter.OBJECT_ID :
-          Request.Parameter.OBJECT_ID_LIST;
-    validateRequest(request, Request.Action.REGISTER, Message.Parameter.ACTION,
-        Message.Parameter.CLIENT, objectParam);
+      request.getBundle().containsKey(Parameter.OBJECT_ID) ?
+          Parameter.OBJECT_ID : Parameter.OBJECT_ID_LIST;
+    validateRequest(request, Action.REGISTER, Parameter.ACTION, Parameter.CLIENT, objectParam);
     if (!validateClient(request)) {
       response.setStatus(Response.Status.INVALID_CLIENT);
       return;
@@ -261,11 +254,11 @@ public class InvalidationTestService extends AbstractInvalidationService {
   protected void unregister(Request request, Builder response) {
     // Ensure that one (and only one) of the variant object id forms is used
     String objectParam =
-      request.getBundle().containsKey(Request.Parameter.OBJECT_ID) ?
-          Request.Parameter.OBJECT_ID :
-          Request.Parameter.OBJECT_ID_LIST;
-    validateRequest(request, Request.Action.UNREGISTER, Request.Parameter.ACTION,
-        Request.Parameter.CLIENT, objectParam);
+      request.getBundle().containsKey(Parameter.OBJECT_ID) ?
+          Parameter.OBJECT_ID :
+          Parameter.OBJECT_ID_LIST;
+    validateRequest(request, Action.UNREGISTER, Parameter.ACTION,
+        Parameter.CLIENT, objectParam);
     if (!validateClient(request)) {
       response.setStatus(Response.Status.INVALID_CLIENT);
       return;
@@ -276,7 +269,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   @Override
   protected void start(Request request, Builder response) {
     validateRequest(
-        request, Request.Action.START, Request.Parameter.ACTION, Request.Parameter.CLIENT);
+        request, Action.START, Parameter.ACTION, Parameter.CLIENT);
     if (!validateClient(request)) {
       response.setStatus(Response.Status.INVALID_CLIENT);
       return;
@@ -286,8 +279,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
 
   @Override
   protected void stop(Request request, Builder response) {
-    validateRequest(
-        request, Request.Action.STOP, Message.Parameter.ACTION, Message.Parameter.CLIENT);
+    validateRequest(request, Action.STOP, Parameter.ACTION, Parameter.CLIENT);
     if (!validateClient(request)) {
       response.setStatus(Response.Status.INVALID_CLIENT);
       return;
@@ -297,8 +289,18 @@ public class InvalidationTestService extends AbstractInvalidationService {
 
   @Override
   protected void acknowledge(Request request, Builder response) {
-    validateRequest(request, Request.Action.ACKNOWLEDGE, Request.Parameter.ACTION,
-        Request.Parameter.CLIENT, Request.Parameter.ACK_TOKEN);
+    validateRequest(request, Action.ACKNOWLEDGE, Parameter.ACTION, Parameter.CLIENT,
+        Parameter.ACK_TOKEN);
+    if (!validateClient(request)) {
+      response.setStatus(Response.Status.INVALID_CLIENT);
+      return;
+    }
+    response.setStatus(Response.Status.SUCCESS);
+  }
+
+  @Override
+  protected void destroy(Request request, Builder response) {
+    validateRequest(request, Action.DESTROY, Parameter.ACTION, Parameter.CLIENT);
     if (!validateClient(request)) {
       response.setStatus(Response.Status.INVALID_CLIENT);
       return;
@@ -326,7 +328,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
    * @param action expected action
    * @param parameters expected parameters
    */
-  private void validateRequest(Request request, String action, String... parameters) {
+  private void validateRequest(Request request, Action action, String... parameters) {
     Assert.assertEquals(action, request.getAction());
     List<String> expectedParameters = new ArrayList<String>(Arrays.asList(parameters));
     Bundle requestBundle = request.getBundle();

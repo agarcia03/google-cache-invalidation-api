@@ -222,7 +222,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     // Retrieve the current registration ID and normalize the empty string value (for none)
     // to null
     String registrationId = C2DMessaging.getRegistrationId(this);
-    Log.i(TAG, "C2DM Registration ID:" + registrationId);
+    Log.i(TAG, "Has Registration ID:" + (registrationId != null));
 
     if (clientManager == null) {
       clientManager = new AndroidClientManager(this, registrationId);
@@ -298,11 +298,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     ObjectId objectId = request.getObjectId();
-    if (objectId != null) {
-      client.register(objectId);
-    } else {
-      client.register(request.getObjectId());
-    }
+    client.register(objectId);
     response.setStatus(Status.SUCCESS);
   }
 
@@ -311,11 +307,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     ObjectId objectId = request.getObjectId();
-    if (objectId != null) {
-      client.unregister(objectId);
-    } else {
-      client.unregister(request.getObjectId());
-    }
+    client.unregister(objectId);
     response.setStatus(Status.SUCCESS);
   }
 
@@ -325,6 +317,14 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     AckHandle ackHandle = request.getAckHandle();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     client.acknowledge(ackHandle);
+    response.setStatus(Status.SUCCESS);
+  }
+
+  @Override
+  protected void destroy(Request request, Builder response) {
+    String clientKey = request.getClientKey();
+    AndroidInvalidationClient client = clientManager.get(clientKey);
+    client.destroy();
     response.setStatus(Status.SUCCESS);
   }
 

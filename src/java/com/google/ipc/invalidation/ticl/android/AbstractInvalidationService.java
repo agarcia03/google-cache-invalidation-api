@@ -31,14 +31,13 @@ import android.os.RemoteException;
 import android.util.Log;
 
 /**
- * Abstract base class for implementing the Android invalidation service. The
- * service implements the set of actions defined in {@link Request.Action}. For
- * each supported action, the service will extract the action parameters and
- * invoke an abstract methods that will be implemented by subclasses to provide
- * the action-specific processing.
+ * Abstract base class for implementing the Android invalidation service. The service implements the
+ * set of actions defined in {@link Action}. For each supported action, the service will extract the
+ * action parameters and invoke an abstract methods that will be implemented by subclasses to
+ * provide the action-specific processing.
  * <p>
- * The class also provides {@code sendEvent} methods that can be used to
- * generate events back to the client.
+ * The class also provides {@code sendEvent} methods that can be used to generate events back to the
+ * client.
  *
  */
 public abstract class AbstractInvalidationService extends Service {
@@ -68,24 +67,37 @@ public abstract class AbstractInvalidationService extends Service {
 
   protected void handleRequest(Bundle input, Bundle output) {
     Request request = new Request(input);
-    Response.Builder response = Response.newBuilder(request.getAction(), output);
-    Log.d(TAG, "Request: " + request.getAction() + " from " + request.getClientKey());
+    Response.Builder response = Response.newBuilder(request.getActionOrdinal(), output);
+    Action action = request.getAction();
+    Log.d(TAG, "Request: " + action + " from " + request.getClientKey());
     try {
-      String action = request.getAction();
-      if (Action.CREATE.equals(action)) {
-        create(request, response);
-      } else if (Action.RESUME.equals(action)) {
-        resume(request, response);
-      } else if (Action.START.equals(action)) {
-        start(request, response);
-      } else if (Action.REGISTER.equals(action)) {
-        register(request, response);
-      } else if (Action.UNREGISTER.equals(action)) {
-        unregister(request, response);
-      } else if (Action.ACKNOWLEDGE.equals(action)) {
-        acknowledge(request, response);
-      } else if (Action.STOP.equals(action)) {
-        stop(request, response);
+      switch(action) {
+        case CREATE:
+          create(request, response);
+          break;
+        case RESUME:
+          resume(request, response);
+          break;
+        case START:
+          start(request, response);
+          break;
+        case STOP:
+          stop(request, response);
+          break;
+        case REGISTER:
+          register(request, response);
+          break;
+        case UNREGISTER:
+          unregister(request, response);
+          break;
+        case ACKNOWLEDGE:
+          acknowledge(request, response);
+          break;
+        case DESTROY:
+          destroy(request, response);
+          break;
+        default:
+          throw new IllegalStateException("Unknown action:" + action);
       }
     } catch (Exception e) {
       Log.e(TAG, "Error in " + request.getAction(), e);
@@ -99,13 +111,15 @@ public abstract class AbstractInvalidationService extends Service {
 
   protected abstract void start(Request request, Response.Builder response);
 
+  protected abstract void stop(Request request, Response.Builder response);
+
   protected abstract void register(Request request, Response.Builder response);
 
   protected abstract void unregister(Request request, Response.Builder response);
 
   protected abstract void acknowledge(Request request, Response.Builder response);
 
-  protected abstract void stop(Request request, Response.Builder response);
+  protected abstract void destroy(Request request, Response.Builder response);
 
   /**
    * Send event messages to application clients and provides common processing

@@ -40,28 +40,31 @@ public final class Request extends Message {
   /**
    * Contains the list of request action names.
    */
-  public static class Action {
+  public static enum Action {
 
     /** Creates a new invalidation client instance */
-    public static final String CREATE = "create";
+    CREATE,
 
     /** Resumes an invalidation client instances */
-    public static final String RESUME = "resume";
+    RESUME,
 
     /** Starts the invalidation client */
-    public static final String START = "start";
-
-    /** Registers for invalidation notifications on an object */
-    public static final String REGISTER = "register";
-
-    /** Unregisters for invalidation notifications on an object */
-    public static final String UNREGISTER = "unregister";
-
-    /** Acknowledges an event recieved from the invalidations service */
-    public static final String ACKNOWLEDGE = "acknowledge";
+    START,
 
     /** Stops an invalidation client */
-    public static final String STOP = "stop";
+    STOP,
+
+    /** Registers for invalidation notifications on an object */
+    REGISTER,
+
+    /** Unregisters for invalidation notifications on an object */
+    UNREGISTER,
+
+    /** Acknowledges an event recieved from the invalidations service */
+    ACKNOWLEDGE,
+
+    /** Destroys the client permanently */
+    DESTROY;
   }
 
   /**
@@ -88,9 +91,8 @@ public final class Request extends Message {
   public static class Builder extends Message.Builder<Request, Builder> {
 
     // Constructed using newBuilder()
-    private Builder(String action) {
-      super(action, new Bundle());
-      bundle.putString(Parameter.ACTION, action);
+    private Builder(Action action) {
+      super(action.ordinal(), new Bundle());
     }
 
     /**
@@ -133,7 +135,7 @@ public final class Request extends Message {
   /**
    * Constructs a new builder for a request associated with the provided action.
    */
-  public static Builder newBuilder(String action) {
+  public static Builder newBuilder(Action action) {
     return new Builder(action);
   }
 
@@ -142,6 +144,13 @@ public final class Request extends Message {
    */
   public Request(Bundle bundle) {
     super(bundle);
+  }
+
+  /**
+   * Returns the action from a request message.
+   */
+  public Action getAction() {
+    return Action.values()[getActionOrdinal()];
   }
 
   /**

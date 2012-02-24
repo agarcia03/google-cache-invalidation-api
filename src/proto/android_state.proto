@@ -20,6 +20,8 @@ syntax = "proto2";
 
 package com.google.protos.ipc.invalidation;
 
+option optimize_for = LITE_RUNTIME;
+
 
 // TODO: Factor out Version and remove this dependency
 import "proto/client_protocol.proto";
@@ -46,7 +48,7 @@ message ClientMetadata {
   // The authentication token type that is used for requests from this client.
   optional string auth_type = 6;
 
-  // The application package com.google.protos.ipc.invalidation;
+  // The application package name for the client's event listener.
   optional string listener_pkg = 7;
 
   // The class name for the client's event listener.

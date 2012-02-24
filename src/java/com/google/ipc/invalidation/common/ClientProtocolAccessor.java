@@ -17,7 +17,7 @@
 package com.google.ipc.invalidation.common;
 
 import com.google.common.base.Preconditions;
-import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.MessageLite;
 
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
@@ -75,8 +75,8 @@ public class ClientProtocolAccessor {
   }
   /** Accessor for fields. */
   public interface Accessor {
-    public boolean hasField(GeneratedMessage message, Descriptor field);
-    public Object getField(GeneratedMessage message, Descriptor field);
+    public boolean hasField(MessageLite message, Descriptor field);
+    public Object getField(MessageLite message, Descriptor field);
     public Collection<String> getAllFieldNames();
   }
   /** Class to access fields in {@link ApplicationClientIdP} protos. */
@@ -93,7 +93,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ApplicationClientIdP message = (ApplicationClientIdP) rawMessage;
@@ -109,7 +109,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ApplicationClientIdP message = (ApplicationClientIdP) rawMessage;
@@ -159,7 +159,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientConfigP message = (ClientConfigP) rawMessage;
@@ -199,7 +199,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientConfigP message = (ClientConfigP) rawMessage;
@@ -265,7 +265,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientHeader message = (ClientHeader) rawMessage;
@@ -293,7 +293,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientHeader message = (ClientHeader) rawMessage;
@@ -347,7 +347,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientToServerMessage message = (ClientToServerMessage) rawMessage;
@@ -375,7 +375,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientToServerMessage message = (ClientToServerMessage) rawMessage;
@@ -425,7 +425,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientVersion message = (ClientVersion) rawMessage;
@@ -447,7 +447,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ClientVersion message = (ClientVersion) rawMessage;
@@ -485,7 +485,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ConfigChangeMessage message = (ConfigChangeMessage) rawMessage;
@@ -498,7 +498,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ConfigChangeMessage message = (ConfigChangeMessage) rawMessage;
@@ -529,7 +529,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ErrorMessage message = (ErrorMessage) rawMessage;
@@ -545,7 +545,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ErrorMessage message = (ErrorMessage) rawMessage;
@@ -585,7 +585,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InfoMessage message = (InfoMessage) rawMessage;
@@ -610,7 +610,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InfoMessage message = (InfoMessage) rawMessage;
@@ -651,7 +651,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InfoRequestMessage message = (InfoRequestMessage) rawMessage;
@@ -664,7 +664,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InfoRequestMessage message = (InfoRequestMessage) rawMessage;
@@ -699,7 +699,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InitializeMessage message = (InitializeMessage) rawMessage;
@@ -721,7 +721,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InitializeMessage message = (InitializeMessage) rawMessage;
@@ -759,7 +759,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InvalidationMessage message = (InvalidationMessage) rawMessage;
@@ -772,7 +772,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InvalidationMessage message = (InvalidationMessage) rawMessage;
@@ -807,7 +807,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InvalidationP message = (InvalidationP) rawMessage;
@@ -829,7 +829,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       InvalidationP message = (InvalidationP) rawMessage;
@@ -869,7 +869,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ObjectIdP message = (ObjectIdP) rawMessage;
@@ -885,7 +885,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ObjectIdP message = (ObjectIdP) rawMessage;
@@ -919,7 +919,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       PropertyRecord message = (PropertyRecord) rawMessage;
@@ -935,7 +935,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       PropertyRecord message = (PropertyRecord) rawMessage;
@@ -969,7 +969,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ProtocolHandlerConfigP message = (ProtocolHandlerConfigP) rawMessage;
@@ -985,7 +985,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ProtocolHandlerConfigP message = (ProtocolHandlerConfigP) rawMessage;
@@ -1017,7 +1017,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ProtocolVersion message = (ProtocolVersion) rawMessage;
@@ -1030,7 +1030,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ProtocolVersion message = (ProtocolVersion) rawMessage;
@@ -1061,7 +1061,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RateLimitP message = (RateLimitP) rawMessage;
@@ -1077,7 +1077,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RateLimitP message = (RateLimitP) rawMessage;
@@ -1109,7 +1109,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationMessage message = (RegistrationMessage) rawMessage;
@@ -1122,7 +1122,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationMessage message = (RegistrationMessage) rawMessage;
@@ -1153,7 +1153,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationP message = (RegistrationP) rawMessage;
@@ -1169,7 +1169,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationP message = (RegistrationP) rawMessage;
@@ -1203,7 +1203,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationStatus message = (RegistrationStatus) rawMessage;
@@ -1219,7 +1219,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationStatus message = (RegistrationStatus) rawMessage;
@@ -1251,7 +1251,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationStatusMessage message = (RegistrationStatusMessage) rawMessage;
@@ -1264,7 +1264,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationStatusMessage message = (RegistrationStatusMessage) rawMessage;
@@ -1293,7 +1293,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSubtree message = (RegistrationSubtree) rawMessage;
@@ -1306,7 +1306,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSubtree message = (RegistrationSubtree) rawMessage;
@@ -1337,7 +1337,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSummary message = (RegistrationSummary) rawMessage;
@@ -1353,7 +1353,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSummary message = (RegistrationSummary) rawMessage;
@@ -1385,7 +1385,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSyncMessage message = (RegistrationSyncMessage) rawMessage;
@@ -1398,7 +1398,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSyncMessage message = (RegistrationSyncMessage) rawMessage;
@@ -1425,7 +1425,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSyncRequestMessage message = (RegistrationSyncRequestMessage) rawMessage;
@@ -1435,7 +1435,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       RegistrationSyncRequestMessage message = (RegistrationSyncRequestMessage) rawMessage;
@@ -1469,7 +1469,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ServerHeader message = (ServerHeader) rawMessage;
@@ -1494,7 +1494,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ServerHeader message = (ServerHeader) rawMessage;
@@ -1549,7 +1549,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ServerToClientMessage message = (ServerToClientMessage) rawMessage;
@@ -1583,7 +1583,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       ServerToClientMessage message = (ServerToClientMessage) rawMessage;
@@ -1635,7 +1635,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       StatusP message = (StatusP) rawMessage;
@@ -1651,7 +1651,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       StatusP message = (StatusP) rawMessage;
@@ -1683,7 +1683,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       TokenControlMessage message = (TokenControlMessage) rawMessage;
@@ -1696,7 +1696,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       TokenControlMessage message = (TokenControlMessage) rawMessage;
@@ -1727,7 +1727,7 @@ public class ClientProtocolAccessor {
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public boolean hasField(GeneratedMessage rawMessage, Descriptor field) {
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       Version message = (Version) rawMessage;
@@ -1743,7 +1743,7 @@ public class ClientProtocolAccessor {
     /** Returns the {@code field} from {@code message}. */
     @Override
     @SuppressWarnings("unchecked")
-    public Object getField(GeneratedMessage rawMessage, Descriptor field) {
+    public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
       Version message = (Version) rawMessage;

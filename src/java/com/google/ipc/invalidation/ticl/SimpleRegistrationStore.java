@@ -48,31 +48,52 @@ class SimpleRegistrationStore extends InternalBase implements DigestStore<Object
   }
 
   @Override
-  public void add(ObjectIdP oid) {
-    registrations.put(ObjectIdDigestUtils.getDigest(oid, digestFunction), oid);
-    recomputeDigest();
-  }
-
-  @Override
-  public void add(Collection<ObjectIdP> oids) {
-    for (ObjectIdP oid : oids) {
-      registrations.put(ObjectIdDigestUtils.getDigest(oid, digestFunction), oid);
+  public boolean add(ObjectIdP oid) {
+    if (registrations.put(ObjectIdDigestUtils.getDigest(oid, digestFunction), oid) == null) {
+      recomputeDigest();
+      return true;
     }
-    recomputeDigest();
+    return false;
   }
 
   @Override
-  public void remove(ObjectIdP oid) {
-    registrations.remove(ObjectIdDigestUtils.getDigest(oid, digestFunction));
-    recomputeDigest();
-  }
-
-  @Override
-  public void remove(Collection<ObjectIdP> oids) {
+  public Collection<ObjectIdP> add(Collection<ObjectIdP> oids) {
+    Collection<ObjectIdP> addedOids = new ArrayList<ObjectIdP>();
     for (ObjectIdP oid : oids) {
-      registrations.remove(ObjectIdDigestUtils.getDigest(oid, digestFunction));
+      if (registrations.put(ObjectIdDigestUtils.getDigest(oid, digestFunction), oid) == null) {
+        // There was no previous value, so this is a new item.
+        addedOids.add(oid);
+      }
     }
-    recomputeDigest();
+    if (!addedOids.isEmpty()) {
+      // Only recompute the digest if we made changes.
+      recomputeDigest();
+    }
+    return addedOids;
+  }
+
+  @Override
+  public boolean remove(ObjectIdP oid) {
+    if (registrations.remove(ObjectIdDigestUtils.getDigest(oid, digestFunction)) != null) {
+      recomputeDigest();
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public Collection<ObjectIdP> remove(Collection<ObjectIdP> oids) {
+    Collection<ObjectIdP> removedOids = new ArrayList<ObjectIdP>();
+    for (ObjectIdP oid : oids) {
+      if (registrations.remove(ObjectIdDigestUtils.getDigest(oid, digestFunction)) != null) {
+        removedOids.add(oid);
+      }
+    }
+    if (!removedOids.isEmpty()) {
+      // Only recompute the digest if we made changes.
+      recomputeDigest();
+    }
+    return removedOids;
   }
 
   @Override

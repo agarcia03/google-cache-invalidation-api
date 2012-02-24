@@ -25,6 +25,8 @@ syntax = "proto2";
 
 package com.google.protos.ipc.invalidation;
 
+option optimize_for = LITE_RUNTIME;
+
 
 // Here is a high-level overview of the protocol. The protocol is designed in a
 // "message-passing" style, i.e., the client (C) or the server (S) can send any

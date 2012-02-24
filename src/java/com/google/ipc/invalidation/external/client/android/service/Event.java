@@ -34,27 +34,31 @@ public class Event extends Message {
   public static final Intent LISTENER_INTENT = new Intent("com.google.ipc.invalidation.EVENT");
 
   /** The set of event action types */
-  public static class Action {
+  public static enum Action {
 
     /** Indicates client is ready for use */
-    public static final String READY = "ready";
+    READY,
 
     /** Invalidate an object */
-    public static final String INVALIDATE = "invalidate";
+    INVALIDATE,
 
     /** Invalidation an object with an unknown version */
-    public static final String INVALIDATE_UNKNOWN = "invalidateUnknown";
+    INVALIDATE_UNKNOWN,
 
     /** Invalidate all objects */
-    public static final String INVALIDATE_ALL = "invalidateAll";
+    INVALIDATE_ALL,
 
-    public static final String INFORM_REGISTRATION_STATUS = "informRegistrationStatus";
+    /** Registration status change notification */
+    INFORM_REGISTRATION_STATUS,
 
-    public static final String INFORM_REGISTRATION_FAILURE = "informRegistrationFailure";
+    /** Registration failure */
+    INFORM_REGISTRATION_FAILURE,
 
-    public static final String REISSUE_REGISTRATIONS = "reissueRegistrations";
+    /** Request to reissue registrations */
+    REISSUE_REGISTRATIONS,
 
-    public static final String INFORM_ERROR = "informError";
+    /** Processing error */
+    INFORM_ERROR,
   }
 
   /** The set of parameters that can be found in event message bundles */
@@ -87,8 +91,8 @@ public class Event extends Message {
   public static class Builder extends Message.Builder<Event, Builder> {
 
     // Use newBuilder()
-    private Builder(String action) {
-      super(action, new Bundle());
+    private Builder(Action action) {
+      super(action.ordinal(), new Bundle());
     }
 
     /**
@@ -147,7 +151,7 @@ public class Event extends Message {
   /**
    * Constructs a new builder for an event associated with the provided action.
    */
-  public static Builder newBuilder(String action) {
+  public static Builder newBuilder(Action action) {
     return new Builder(action);
   }
 
@@ -156,6 +160,13 @@ public class Event extends Message {
    */
   public Event(Bundle bundle) {
     super(bundle);
+  }
+
+  /**
+   * Returns the action from an event message.
+   */
+  public Action getAction() {
+    return Action.values()[getActionOrdinal()];
   }
 
   /**

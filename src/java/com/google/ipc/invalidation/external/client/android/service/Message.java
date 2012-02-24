@@ -67,10 +67,10 @@ public abstract class Message {
     private BuilderType thisInstance;
 
     @SuppressWarnings("unchecked")
-    protected Builder(String action, Bundle b) {
+    protected Builder(int actionOrdinal, Bundle b) {
       this.bundle = b;
       this.thisInstance = (BuilderType) this; // requires unchecked but is safe
-      b.putString(Parameter.ACTION, action);
+      b.putInt(Parameter.ACTION, actionOrdinal);
     }
 
     /** Stores an account in the built parameters. */
@@ -137,8 +137,8 @@ public abstract class Message {
    * message. For response messages, it will be the action associated with the
    * original request or event that is being responded to.
    */
-  public String getAction() {
-    return parameters.getString(Parameter.ACTION);
+  public int getActionOrdinal() {
+    return parameters.getInt(Parameter.ACTION);
   }
 
   /** Returns the account set on the message or {@code null} if not set. */

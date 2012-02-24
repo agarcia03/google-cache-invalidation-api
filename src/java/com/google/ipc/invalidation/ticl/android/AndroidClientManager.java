@@ -18,6 +18,8 @@ package com.google.ipc.invalidation.ticl.android;
 
 import com.google.ipc.invalidation.external.client.android.service.AndroidClientException;
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
+import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
+import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 
 import android.accounts.Account;
 import android.content.Context;
@@ -37,6 +39,12 @@ class AndroidClientManager {
 
   /** Logging tag */
   private static final String TAG = "AndroidClientManager";
+
+  /**
+   * The client configuration used creating new invalidation client instances.   This is normally
+   * a constant but may be varied for testing.
+   */
+  private static ClientConfigP clientConfig = InvalidationClientImpl.createConfig().build();
 
   /** The invalidation service associated with this manager */
   private final AndroidInvalidationService service;
@@ -99,7 +107,7 @@ class AndroidClientManager {
       // If not found, create a new client proxy instance to represent the client.
       AndroidStorage store = createAndroidStorage(service, clientKey);
       store.create(clientType, account, authType, eventIntent);
-      proxy = new AndroidClientProxy(service, registrationId, store);
+      proxy = new AndroidClientProxy(service, registrationId, store, clientConfig);
       clientMap.put(clientKey, proxy);
       Log.d(TAG, "Client " + clientKey + " created");
       return proxy;
@@ -132,7 +140,11 @@ class AndroidClientManager {
    */
   void remove(String clientKey) {
     synchronized (lock) {
-      clientMap.remove(clientKey);
+      // Remove the proxy from the managed set and release any associated resources
+      AndroidClientProxy proxy = clientMap.remove(clientKey);
+      if (proxy != null) {
+        proxy.release();
+      }
     }
   }
 
@@ -153,7 +165,7 @@ class AndroidClientManager {
         AndroidStorage storage = createAndroidStorage(service, clientKey);
         if (storage.load()) {
           Log.d(TAG, "Client " + clientKey + " loaded from disk");
-          client = new AndroidClientProxy(service, registrationId, storage);
+          client = new AndroidClientProxy(service, registrationId, storage, clientConfig);
           clientMap.put(clientKey, client);
         }
       }
@@ -203,5 +215,13 @@ class AndroidClientManager {
     synchronized (lock) {
       return new AndroidStorage(context, clientKey);
     }
+  }
+
+  
+  static ClientConfigP setConfigForTest(ClientConfigP newConfig) {
+    Log.i(TAG, "Setting client configuration: " + newConfig);
+    ClientConfigP currentConfig = clientConfig;
+    clientConfig = newConfig;
+    return clientConfig;
   }
 }

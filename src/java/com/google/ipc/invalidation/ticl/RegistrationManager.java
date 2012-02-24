@@ -103,11 +103,12 @@ class RegistrationManager extends InternalBase {
   }
 
   /** Perform registration/unregistation for all objects in {@code objectIds}. */
-  void performOperations(Collection<ObjectIdP> objectIds, RegistrationP.OpType regOpType) {
+  Collection<ObjectIdP> performOperations(Collection<ObjectIdP> objectIds,
+      RegistrationP.OpType regOpType) {
     if (regOpType == RegistrationP.OpType.REGISTER) {
-      desiredRegistrations.add(objectIds);
+      return desiredRegistrations.add(objectIds);
     } else {
-      desiredRegistrations.remove(objectIds);
+      return desiredRegistrations.remove(objectIds);
     }
   }
 

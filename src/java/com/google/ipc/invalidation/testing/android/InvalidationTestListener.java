@@ -96,7 +96,7 @@ public class InvalidationTestListener extends AndroidInvalidationListener {
     String clientKey = event.getClientKey();
     if (!listenerMap.containsKey(clientKey)) {
       Log.d(TAG, "Ignoring " + event.getAction() + " event to " + clientKey);
-      Response.Builder response = Response.newBuilder(event.getAction(), output);
+      Response.Builder response = Response.newBuilder(event.getActionOrdinal(), output);
       response.setStatus(Response.Status.SUCCESS);
       return;
     }

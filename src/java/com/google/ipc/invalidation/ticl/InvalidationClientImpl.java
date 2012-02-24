@@ -154,7 +154,6 @@ public class InvalidationClientImpl extends InternalBase
         public void accept(Status status) {
           logger.info("Write state completed: %s", status);
           if (status.isSuccess()) {
-
             // Set lastWrittenToken to be the token that was written (NOT clientToken - which
             // could have changed while the write was happening).
             lastWrittenToken.set(state.getClientToken());
@@ -621,12 +620,16 @@ public class InvalidationClientImpl extends InternalBase
         }
 
         // Update the registration manager state, then have the protocol client send a message.
-        registrationManager.performOperations(objectIdProtos, regOpType);
+        // performOperations returns only those elements of objectIdProtos that caused a state
+        // change (i.e., elements not present if regOpType == REGISTER or elements that were present
+        // if regOpType == UNREGISTER).
+        Collection<ObjectIdP> objectProtosToSend = registrationManager.performOperations(
+            objectIdProtos, regOpType);
 
         // Check whether we should suppress sending registrations because we don't
         // yet know the server's summary.
-        if (shouldSendRegistrations) {
-          protocolHandler.sendRegistrations(objectIdProtos, regOpType);
+        if (shouldSendRegistrations && (!objectProtosToSend.isEmpty())) {
+          protocolHandler.sendRegistrations(objectProtosToSend, regOpType);
         }
         InvalidationClientImpl.this.regSyncHeartbeatTask.ensureScheduled("performRegister");
       }
@@ -662,6 +665,10 @@ public class InvalidationClientImpl extends InternalBase
 
         // Currently, only invalidations have non-trivial ack handle.
         InvalidationP invalidation = ackHandle.getInvalidation();
+        if (invalidation.hasPayload()) {
+          // Don't send the payload back.
+          invalidation = invalidation.toBuilder().clearPayload().build();
+        }
         statistics.recordIncomingOperation(IncomingOperationType.ACKNOWLEDGE);
         protocolHandler.sendInvalidationAck(invalidation);
       }

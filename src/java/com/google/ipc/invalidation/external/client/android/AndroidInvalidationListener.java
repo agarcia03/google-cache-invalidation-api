@@ -100,9 +100,9 @@ public abstract class AndroidInvalidationListener extends Service
   protected void handleEvent(Bundle input, Bundle output) {
 
     Event event = new Event(input);
-    Response.Builder response = Response.newBuilder(event.getAction(), output);
+    Response.Builder response = Response.newBuilder(event.getActionOrdinal(), output);
     // All events should contain an action and client id
-    String action = event.getAction();
+    Action action = event.getAction();
     String clientKey = event.getClientKey();
     Log.d(TAG, "Received " + action + " event for " + clientKey);
 
@@ -117,45 +117,70 @@ public abstract class AndroidInvalidationListener extends Service
 
       // Determine the event type based upon the request action, extract parameters
       // from extras, and invoke the listener event handler method.
-      if (Action.READY.equals(action)) {
-        Log.i(TAG, "READY event for " + clientKey);
-        ready(client);
-      } else if (Action.INVALIDATE.equals(action)) {
-        Log.i(TAG, "INVALIDATE event for " + clientKey);
-        Invalidation invalidation = event.getInvalidation();
-        AckHandle ackHandle = event.getAckHandle();
-        invalidate(client, invalidation, ackHandle);
-      } else if (Action.INVALIDATE_UNKNOWN.equals(action)) {
-        Log.i(TAG, "INVALIDATE_UNKNOWN_VERSION event for " + clientKey);
-        ObjectId objectId = event.getObjectId();
-        AckHandle ackHandle = event.getAckHandle();
-        invalidateUnknownVersion(client, objectId, ackHandle);
-      } else if (Action.INVALIDATE_ALL.equals(action)) {
-        Log.i(TAG, "INVALIDATE_ALL event for " + clientKey);
-        AckHandle ackHandle = event.getAckHandle();
-        invalidateAll(client, ackHandle);
-      } else if (Action.INFORM_REGISTRATION_STATUS.equals(action)) {
-        Log.i(TAG, "INFORM_REGISTRATION_STATUS event for " + clientKey);
-        ObjectId objectId = event.getObjectId();
-        RegistrationState state = event.getRegistrationState();
-        informRegistrationStatus(client, objectId, state);
-      } else if (Action.INFORM_REGISTRATION_FAILURE.equals(action)) {
-        Log.i(TAG, "INFORM_REGISTRATION_FAILURE event for " + clientKey);
-        ObjectId objectId = event.getObjectId();
-        String errorMsg = event.getError();
-        boolean isTransient = event.getIsTransient();
-        informRegistrationFailure(client, objectId, isTransient, errorMsg);
-      } else if (Action.REISSUE_REGISTRATIONS.equals(action)) {
-        Log.i(TAG, "REISSUE_REGISTRATIONS event for " + clientKey);
-        byte[] prefix = event.getPrefix();
-        int prefixLength = event.getPrefixLength();
-        reissueRegistrations(client, prefix, prefixLength);
-      } else if (Action.INFORM_ERROR.equals(action)) {
-        Log.i(TAG, "INFORM_ERROR event for " + clientKey);
-        ErrorInfo errorInfo = event.getErrorInfo();
-        informError(client, errorInfo);
-      } else {
-        Log.w(TAG, "Urecognized event: " + event);
+      switch(action) {
+        case READY:
+        {
+          Log.i(TAG, "READY event for " + clientKey);
+          ready(client);
+          break;
+        }
+        case INVALIDATE:
+        {
+          Log.i(TAG, "INVALIDATE event for " + clientKey);
+          Invalidation invalidation = event.getInvalidation();
+          AckHandle ackHandle = event.getAckHandle();
+          invalidate(client, invalidation, ackHandle);
+          break;
+        }
+        case INVALIDATE_UNKNOWN:
+          {
+            Log.i(TAG, "INVALIDATE_UNKNOWN_VERSION event for " + clientKey);
+            ObjectId objectId = event.getObjectId();
+            AckHandle ackHandle = event.getAckHandle();
+            invalidateUnknownVersion(client, objectId, ackHandle);
+            break;
+          }
+        case INVALIDATE_ALL:
+          {
+            Log.i(TAG, "INVALIDATE_ALL event for " + clientKey);
+            AckHandle ackHandle = event.getAckHandle();
+            invalidateAll(client, ackHandle);
+            break;
+          }
+        case INFORM_REGISTRATION_STATUS:
+        {
+          Log.i(TAG, "INFORM_REGISTRATION_STATUS event for " + clientKey);
+          ObjectId objectId = event.getObjectId();
+          RegistrationState state = event.getRegistrationState();
+          informRegistrationStatus(client, objectId, state);
+          break;
+        }
+        case INFORM_REGISTRATION_FAILURE:
+        {
+          Log.i(TAG, "INFORM_REGISTRATION_FAILURE event for " + clientKey);
+          ObjectId objectId = event.getObjectId();
+          String errorMsg = event.getError();
+          boolean isTransient = event.getIsTransient();
+          informRegistrationFailure(client, objectId, isTransient, errorMsg);
+          break;
+        }
+        case REISSUE_REGISTRATIONS:
+        {
+          Log.i(TAG, "REISSUE_REGISTRATIONS event for " + clientKey);
+          byte[] prefix = event.getPrefix();
+          int prefixLength = event.getPrefixLength();
+          reissueRegistrations(client, prefix, prefixLength);
+          break;
+        }
+        case INFORM_ERROR:
+        {
+          Log.i(TAG, "INFORM_ERROR event for " + clientKey);
+          ErrorInfo errorInfo = event.getErrorInfo();
+          informError(client, errorInfo);
+          break;
+        }
+        default:
+          Log.w(TAG, "Urecognized event: " + event);
       }
       response.setStatus(Response.Status.SUCCESS);
     } catch (RuntimeException re) {

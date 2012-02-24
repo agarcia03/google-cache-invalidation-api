@@ -49,4 +49,9 @@ public interface AndroidInvalidationClient extends InvalidationClient {
    * services.
    */
   public void release();
+
+  /**
+   * Permanently destroys the client and all associated state.
+   */
+  public void destroy();
 }

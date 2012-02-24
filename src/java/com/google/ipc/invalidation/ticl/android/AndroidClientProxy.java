@@ -18,7 +18,6 @@ package com.google.ipc.invalidation.ticl.android;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
-import com.google.ipc.invalidation.external.client.InvalidationClientFactory;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
@@ -29,12 +28,17 @@ import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
+import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
 import com.google.protos.ipc.invalidation.AndroidState.ClientMetadata;
+import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 
 import android.accounts.Account;
+import android.net.http.AndroidHttpClient;
 import android.util.Log;
 
 import java.util.Collection;
+import java.util.Random;
+
 
 /**
  * A bidirectional client proxy that wraps and delegates requests to a TICL instance and routes
@@ -152,7 +156,8 @@ class AndroidClientProxy implements AndroidInvalidationClient {
   private final String clientKey;
 
   /** The invalidation client to delegate requests to */
-  private final InvalidationClient delegate;
+  
+  final InvalidationClient delegate;
 
   /** The reverse listener proxy for this client proxy */
   private final AndroidListenerProxy listener;
@@ -165,6 +170,9 @@ class AndroidClientProxy implements AndroidInvalidationClient {
 
   /** The system resources for this client */
   private final SystemResources resources;
+
+  /** The HTTP client used by the underlying channel */
+  private final AndroidHttpClient httpClient;
 
   /** {@code true} if client is started */
   private boolean started;
@@ -179,18 +187,19 @@ class AndroidClientProxy implements AndroidInvalidationClient {
    *        write client properties.
    */
   AndroidClientProxy(AndroidInvalidationService service, String c2dmRegistrationId,
-      AndroidStorage storage) {
+      AndroidStorage storage, ClientConfigP config) {
     this.service = service;
     this.metadata = storage.getClientMetadata();
     this.clientKey = metadata.getClientKey();
     this.listener = new AndroidListenerProxy();
+    this.httpClient =  AndroidChannel.getDefaultHttpClient(service);
 
     this.channel =
-        new AndroidChannel(this, AndroidChannel.getDefaultHttpClient(service), c2dmRegistrationId);
+        new AndroidChannel(this, httpClient, c2dmRegistrationId);
     this.resources =
         AndroidResourcesFactory.createResourcesBuilder(clientKey, channel, storage).build();
     this.delegate = createClient(resources, metadata.getClientType(), clientKey.getBytes(),
-        metadata.getListenerPkg(), listener);
+        metadata.getListenerPkg(), listener, config);
   }
 
   @Override
@@ -244,12 +253,12 @@ class AndroidClientProxy implements AndroidInvalidationClient {
 
   @Override
   public void stop() {
-    Preconditions.checkState(started);
-    delegate.stop();
-    started = false;
 
-    // Remove any cached instance for this client. Any subsequent create or resume operations
-    // will then have a clean, unstarted instance.
+    // When a client is stopped, stop the TICL and its resources and remove it from the client
+    // manager.   This means that any subsequent requests (like another start) will be executed
+    // against a clean TICL instance w/ no preexisting state from before the stop.
+    stopTicl();
+    resources.stop();
     AndroidInvalidationService.getClientManager().remove(clientKey);
   }
 
@@ -284,7 +293,32 @@ class AndroidClientProxy implements AndroidInvalidationClient {
    */
   @Override
   public void release() {
+    // Release the listener associated with the proxy
     listener.release();
+
+    // Stop system resources associated with the client
+    if (resources.isStarted()) {
+      resources.stop();
+    }
+
+    // Close the HTTP client
+    httpClient.close();
+  }
+
+  @Override
+  public void destroy() {
+
+    // Stop the client if started.  This will also remove the client from the client manager
+    if (started) {
+      stop();
+    }
+
+    // Delete the storage associated with the client
+    AndroidStorage storage = (AndroidStorage) resources.getStorage();
+    storage.delete();
+
+    // Remove any cached instance for this client.
+    AndroidInvalidationService.getClientManager().remove(clientKey);
   }
 
   /**
@@ -294,8 +328,21 @@ class AndroidClientProxy implements AndroidInvalidationClient {
   // Overridden by tests to inject mock clients or for listener interception
   
   InvalidationClient createClient(SystemResources resources, int clientType, byte[] clientName,
-      String applicationName, InvalidationListener listener) {
-    return InvalidationClientFactory.create(
-        resources, clientType, clientName, applicationName, listener);
+      String applicationName, InvalidationListener listener, ClientConfigP config) {
+    if (config == null) {
+      config = InvalidationClientImpl.createConfig().build();
+    }
+    Random random = new Random(resources.getInternalScheduler().getCurrentTimeMs());
+    return new InvalidationClientImpl(resources, random, clientType, clientName, config,
+        applicationName, listener);
+  }
+
+
+  /** Stops the underlying TICL instance but does not stop system resources. */
+  
+  void stopTicl() {
+    Preconditions.checkState(started);
+    delegate.stop();
+    started = false;
   }
 }

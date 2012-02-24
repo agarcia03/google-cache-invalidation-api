@@ -30,9 +30,10 @@
 
 syntax = "proto2";
 
-option optimize_for = LITE_RUNTIME;
 
 package com.google.protos.ipc.invalidation;
+
+option optimize_for = LITE_RUNTIME;
 
 // The type of client / application.
 message ClientType {
@@ -42,6 +43,7 @@ message ClientType {
 
     // Numbers below 1000 are reserved for internal use.
     CHROME_SYNC = 1004;
+    CHROME_SYNC_ANDROID = 1018;
   }
   optional Type type = 1;
 }

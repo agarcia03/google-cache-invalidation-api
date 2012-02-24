@@ -50,23 +50,31 @@ public interface DigestStore<ElementType> {
    */
   Collection<ElementType> getElements(byte[] digestPrefix, int prefixLen);
 
-  /** Adds {@code element} to the store. No-op if {@code element} is already present. */
-  void add(ElementType element);
+  /**
+   * Adds {@code element} to the store. No-op if {@code element} is already present.
+   * @return whether the element was added
+   */
+  boolean add(ElementType element);
 
   /**
    * Adds {@code elements} to the store. If any element in {@code elements} is already present,
    * the addition is a no-op for that element.
+   * @return the elements that were added
    */
-  void add(Collection<ElementType> elements);
+  Collection<ElementType> add(Collection<ElementType> elements);
 
-  /** Removes {@code element} from the store. No-op if {@code element} is not present. */
-  void remove(ElementType element);
+  /**
+   * Removes {@code element} from the store. No-op if {@code element} is not present.
+   * @return whether the element was removed
+   */
+  boolean remove(ElementType element);
 
   /**
    * Remove {@code elements} to the store. If any element in {@code elements} is not present, the
-   * addition is a no-op for that element.
+   * removal is a no-op for that element.
+   * @return the elements that were removed
    */
-  void remove(Collection<ElementType> elements);
+  Collection<ElementType> remove(Collection<ElementType> elements);
 
   /** Removes all elements in this and returns them. */
   Collection<ElementType> removeAll();

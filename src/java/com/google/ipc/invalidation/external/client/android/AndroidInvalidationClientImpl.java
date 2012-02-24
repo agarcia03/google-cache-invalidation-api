@@ -251,6 +251,15 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
     }
   }
 
+  @Override
+  public void destroy() {
+    Request request = Request
+        .newBuilder(Action.DESTROY)
+        .setClientKey(clientKey)
+        .build();
+    executeServiceRequest(request);
+  }
+
   /**
    * Called to initialize a newly created client instance with the invalidation service.
    */

@@ -267,6 +267,17 @@ public class AndroidStorage implements Storage {
   }
 
   /**
+   * Deletes all state associated with the storage instance.
+   */
+  void delete() {
+    File stateFile = getStateFile();
+    if (stateFile.exists()) {
+      stateFile.delete();
+      Log.i(TAG, "Deleted state for " + key + " from " + stateFile.getName());
+    }
+  }
+
+  /**
    * Store the current state into the persistent storage.
    */
   private void store() {

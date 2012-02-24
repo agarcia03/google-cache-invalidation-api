@@ -53,8 +53,8 @@ public final class Response extends Message {
   public static class Builder extends Message.Builder<Response, Builder> {
 
     // Instantiate using newBuilder()
-    private Builder(String action, Bundle b) {
-      super(action, b);
+    private Builder(int actionOrdinal, Bundle b) {
+      super(actionOrdinal, b);
     }
 
     /**
@@ -93,8 +93,8 @@ public final class Response extends Message {
    * Constructs a new builder for a response associated with the provided action
    * that will store parameters into the provided bundle.
    */
-  public static Builder newBuilder(String action, Bundle b) {
-    return new Builder(action, b);
+  public static Builder newBuilder(int actionOrdinal, Bundle b) {
+    return new Builder(actionOrdinal, b);
   }
 
   /**
