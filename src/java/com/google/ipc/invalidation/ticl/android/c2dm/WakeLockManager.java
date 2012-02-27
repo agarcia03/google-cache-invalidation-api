@@ -21,7 +21,6 @@ import com.google.common.base.Preconditions;
 
 import android.content.Context;
 import android.os.PowerManager;
-import android.util.Log;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -98,6 +97,16 @@ public class WakeLockManager {
     }
   }
 
+  
+  boolean hasWakeLocks() {
+    return !wakeLocks.isEmpty();
+  }
+
+  
+  void resetForTest() {
+    wakeLocks.clear();
+  }
+
   private PowerManager.WakeLock getWakeLock(Object key) {
     if (key == null) {
       throw new IllegalArgumentException("Key can not be null");
@@ -113,6 +122,7 @@ public class WakeLockManager {
   }
 
   private static void log(Object key, String action) {
-    Log.v(TAG, " WakeLock " + action + " for key: {" + key + "}");
+    // TODO(kmarvin) Reenable when there is a model for verbose dev mode logging
+    //Log.v(TAG, " WakeLock " + action + " for key: {" + key + "}");
   }
 }

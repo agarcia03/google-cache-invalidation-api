@@ -217,17 +217,15 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       Log.e(TAG, "No C2DM sender ID is available");
       stopSelf();
     }
-    Log.i(TAG, "C2DM Sender ID:" + senderId);
 
     // Retrieve the current registration ID and normalize the empty string value (for none)
     // to null
     String registrationId = C2DMessaging.getRegistrationId(this);
     Log.i(TAG, "Has Registration ID:" + (registrationId != null));
 
+    // Create the client manager
     if (clientManager == null) {
-      clientManager = new AndroidClientManager(this, registrationId);
-    } else {
-      clientManager.setRegistrationId(registrationId);
+      clientManager = new AndroidClientManager(this);
     }
 
     // Register for C2DM events related to the invalidation client

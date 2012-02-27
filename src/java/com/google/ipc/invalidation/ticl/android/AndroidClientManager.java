@@ -60,9 +60,8 @@ class AndroidClientManager {
   private Object lock = new Object();
 
   /** Creates a new client manager instance associated with the provided service */
-  AndroidClientManager(AndroidInvalidationService service, String registrationId) {
+  AndroidClientManager(AndroidInvalidationService service) {
     this.service = service;
-    this.registrationId = registrationId;
   }
 
   /**

@@ -26,10 +26,14 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
+import android.os.AsyncTask;
 import android.util.Log;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class for managing C2DM registration and dispatching of messages to observers.
@@ -42,6 +46,9 @@ import java.util.Set;
 public class C2DMManager extends IntentService {
 
   private static final String TAG = "C2DM";
+
+  /** Maximum amount of time to wait for manager initialization to complete */
+  private static final long MAX_INIT_SECONDS = 30;
 
   /**
    * The action of intents sent from the android c2dm framework regarding registration
@@ -121,6 +128,14 @@ public class C2DMManager extends IntentService {
   static final String SENDER_ID_METADATA_FIELD = "sender_id";
 
   /**
+   * C2DMMManager is initialized asynchronously because it requires I/O that should not be done on
+   * the main thread.   This latch will only be changed to zero once this initialization has been
+   * completed successfully.   No intents should be handled or other work done until the latch
+   * reaches the initialized state.
+   */
+  private CountDownLatch initLatch = new CountDownLatch(1);
+
+  /**
    * The sender ID we have read from the meta-data in AndroidManifest.xml for this service.
    */
   private String senderId;
@@ -175,11 +190,29 @@ public class C2DMManager extends IntentService {
   @Override
   public void onCreate() {
     super.onCreate();
+    // Use the mock context when testing, otherwise the service application context.
     context = getApplicationContext();
     wakeLockManager = WakeLockManager.getInstance(context);
-    observers = C2DMSettings.getObservers(context);
-    registrationInProcess = C2DMSettings.isRegistering(context);
-    unregistrationInProcess = C2DMSettings.isUnregistering(context);
+
+    // Spawn an AsyncTask performing the blocking IO operations.
+    new AsyncTask<Void, Void, Void>() {
+      @Override
+      protected Void doInBackground(Void... unused) {
+        // C2DMSettings relies on SharedPreferencesImpl which performs disk access.
+        C2DMManager manager = C2DMManager.this;
+        manager.observers = C2DMSettings.getObservers(context);
+        manager.registrationInProcess = C2DMSettings.isRegistering(context);
+        manager.unregistrationInProcess = C2DMSettings.isUnregistering(context);
+        return null;
+      }
+
+      @Override
+      protected void onPostExecute(Void unused) {
+        Log.d(TAG, "Initialized");
+        initLatch.countDown();
+      }
+    }.execute();
+
     senderId = readSenderIdFromMetaData(this);
     if (senderId == null) {
       stopSelf();
@@ -189,6 +222,7 @@ public class C2DMManager extends IntentService {
   @Override
   public final void onHandleIntent(Intent intent) {
     try {
+      waitForInitialization();
       if (intent.getAction().equals(REGISTRATION_CALLBACK_INTENT)) {
         handleRegistration(intent);
       } else if (intent.getAction().equals(C2DM_INTENT)) {
@@ -212,6 +246,40 @@ public class C2DMManager extends IntentService {
         wakeLockManager.release(C2DMManager.class);
       }
     }
+  }
+
+  /** Returns true of the C2DMManager is fully initially */
+  
+  boolean isInitialized() {
+    return initLatch.getCount() == 0;
+  }
+
+  /**
+   * Blocks until asynchronous initialization work has been completed.
+   */
+  private void waitForInitialization() {
+    boolean interrupted = false;
+    try {
+      if (initLatch.await(MAX_INIT_SECONDS, TimeUnit.SECONDS)) {
+        return;
+      }
+      Log.w(TAG, "Initialization timeout");
+
+    } catch (InterruptedException e) {
+      // Unexpected, so to ensure a consistent state wait for initialization to complete and
+      // then interrupt so higher level code can handle the interrupt.
+      Log.d(TAG, "Latch wait interrupted");
+      interrupted = true;
+    } finally {
+      if (interrupted) {
+        Log.w(TAG, "Initialization interrupted");
+        Thread.currentThread().interrupt();
+      }
+    }
+
+    // Either an unexpected interrupt or a timeout occurred during initialization.  Set to a default
+    // clean state (no registration work in progress, no observers) and proceed.
+    observers = new HashSet<C2DMObserver>();
   }
 
   /**
