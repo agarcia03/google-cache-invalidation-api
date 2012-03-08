@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Client for interacting with low-level protocol messages.
+// A layer for interacting with low-level protocol messages.
 
 #ifndef GOOGLE_CACHEINVALIDATION_V2_PROTOCOL_HANDLER_H_
 #define GOOGLE_CACHEINVALIDATION_V2_PROTOCOL_HANDLER_H_
@@ -70,18 +70,15 @@ struct ServerMessageHeader {
         &registration_summary_ : NULL;
   }
 
-  // Returns whether this message header is equivalent to |other|.
-  bool Equals(const ServerMessageHeader& other) const;
-
   // Returns a human-readable representation of this object for debugging.
   string ToString() const;
 
- private:
-  // The session token specified by the server.
+  // Server-sent token.
   string token_;
-  // Summary of what the server believes the client's registration state is.
+  // Summary of the client's registration state at the server.
   RegistrationSummary registration_summary_;
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(ServerMessageHeader);
 };
 
@@ -299,12 +296,12 @@ class ProtocolHandler {
     return InvalidationClientUtil::GetCurrentTimeMs(internal_scheduler_);
   }
 
-  // The version of the code this client is running.
+  // Information about the client, e.g., application name, OS, etc.
   ClientVersion client_version_;
 
   // A logger.
   Logger* logger_;
-  // Single-threaded scheduler for the client's internal processing.
+  // Scheduler for the client's internal processing.
   Scheduler* internal_scheduler_;
   // Network channel for sending and receiving messages to and from the server.
   NetworkChannel* network_;

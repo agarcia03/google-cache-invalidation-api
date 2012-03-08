@@ -50,9 +50,25 @@ using ::testing::SetArgPointee;
 using ::testing::StrictMock;
 using ::testing::proto::WhenDeserializedAs;
 
+// Defined an argument matcher called EqualsHeader, which checks whether a
+// ServerMessageHeader is equal to the given |header|.
 MATCHER_P(EqualsHeader, header, "") {
-  const ServerMessageHeader& ref(header);
-  return ref.Equals(arg);
+  const ServerMessageHeader& expected(header);
+  // If the token is different or if one of the registration summaries is NULL
+  // and the other is non-NULL, return false.
+  if (((expected.registration_summary() != NULL) !=
+       (arg.registration_summary() != NULL)) ||
+      (expected.token_ != arg.token_)) {
+    return false;
+  }
+
+  // The tokens are the same and registration summaries are either both
+  // null or non-null.
+  return (expected.registration_summary() == NULL) ||
+      ((expected.registration_summary()->num_registrations() ==
+        arg.registration_summary()->num_registrations()) &&
+       (expected.registration_summary()->registration_digest() ==
+        arg.registration_summary()->registration_digest()));
 }
 
 // A mock of the ProtocolListener interface.

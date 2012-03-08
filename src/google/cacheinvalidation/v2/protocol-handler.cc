@@ -35,24 +35,6 @@ using ::ipc::invalidation::ServerHeader;
 using ::ipc::invalidation::ServerToClientMessage;
 using ::ipc::invalidation::TokenControlMessage;
 
-bool ServerMessageHeader::Equals(const ServerMessageHeader& other) const {
-  // If the token is different or if one of the registration summaries is NULL
-  // and the other is non-NULL, return false.
-  if (((registration_summary() != NULL) !=
-      (other.registration_summary() != NULL)) ||
-      (token_ != other.token_)) {
-    return false;
-  }
-
-  // The tokens are the same and registration summaries are either both
-  // null or non-null.
-  return (registration_summary() == NULL) ||
-      ((registration_summary()->num_registrations() ==
-          other.registration_summary()->num_registrations()) &&
-          (registration_summary()->registration_digest() ==
-              other.registration_summary()->registration_digest()));
-}
-
 string ServerMessageHeader::ToString() const {
   return StringPrintf(
       "Token: %s, Summary: %s", ProtoHelpers::ToString(token_).c_str(),
