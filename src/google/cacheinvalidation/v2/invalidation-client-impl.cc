@@ -350,13 +350,13 @@ void InvalidationClientImpl::HandleTokenChanged(
     ScheduleAcquireToken("Destroy");
   } else {
     // We just received a new token. Start the regular heartbeats now.
+    TLOG(logger_, INFO, "New token being assigned at client: %s, Old = %s",
+         ProtoHelpers::ToString(new_token).c_str(),
+         ProtoHelpers::ToString(client_token_).c_str());
     operation_scheduler_.Schedule(heartbeat_task_.get());
     set_nonce("");
     set_client_token(new_token);
     WriteStateBlob();
-    TLOG(logger_, INFO, "New token assigned at client: %s, Old = %s",
-         ProtoHelpers::ToString(new_token).c_str(),
-         ProtoHelpers::ToString(client_token_).c_str());
   }
 }
 

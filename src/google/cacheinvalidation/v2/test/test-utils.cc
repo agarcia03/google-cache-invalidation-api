@@ -127,7 +127,7 @@ void UnitTestBase::InitInvalidationMessage(const vector<InvalidationP>& invs,
 }
 
 TimeDelta UnitTestBase::EndOfTestWaitTime() {
-  return TimeDelta::FromSeconds(5);
+  return TimeDelta::FromSeconds(50);
 }
 
 TimeDelta UnitTestBase::MessageHandlingDelay() {

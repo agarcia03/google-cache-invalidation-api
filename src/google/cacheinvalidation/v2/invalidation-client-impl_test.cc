@@ -272,6 +272,8 @@ TEST_F(InvalidationClientImplTest, Register) {
   ClientToServerMessage client_msg;
   client_msg.ParseFromString(outgoing_messages[1]);
   ASSERT_TRUE(client_msg.has_registration_message());
+  ASSERT_FALSE(client_msg.has_info_message());
+  ASSERT_FALSE(client_msg.has_registration_sync_message());
 
   RegistrationMessage expected_msg;
   InitRegistrationMessage(oid_protos, true, &expected_msg);
