@@ -30,9 +30,81 @@
 #include "google/cacheinvalidation/v2/protocol-handler.h"
 #include "google/cacheinvalidation/v2/registration-manager.h"
 #include "google/cacheinvalidation/v2/run-state.h"
+#include "google/cacheinvalidation/v2/safe-storage.h"
 #include "google/cacheinvalidation/v2/smearer.h"
 
 namespace invalidation {
+
+class InvalidationClientImpl;
+
+/* A task for acquiring tokens from the server. */
+class AcquireTokenTask : public RecurringTask {
+ public:
+  explicit AcquireTokenTask(InvalidationClientImpl* client);
+  virtual ~AcquireTokenTask() {}
+
+  // The actual implementation as required by the RecurringTask.
+  virtual bool RunTask();
+
+ private:
+  /* The client that owns this task. */
+  InvalidationClientImpl* client_;
+};
+
+/* A task that schedules heartbeats when the registration summary at the client
+ * is not in sync with the registration summary from the server.
+ */
+class RegSyncHeartbeatTask : public RecurringTask {
+ public:
+  explicit RegSyncHeartbeatTask(InvalidationClientImpl* client);
+  virtual ~RegSyncHeartbeatTask() {}
+
+  // The actual implementation as required by the RecurringTask.
+  virtual bool RunTask();
+
+ private:
+  /* The client that owns this task. */
+  InvalidationClientImpl* client_;
+};
+
+/* A task that writes the token to persistent storage. */
+class PersistentWriteTask : public RecurringTask {
+ public:
+  explicit PersistentWriteTask(InvalidationClientImpl* client);
+  virtual ~PersistentWriteTask() {}
+
+  // The actual implementation as required by the RecurringTask.
+  virtual bool RunTask();
+
+ private:
+  /* Handles the result of a request to write to persistent storage.
+   * |state| is the serialized state that was written.
+   */
+  void WriteCallback(const string& state, Status status);
+
+  InvalidationClientImpl* client_;
+
+  /* The last client token that was written to to persistent state
+   * successfully.
+   */
+  string last_written_token_;
+};
+
+/* A task for sending heartbeats to the server. */
+class HeartbeatTask : public RecurringTask {
+ public:
+  explicit HeartbeatTask(InvalidationClientImpl* client);
+  virtual ~HeartbeatTask() {}
+
+  // The actual implementation as required by the RecurringTask.
+  virtual bool RunTask();
+ private:
+  /* The client that owns this task. */
+  InvalidationClientImpl* client_;
+
+  /* Next time that the performance counters are sent to the server. */
+  Time next_performance_send_time_;
+};
 
 class InvalidationClientImpl : public InvalidationClient,
                                public ProtocolListener {
@@ -57,6 +129,11 @@ class InvalidationClientImpl : public InvalidationClient,
 
   /* Modifies |config| to contain parameters set for unit tests. */
   static void InitConfigForTest(ClientConfigP *config);
+
+  /* Creates the tasks used by the Ticl for token acquisition, heartbeats,
+   * persistent writes and registration sync.
+   */
+  void CreateSchedulingTasks();
 
   /* Stores the client id that is used for squelching invalidations on the
    * server side.
@@ -97,16 +174,12 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Changes the existing delay for the network timeout delay in the operation
    * scheduler to be delay_ms.
    */
-  void ChangeNetworkTimeoutDelayForTest(TimeDelta delay) {
-    operation_scheduler_.ChangeDelayForTest(timeout_task_.get(), delay);
-  }
+  void ChangeNetworkTimeoutDelayForTest(const TimeDelta& delay);
 
   /* Changes the existing delay for the heartbeat delay in the operation
    * scheduler to be delay_ms.
    */
-  void ChangeHeartbeatDelayForTest(TimeDelta delay) {
-    operation_scheduler_.ChangeDelayForTest(heartbeat_task_.get(), delay);
-  }
+  void ChangeHeartbeatDelayForTest(const TimeDelta& delay);
 
   /* Returns the next time a message is allowed to be sent to the server (could
    * be in the past).
@@ -208,6 +281,12 @@ class InvalidationClientImpl : public InvalidationClient,
   static const char* kClientTokenKey;
 
  private:
+  // Friend classes so that they can access the scheduler, logger, smearer, etc.
+  friend class AcquireTokenTask;
+  friend class HeartbeatTask;
+  friend class PersistentWriteTask;
+  friend class RegSyncHeartbeatTask;
+
   //
   // Private methods.
   //
@@ -220,25 +299,8 @@ class InvalidationClientImpl : public InvalidationClient,
 
   void AcknowledgeInternal(const AckHandle& acknowledge_handle);
 
-  /* Sends a heartbeat message to the server requesting its digest so that a
-   * reg sync can occur if needed.
-   */
-  void SendHeartbeatSync();
-
   /* Set client_token to NULL and schedule acquisition of the token. */
   void ScheduleAcquireToken(const string& debug_string);
-
-  /* Requests a new client identifier from the server.
-   *
-   * REQUIRES: no token currently be held.
-   *
-   * Arguments:
-   * debug_string - information to identify the caller
-   */
-  void AcquireToken(const string& debug_string);
-
-  /* Function called to check for timed-out network messages. */
-  void CheckNetworkTimeouts();
 
   /* Sends an info message to the server. If mustSendPerformanceCounters is
    * true, the performance counters are sent regardless of when they were sent
@@ -246,9 +308,6 @@ class InvalidationClientImpl : public InvalidationClient,
    */
   void SendInfoMessageToServer(
       bool mustSendPerformanceCounters, bool request_server_summary);
-
-  /* Writes the Ticl state to persistent storage. */
-  void WriteStateBlob();
 
   /* Sets the nonce to new_nonce.
    *
@@ -266,9 +325,6 @@ class InvalidationClientImpl : public InvalidationClient,
    */
   void set_client_token(const string& new_client_token);
 
-  /* Handles the result of a request to write to persistent storage. */
-  void WriteCallback(Status status);
-
   /* Reads the Ticl state from persistent storage (if any) and calls
    * startInternal.
    */
@@ -277,11 +333,16 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Handles the result of a request to read from persistent storage. */
   void ReadCallback(pair<Status, string> read_result);
 
-  /* Ensures that a heartbeat message is sent periodically. */
-  void HeartbeatTask();
-
   /* Finish starting the ticl and inform the listener that it is ready. */
   void FinishStartingTiclAndInformListener();
+
+  /* Returns an exponential backoff generator with a max exponential factor
+   * given by |config_.max_exponential_backoff_factor| and initial delay
+   * |initial_delay|.
+   * Space for the returned object is owned by the caller.
+   */
+  ExponentialBackoffDelayGenerator* CreateExpBackOffGenerator(
+      const TimeDelta& initial_delay);
 
   /* Converts an operation type reg_status to a
    * InvalidationListener::RegistrationState.
@@ -300,6 +361,11 @@ class InvalidationClientImpl : public InvalidationClient,
 
   /* Logger reference into the resources object for cleaner code. */
   Logger* logger_;
+
+  /* A storage layer which schedules the callbacks on the internal scheduler
+   * thread.
+   */
+  scoped_ptr<SafeStorage> storage_;
 
   /* Statistics objects to track number of sent messages, etc. */
   scoped_ptr<Statistics> statistics_;
@@ -329,25 +395,8 @@ class InvalidationClientImpl : public InvalidationClient,
   /* Object handling low-level wire format interactions. */
   ProtocolHandler protocol_handler_;
 
-  /* Object to schedule future events. */
-  OperationScheduler operation_scheduler_;
-
   /* The state of the Ticl whether it has started or not. */
   RunState ticl_state_;
-
-  /* Last time performance counters were sent to the server. */
-  Time last_performance_send_time_;
-
-  /* Exponential backoff generator for acquire-token timeouts. */
-  ExponentialBackoffDelayGenerator token_exponential_backoff_;
-
- /* Exponential backoff generator for heartbeat timeouts if registrations
-  * are out of sync.
-  */
-  ExponentialBackoffDelayGenerator reg_sync_heartbeat_exponential_backoff_;
-
-  /* Exponential backoff generator for persistence timeouts. */
-  ExponentialBackoffDelayGenerator persistence_exponential_backoff_;
 
   /* Current client token known from the server. */
   string client_token_;
@@ -362,11 +411,19 @@ class InvalidationClientImpl : public InvalidationClient,
   // and replace this variable with a test for whether it's null or not.
   bool should_send_registrations_;
 
-  /* A task for periodic heartbeats. */
-  scoped_ptr<Closure> heartbeat_task_;
+  /* A task for acquiring the token (if the client has no token). */
+  scoped_ptr<AcquireTokenTask> acquire_token_task_;
 
-  /* A task to periodically check network timeouts. */
-  scoped_ptr<Closure> timeout_task_;
+  /* Task for checking if reg summary is out of sync and then sending a
+   * heartbeat to the server.
+   */
+  scoped_ptr<RegSyncHeartbeatTask> reg_sync_heartbeat_task_;
+
+  /* Task for writing the state blob to persistent storage. */
+  scoped_ptr<PersistentWriteTask> persistent_write_task_;
+
+  /* A task for periodic heartbeats. */
+  scoped_ptr<HeartbeatTask> heartbeat_task_;
 
   /* Random number generator for smearing, exp backoff, etc. */
   scoped_ptr<Random> random_;

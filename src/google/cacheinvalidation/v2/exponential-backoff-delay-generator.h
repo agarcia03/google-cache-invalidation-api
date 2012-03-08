@@ -22,10 +22,12 @@
 #ifndef GOOGLE_CACHEINVALIDATION_V2_EXPONENTIAL_BACKOFF_DELAY_GENERATOR_H_
 #define GOOGLE_CACHEINVALIDATION_V2_EXPONENTIAL_BACKOFF_DELAY_GENERATOR_H_
 
-#include "google/cacheinvalidation/v2/logging.h"
-#include "google/cacheinvalidation/v2/random.h"
 #include "google/cacheinvalidation/v2/scoped_ptr.h"
+#include "google/cacheinvalidation/v2/logging.h"
 #include "google/cacheinvalidation/v2/time.h"
+#include "google/cacheinvalidation/v2/random.h"
+#include "google/cacheinvalidation/v2/system-resources.h"
+#include "google/cacheinvalidation/v2/constants.h"
 
 namespace invalidation {
 
@@ -34,15 +36,14 @@ class ExponentialBackoffDelayGenerator {
   /* Creates a generator with the given maximum and initial delays.
    * Caller continues to own space for random.
    */
-  ExponentialBackoffDelayGenerator(Random* random, TimeDelta max_delay,
-                                   TimeDelta initial_max_delay) :
-    max_delay_(max_delay), initial_max_delay_(initial_max_delay),
-    random_(random) {
-    CHECK(max_delay > TimeDelta()) << "max delay must be positive";
+  ExponentialBackoffDelayGenerator(Random* random, TimeDelta initial_max_delay,
+                                   int max_exponential_factor) :
+    initial_max_delay_(initial_max_delay),
+    max_exponential_factor_(max_exponential_factor), random_(random) {
+    CHECK_GT(max_exponential_factor_, 0) << "max factor must be positive";
     CHECK(random_ != NULL);
-    CHECK(initial_max_delay > TimeDelta()) << "initial delay must be positive";
-    CHECK(initial_max_delay <= max_delay_) << "initial delay cannot be more "
-        "than max delay";
+    CHECK(initial_max_delay > Scheduler::NoDelay()) <<
+        "Initial delay must be positive";
     Reset();
   }
 
@@ -58,11 +59,11 @@ class ExponentialBackoffDelayGenerator {
   TimeDelta GetNextDelay();
 
  private:
-  /* Maximum allowed delay time. */
-  TimeDelta max_delay_;
-
   /* Initial delay time to use. */
   TimeDelta initial_max_delay_;
+
+  /* Maximum allowed delay time. */
+  int max_exponential_factor_;
 
   /* Next delay time to use. */
   TimeDelta current_max_delay_;

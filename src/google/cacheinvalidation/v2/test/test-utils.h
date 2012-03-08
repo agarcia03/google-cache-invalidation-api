@@ -55,6 +55,18 @@ using ::testing::Property;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
 
+/* A random class whose RandDouble method always returns 1.0 */
+class FakeRandom : public Random {
+ public:
+  FakeRandom() : Random(0) {}
+
+  virtual ~FakeRandom() {}
+
+  virtual double RandDouble() {
+    return 1.0;
+  }
+};
+
 // A mock of the Scheduler interface.
 class MockScheduler : public Scheduler {
  public:
@@ -176,7 +188,7 @@ class UnitTestBase : public testing::Test {
   // picked up the internal state |reg_summary|).
   void InitServerHeader(const string& token, ServerHeader* header);
 
-  // Gives a ServerToClientMessage {@code message} to the protocol handler and
+  // Gives a ServerToClientMessage |message| to the protocol handler and
   // passes time in the internal scheduler by |delay| waiting for processing to
   // be done.
   void ProcessIncomingMessage(const ServerToClientMessage& message,

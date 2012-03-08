@@ -16,7 +16,7 @@
 // delays a little bit so that (say) processes do not get synchronized on time
 // inadvertently, e.g., a heartbeat task that sends a message every few minutes
 // is smeared so that all clients do not end up sending a message at the same
-// time. In particular, given a {@code delay}, returns a value that is randomly
+// time. In particular, given a |delay|, returns a value that is randomly
 // distributed between
 // [delay - smearPercent * delay, delay + smearPercent * delay]
 

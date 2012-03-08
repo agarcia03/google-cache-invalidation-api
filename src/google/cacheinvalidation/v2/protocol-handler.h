@@ -27,8 +27,8 @@
 #include "google/cacheinvalidation/v2/system-resources.h"
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/v2/invalidation-client-util.h"
-#include "google/cacheinvalidation/v2/operation-scheduler.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
+#include "google/cacheinvalidation/v2/recurring-task.h"
 #include "google/cacheinvalidation/v2/scoped_ptr.h"
 #include "google/cacheinvalidation/v2/statistics.h"
 #include "google/cacheinvalidation/v2/smearer.h"
@@ -36,6 +36,8 @@
 #include "google/cacheinvalidation/v2/ticl-message-validator.h"
 
 namespace invalidation {
+
+class ProtocolHandler;
 
 using INVALIDATION_STL_NAMESPACE::make_pair;
 using INVALIDATION_STL_NAMESPACE::map;
@@ -172,6 +174,23 @@ class ProtocolListener {
   DISALLOW_COPY_AND_ASSIGN(ProtocolListener);
 };
 
+/* The task that is scheduled to send batched messages to the server (when
+ * needed).
+ */
+class BatchingTask : public RecurringTask {
+ public:
+  BatchingTask(ProtocolHandler *handler, Smearer* smearer,
+      TimeDelta batching_delay);
+
+  virtual ~BatchingTask() {}
+
+  // The actual implementation as required by the RecurringTask.
+  virtual bool RunTask();
+
+ private:
+  Throttle* throttle_;
+};
+
 /* Parses messages from the server and calls appropriate functions on the
  * ProtocolListener to handle various types of message content.  Also buffers
  * message data from the client and constructs and sends messages to the server.
@@ -282,9 +301,6 @@ class ProtocolHandler {
   /* Stores the header to include on a message to the server. */
   void InitClientHeader(ClientHeader* header);
 
-  /* Does the actual work of the batching task. */
-  void BatchingTask();
-
   /* Handles inbound messages from the network. */
   void MessageReceiver(const string& message);
 
@@ -296,7 +312,9 @@ class ProtocolHandler {
     return InvalidationClientUtil::GetCurrentTimeMs(internal_scheduler_);
   }
 
+  friend class BatchingTask;
   // Information about the client, e.g., application name, OS, etc.
+
   ClientVersion client_version_;
 
   // A logger.
@@ -308,12 +326,9 @@ class ProtocolHandler {
 
   // A throttler to prevent the client from sending too many messages in a given
   // interval.
-  Throttle throttled_message_sender_;
+  Throttle throttle_;
   // The protocol listener.
   ProtocolListener* listener_;
-  // Used to ensure that the message-batching task is scheduled when needed, but
-  // at most once.
-  scoped_ptr<OperationScheduler> operation_scheduler_;
   // Checks that messages (inbound and outbound) conform to basic validity
   // constraints.
   TiclMessageValidator* msg_validator_;
@@ -354,7 +369,7 @@ class ProtocolHandler {
   Statistics* statistics_;
 
   /* Task to send all batched messages to the server. */
-  scoped_ptr<Closure> batching_task_;
+  scoped_ptr<BatchingTask> batching_task_;
 
   DISALLOW_COPY_AND_ASSIGN(ProtocolHandler);
 };

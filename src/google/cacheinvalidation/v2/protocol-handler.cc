@@ -20,6 +20,7 @@
 #include "google/cacheinvalidation/v2/constants.h"
 #include "google/cacheinvalidation/v2/log-macro.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
+#include "google/cacheinvalidation/v2/recurring-task.h"
 
 namespace invalidation {
 
@@ -35,6 +36,22 @@ using ::ipc::invalidation::ServerHeader;
 using ::ipc::invalidation::ServerToClientMessage;
 using ::ipc::invalidation::TokenControlMessage;
 
+BatchingTask::BatchingTask(
+    ProtocolHandler *handler, Smearer* smearer, TimeDelta batching_delay)
+    : RecurringTask(
+        "Batching", handler->internal_scheduler_, handler->logger_, smearer,
+        NULL,  batching_delay, Scheduler::NoDelay()),
+      throttle_(&handler->throttle_) {
+}
+
+bool BatchingTask::RunTask() {
+  // Send message to server - the batching information is picked up in
+  // SendMessageToServer. Go through a throttler to ensure that we obey rate
+  // limits in sending messages.
+  throttle_->Fire();
+  return false;  // Don't reschedule.
+}
+
 string ServerMessageHeader::ToString() const {
   return StringPrintf(
       "Token: %s, Summary: %s", ProtoHelpers::ToString(token_).c_str(),
@@ -48,12 +65,9 @@ ProtocolHandler::ProtocolHandler(
     : logger_(resources->logger()),
       internal_scheduler_(resources->internal_scheduler()),
       network_(resources->network()),
-      throttled_message_sender_(
-          config.rate_limit(), internal_scheduler_,
+      throttle_(config.rate_limit(), internal_scheduler_,
           NewPermanentCallback(this, &ProtocolHandler::SendMessageToServer)),
       listener_(listener),
-      operation_scheduler_(new OperationScheduler(
-          smearer, logger_, internal_scheduler_)),
       msg_validator_(msg_validator),
       message_id_(1),
       last_known_server_time_ms_(0),
@@ -61,15 +75,11 @@ ProtocolHandler::ProtocolHandler(
       pending_initialize_message_(NULL),
       pending_info_message_(NULL),
       statistics_(statistics),
-      batching_task_(NewPermanentCallback(
-          this, &ProtocolHandler::BatchingTask)) {
+      batching_task_(new BatchingTask(this, smearer,
+          TimeDelta::FromMilliseconds(config.batching_delay_ms()))) {
   // Initialize client version.
   ProtoHelpers::InitClientVersion(resources->platform(), application_name,
       &client_version_);
-
-  operation_scheduler_->SetOperation(
-      TimeDelta::FromMilliseconds(config.batching_delay_ms()),
-      batching_task_.get(), "[batching task]");
 
   // Install ourselves as a receiver for server messages.
   resources->network()->SetMessageReceiver(
@@ -264,7 +274,7 @@ void ProtocolHandler::SendInitializeMessage(
   TLOG(logger_, INFO, "Batching initialize message for client: %s, %s",
        debug_string.c_str(),
        ProtoHelpers::ToString(*pending_initialize_message_).c_str());
-  operation_scheduler_->Schedule(batching_task_.get());
+  batching_task_->EnsureScheduled(debug_string);
 }
 
 void ProtocolHandler::SendInfoMessage(
@@ -297,7 +307,7 @@ void ProtocolHandler::SendInfoMessage(
 
   TLOG(logger_, INFO, "Batching info message for client: %s",
        ProtoHelpers::ToString(*pending_info_message_).c_str());
-  operation_scheduler_->Schedule(batching_task_.get());
+  batching_task_->EnsureScheduled("Send-info");
 }
 
 void ProtocolHandler::SendRegistrations(
@@ -306,7 +316,7 @@ void ProtocolHandler::SendRegistrations(
   for (size_t i = 0; i < object_ids.size(); ++i) {
     pending_registrations_[object_ids[i]] = reg_op_type;
   }
-  operation_scheduler_->Schedule(batching_task_.get());
+  batching_task_->EnsureScheduled("Send-registrations");
 }
 
 void ProtocolHandler::SendInvalidationAck(const InvalidationP& invalidation) {
@@ -314,7 +324,7 @@ void ProtocolHandler::SendInvalidationAck(const InvalidationP& invalidation) {
   // We could do squelching - we don't since it is unlikely to be too beneficial
   // here.
   pending_acked_invalidations_.insert(invalidation);
-  operation_scheduler_->Schedule(batching_task_.get());
+  batching_task_->EnsureScheduled("Send-ack");
 }
 
 void ProtocolHandler::SendRegistrationSyncSubtree(
@@ -323,7 +333,7 @@ void ProtocolHandler::SendRegistrationSyncSubtree(
   pending_reg_subtrees_.insert(reg_subtree);
   TLOG(logger_, INFO, "Adding subtree: %s",
        ProtoHelpers::ToString(reg_subtree).c_str());
-  operation_scheduler_->Schedule(batching_task_.get());
+  batching_task_->EnsureScheduled("Send-reg-sync");
 }
 
 void ProtocolHandler::SendMessageToServer() {
@@ -455,12 +465,6 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
          ProtoHelpers::ToString(client_token).c_str());
     builder->set_client_token(client_token);
   }
-}
-
-void ProtocolHandler::BatchingTask() {
-  // Go through a throttler to ensure that we obey rate limits in sending
-  // messages.
-  throttled_message_sender_.Fire();
 }
 
 void ProtocolHandler::MessageReceiver(const string& message) {

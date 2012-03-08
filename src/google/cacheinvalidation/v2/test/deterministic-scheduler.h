@@ -97,7 +97,7 @@ class DeterministicScheduler : public Scheduler {
   // Runs all the work in the queue that should be executed by the current time.
   // Note that tasks run may enqueue additional immediate tasks, and this call
   // won't return until they've completed as well.  While these tasks are
-  // running, the running_internal_ flag is set, so IsRunningOnInternalThread()
+  // running, the running_internal_ flag is set, so IsRunningOnThread()
   // will return true.
   void RunReadyTasks();
 
@@ -133,6 +133,18 @@ class DeterministicScheduler : public Scheduler {
 
   // A logger.
   Logger* logger_;
+};
+
+// A simple deterministic scheduler that always indicates that it is on
+// the correct thread.
+class SimpleDeterministicScheduler : public DeterministicScheduler {
+ public:
+  explicit SimpleDeterministicScheduler(Logger* logger)
+    : DeterministicScheduler(logger) {}
+
+  virtual bool IsRunningOnThread() const {
+    return true;
+  }
 };
 
 }  // namespace invalidation

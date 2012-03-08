@@ -20,19 +20,173 @@
 
 #include "google/cacheinvalidation/v2/callback.h"
 #include "google/cacheinvalidation/v2/client_test_internal.pb.h"
+#include "google/cacheinvalidation/v2/random.h"
+#include "google/cacheinvalidation/v2/string_util.h"
+#include "google/cacheinvalidation/v2/exponential-backoff-delay-generator.h"
 #include "google/cacheinvalidation/v2/invalidation-client-util.h"
+#include "google/cacheinvalidation/v2/sha1-digest-function.h"
 #include "google/cacheinvalidation/v2/log-macro.h"
 #include "google/cacheinvalidation/v2/persistence-utils.h"
 #include "google/cacheinvalidation/v2/proto-converter.h"
 #include "google/cacheinvalidation/v2/proto-helpers.h"
-#include "google/cacheinvalidation/v2/random.h"
-#include "google/cacheinvalidation/v2/sha1-digest-function.h"
+#include "google/cacheinvalidation/v2/recurring-task.h"
 #include "google/cacheinvalidation/v2/smearer.h"
-#include "google/cacheinvalidation/v2/string_util.h"
 
 namespace invalidation {
 
 using ::ipc::invalidation::RegistrationManagerStateP;
+
+const char* InvalidationClientImpl::kClientTokenKey = "ClientToken";
+
+// AcquireTokenTask
+
+AcquireTokenTask::AcquireTokenTask(InvalidationClientImpl* client)
+    : RecurringTask(
+        "AcquireToken",
+        client->internal_scheduler_,
+        client->logger_,
+        &client->smearer_,
+        client->CreateExpBackOffGenerator(TimeDelta::FromMilliseconds(
+            client->config_.network_timeout_delay_ms())),
+        Scheduler::NoDelay(),
+        TimeDelta::FromMilliseconds(
+            client->config_.network_timeout_delay_ms())),
+      client_(client) {
+  }
+
+bool AcquireTokenTask::RunTask() {
+  // If token is still not assigned (as expected), sends a request.
+  // Otherwise, ignore.
+  if (client_->client_token_ == NULL) {
+    // Allocate a nonce and send a message requesting a new token.
+    client_->set_nonce(IntToString(
+        client_->internal_scheduler_->GetCurrentTime().ToInternalValue()));
+    client_->protocol_handler_.SendInitializeMessage(
+        client_->application_client_id_, client_->nonce_, "AcquireToken");
+    // Reschedule to check state, retry if necessary after timeout.
+    return true;
+  } else {
+    return false;  // Don't reschedule.
+  }
+}
+
+// RegSyncHeartbeatTask
+
+RegSyncHeartbeatTask::RegSyncHeartbeatTask(InvalidationClientImpl* client)
+    : RecurringTask(
+        "RegSyncHeartbeat",
+        client->internal_scheduler_,
+        client->logger_,
+        &client->smearer_,
+        client->CreateExpBackOffGenerator(TimeDelta::FromMilliseconds(
+            client->config_.network_timeout_delay_ms())),
+        TimeDelta::FromMilliseconds(
+            client->config_.network_timeout_delay_ms()),
+        TimeDelta::FromMilliseconds(
+            client->config_.network_timeout_delay_ms())),
+      client_(client) {
+}
+
+bool RegSyncHeartbeatTask::RunTask() {
+  if (!client_->registration_manager_.IsStateInSyncWithServer()) {
+    // Simply send an info message to ensure syncing happens.
+    TLOG(client_->logger_, INFO, "Registration state not in sync with "
+         "server: %s", client_->registration_manager_.ToString().c_str());
+    client_->SendInfoMessageToServer(false, true /* request server summary */);
+    return true;
+  } else {
+    TLOG(client_->logger_, INFO, "Not sending message since state is in sync");
+    return false;
+  }
+}
+
+// PersistentWriteTask
+
+PersistentWriteTask::PersistentWriteTask(InvalidationClientImpl* client)
+    : RecurringTask(
+        "PersistentWrite",
+        client->internal_scheduler_,
+        client->logger_,
+        &client->smearer_,
+        client->CreateExpBackOffGenerator(TimeDelta::FromMilliseconds(
+            client->config_.write_retry_delay_ms())),
+        Scheduler::NoDelay(),
+        TimeDelta::FromMilliseconds(
+            client->config_.write_retry_delay_ms())),
+      client_(client) {
+}
+
+bool PersistentWriteTask::RunTask() {
+  if (client_->client_token_.empty() ||
+      (client_->client_token_ == last_written_token_)) {
+    // No work to be done
+    return false;  // Do not reschedule
+  }
+
+  // Persistent write needs to happen.
+  PersistentTiclState state;
+  state.set_client_token(client_->client_token_);
+  string serialized_state;
+  PersistenceUtils::SerializeState(state, client_->digest_fn_.get(),
+      &serialized_state);
+  client_->storage_->WriteKey(InvalidationClientImpl::kClientTokenKey,
+      serialized_state,
+      NewPermanentCallback(this, &PersistentWriteTask::WriteCallback,
+          client_->client_token_));
+  return true;  // Reschedule after timeout to make sure that write does happen.
+}
+
+void PersistentWriteTask::WriteCallback(const string& token, Status status) {
+  TLOG(client_->logger_, INFO, "Write state completed: %d, %s",
+       status.IsSuccess(), status.message().c_str());
+  if (status.IsSuccess()) {
+    // Set lastWrittenToken to be the token that was written (NOT client_token_:
+    // which could have changed while the write was happening).
+    last_written_token_ = token;
+  } else {
+    client_->statistics_->RecordError(
+        Statistics::ClientErrorType_PERSISTENT_WRITE_FAILURE);
+  }
+}
+
+// HeartbeatTask
+
+HeartbeatTask::HeartbeatTask(InvalidationClientImpl* client)
+    : RecurringTask(
+        "Heartbeat",
+        client->internal_scheduler_,
+        client->logger_,
+        &client->smearer_,
+        NULL,
+        TimeDelta::FromMilliseconds(
+            client->config_.heartbeat_interval_ms()),
+        Scheduler::NoDelay()),
+      client_(client) {
+  next_performance_send_time_ = client_->internal_scheduler_->GetCurrentTime() +
+      smearer()->GetSmearedDelay(TimeDelta::FromMilliseconds(
+          client_->config_.perf_counter_delay_ms()));
+}
+
+bool HeartbeatTask::RunTask() {
+  // Send info message. If needed, send performance counters and reset the next
+  // performance counter send time.
+  TLOG(client_->logger_, INFO, "Sending heartbeat to server: %s",
+       client_->ToString().c_str());
+  Scheduler *scheduler = client_->internal_scheduler_;
+  bool must_send_perf_counters =
+      next_performance_send_time_ > scheduler->GetCurrentTime();
+  if (must_send_perf_counters) {
+    next_performance_send_time_ = scheduler->GetCurrentTime() +
+        client_->smearer_.GetSmearedDelay(TimeDelta::FromMilliseconds(
+            client_->config_.perf_counter_delay_ms()));
+  }
+
+  TLOG(client_->logger_, INFO, "Sending heartbeat to server: %s",
+       client_->ToString().c_str());
+  client_->SendInfoMessageToServer(must_send_perf_counters,
+      !client_->registration_manager_.IsStateInSyncWithServer());
+  return true;  // Reschedule.
+}
 
 InvalidationClientImpl::InvalidationClientImpl(
     SystemResources* resources, Random* random, int client_type,
@@ -41,6 +195,7 @@ InvalidationClientImpl::InvalidationClientImpl(
     : resources_(resources),
       internal_scheduler_(resources->internal_scheduler()),
       logger_(resources->logger()),
+      storage_(new SafeStorage(resources->storage())),
       statistics_(new Statistics()),
       listener_(new CheckingInvalidationListener(
           listener, statistics_.get(), internal_scheduler_,
@@ -52,37 +207,19 @@ InvalidationClientImpl::InvalidationClientImpl(
       smearer_(random, config.smear_percent()),
       protocol_handler_(config.protocol_handler_config(), resources, &smearer_,
           statistics_.get(), application_name, this, msg_validator_.get()),
-      operation_scheduler_(&smearer_, logger_, internal_scheduler_),
-      token_exponential_backoff_(
-          random,
-          config.max_exponential_backoff_factor() *
-              TimeDelta::FromMilliseconds(config.network_timeout_delay_ms()),
-          TimeDelta::FromMilliseconds(config.network_timeout_delay_ms())),
-      reg_sync_heartbeat_exponential_backoff_(
-          random,
-          config.max_exponential_backoff_factor() *
-              TimeDelta::FromMilliseconds(config.network_timeout_delay_ms()),
-          TimeDelta::FromMilliseconds(config.network_timeout_delay_ms())),
-      persistence_exponential_backoff_(
-          random,
-          config.max_exponential_backoff_factor() *
-              TimeDelta::FromMilliseconds(config.write_retry_delay_ms()),
-          TimeDelta::FromMilliseconds(config.write_retry_delay_ms())),
-      heartbeat_task_(
-          NewPermanentCallback(this, &InvalidationClientImpl::HeartbeatTask)),
-      timeout_task_(
-          NewPermanentCallback(
-              this, &InvalidationClientImpl::CheckNetworkTimeouts)),
       random_(random) {
+  storage_.get()->SetSystemResources(resources_);
   application_client_id_.set_client_name(client_name);
   application_client_id_.set_client_type(client_type);
-  operation_scheduler_.SetOperation(
-      TimeDelta::FromMilliseconds(config.network_timeout_delay_ms()),
-        timeout_task_.get(), "[timeout task]");
-  operation_scheduler_.SetOperation(
-      TimeDelta::FromMilliseconds(config.heartbeat_interval_ms()),
-        heartbeat_task_.get(), "[heartbeat task]");
+  CreateSchedulingTasks();
   TLOG(logger_, INFO, "Created client: %s", ToString().c_str());
+}
+
+void InvalidationClientImpl::CreateSchedulingTasks() {
+  acquire_token_task_.reset(new AcquireTokenTask(this));
+  reg_sync_heartbeat_task_.reset(new RegSyncHeartbeatTask(this));
+  persistent_write_task_.reset(new PersistentWriteTask(this));
+  heartbeat_task_.reset(new HeartbeatTask(this));
 }
 
 void InvalidationClientImpl::InitConfig(ClientConfigP* config) {
@@ -165,7 +302,7 @@ void InvalidationClientImpl::StartInternal(const string& serialized_state) {
     // start fresh or from persistent state.  The line below ensures that they
     // are scheduled in the persistent startup case.  For the other case, the
     // task is scheduled when we acquire a token.
-    operation_scheduler_.Schedule(heartbeat_task_.get());
+    heartbeat_task_.get()->EnsureScheduled("Startup-after-persistence");
   } else {
     // If we had no persistent state or couldn't deserialize the state that we
     // had, start fresh.  Request a new client identifier.
@@ -214,7 +351,6 @@ void InvalidationClientImpl::PerformRegisterOperations(
          reg_op_type, object_ids.size());
     return;
   }
-
   internal_scheduler_->Schedule(
       Scheduler::NoDelay(),
       NewPermanentCallback(
@@ -256,7 +392,7 @@ void InvalidationClientImpl::PerformRegisterOperationsInternal(
   if (should_send_registrations_) {
     protocol_handler_.SendRegistrations(object_id_protos, reg_op_type);
   }
-  operation_scheduler_.Schedule(timeout_task_.get());
+  reg_sync_heartbeat_task_.get()->EnsureScheduled("PerformRegister");
 }
 
 void InvalidationClientImpl::Acknowledge(const AckHandle& acknowledge_handle) {
@@ -265,7 +401,6 @@ void InvalidationClientImpl::Acknowledge(const AckHandle& acknowledge_handle) {
     // handle and statistics can only be acccessed on the scheduler thread.
     return;
   }
-
   internal_scheduler_->Schedule(
       Scheduler::NoDelay(),
       NewPermanentCallback(
@@ -282,8 +417,7 @@ void InvalidationClientImpl::AcknowledgeInternal(
   ack_handle.ParseFromString(acknowledge_handle.handle_data());
   if (!ack_handle.IsInitialized()) {
     TLOG(logger_, WARNING, "Bad ack handle : %s",
-         ProtoHelpers::ToString(
-             acknowledge_handle.handle_data()).c_str());
+         ProtoHelpers::ToString(acknowledge_handle.handle_data()).c_str());
     statistics_->RecordError(
         Statistics::ClientErrorType_ACKNOWLEDGE_HANDLE_FAILURE);
     return;
@@ -334,8 +468,8 @@ void InvalidationClientImpl::HandleTokenChanged(
     } else {
       statistics_->RecordError(Statistics::ClientErrorType_NONCE_MISMATCH);
       TLOG(logger_, INFO,
-           "Rejecting server message with mismatched nonce: %s, %s",
-           ProtoHelpers::ToString(nonce_).c_str(),
+           "Rejecting server message with mismatched nonce: Client = %s, "
+           "Server = %s", ProtoHelpers::ToString(nonce_).c_str(),
            ProtoHelpers::ToString(header.token()).c_str());
       return;
     }
@@ -353,22 +487,17 @@ void InvalidationClientImpl::HandleTokenChanged(
     TLOG(logger_, INFO, "New token being assigned at client: %s, Old = %s",
          ProtoHelpers::ToString(new_token).c_str(),
          ProtoHelpers::ToString(client_token_).c_str());
-    operation_scheduler_.Schedule(heartbeat_task_.get());
+    heartbeat_task_.get()->EnsureScheduled("Heartbeat-after-new-token");
     set_nonce("");
     set_client_token(new_token);
-    WriteStateBlob();
+    persistent_write_task_.get()->EnsureScheduled("Write-after-new-token");
   }
 }
 
 void InvalidationClientImpl::ScheduleAcquireToken(const string& debug_string) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   set_client_token("");
-
-  // Schedule the token acquisition while respecting exponential backoff.
-  internal_scheduler_->Schedule(token_exponential_backoff_.GetNextDelay(),
-      NewPermanentCallback(
-          this,
-          &InvalidationClientImpl::AcquireToken, debug_string));
+  acquire_token_task_.get()->EnsureScheduled(debug_string);
 }
 
 void InvalidationClientImpl::HandleInvalidations(
@@ -557,63 +686,6 @@ void InvalidationClientImpl::GetStatisticsAsSerializedProto(
   info_message.SerializeToString(result);
 }
 
-void InvalidationClientImpl::AcquireToken(const string& debug_string) {
-  CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-
-  // If token is still not assigned (as expected), sends a request. Otherwise,
-  // ignore.
-  if (client_token_.empty()) {
-    // Allocate a nonce and send a message requesting a new token.
-    set_nonce(IntToString(
-        internal_scheduler_->GetCurrentTime().ToInternalValue()));
-    protocol_handler_.SendInitializeMessage(
-        application_client_id_, nonce_, debug_string);
-
-    // Schedule a timeout to retry if we don't receive a response.
-    operation_scheduler_.Schedule(timeout_task_.get());
-  }
-}
-
-void InvalidationClientImpl::CheckNetworkTimeouts() {
-  /*
-   * Timeouts can happen for two reasons:
-   * 1) Request to obtain an token does not receive a reply.
-   * 2) Registration state is not in sync with the server.
-   *
-   * We simply check for both conditions and taken corrective action when
-   * needed.
-   */
-  // If we have no token, send a message for one.
-  CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  if (client_token_.empty()) {
-    TLOG(logger_, INFO, "Request for token timed out");
-    ScheduleAcquireToken("Network timeout");
-    return;
-  }
-
-  // Simply send an info message to ensure syncing happens.
-  if (!registration_manager_.IsStateInSyncWithServer()) {
-    TLOG(logger_, INFO, "Registration state not in sync with server: %s",
-         registration_manager_.ToString().c_str());
-
-    // Send the info message while respecting exponential backoff.
-    internal_scheduler_->Schedule(token_exponential_backoff_.GetNextDelay(),
-        NewPermanentCallback(this, &InvalidationClientImpl::SendHeartbeatSync));
-  }
-}
-
-void InvalidationClientImpl::SendHeartbeatSync() {
-  if (registration_manager_.IsStateInSyncWithServer()) {
-    TLOG(logger_, INFO, "Not sending message since state is now in sync");
-  } else {
-    SendInfoMessageToServer(false, true /* request server summary */);
-
-    // Schedule a timeout after sending the message to make sure that we get
-    // into sync.
-    operation_scheduler_.Schedule(timeout_task_.get());
-  }
-}
-
 void InvalidationClientImpl::HandleIncomingHeader(
     const ServerMessageHeader& header) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
@@ -628,12 +700,6 @@ void InvalidationClientImpl::HandleIncomingHeader(
     registration_manager_.InformServerRegistrationSummary(
         *header.registration_summary());
   }
-
-  // Check and reset the exponential back off for the reg sync-based heartbeats
-  // on receipt of a message.
-  if (registration_manager_.IsStateInSyncWithServer()) {
-    reg_sync_heartbeat_exponential_backoff_.Reset();
-  }
 }
 
 void InvalidationClientImpl::SendInfoMessageToServer(
@@ -642,33 +708,14 @@ void InvalidationClientImpl::SendInfoMessageToServer(
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   // Make sure that you have the latest registration summary.
-  Time next_performance_send_time =
-      last_performance_send_time_ +
-      TimeDelta::FromMilliseconds(config_.perf_counter_delay_ms());
   vector<pair<string, int> > performance_counters;
   ClientConfigP* config_to_send = NULL;
-  if (must_send_performance_counters ||
-      (next_performance_send_time <
-       internal_scheduler_->GetCurrentTime())) {
+  if (must_send_performance_counters) {
     statistics_->GetNonZeroStatistics(&performance_counters);
     config_to_send = &config_;
-    last_performance_send_time_ = internal_scheduler_->GetCurrentTime();
   }
-
-  protocol_handler_.SendInfoMessage(
-      performance_counters, config_to_send, request_server_summary);
-}
-
-void InvalidationClientImpl::WriteStateBlob() {
-  CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  CHECK(!client_token_.empty());
-  PersistentTiclState state;
-  state.set_client_token(client_token_);
-  string serialized_state;
-  PersistenceUtils::SerializeState(state, digest_fn_.get(), &serialized_state);
-  resources_->storage()->WriteKey(
-      kClientTokenKey, serialized_state,
-      NewPermanentCallback(this, &InvalidationClientImpl::WriteCallback));
+  protocol_handler_.SendInfoMessage(performance_counters, config_to_send,
+      request_server_summary);
 }
 
 void InvalidationClientImpl::set_nonce(const string& new_nonce) {
@@ -688,12 +735,6 @@ void InvalidationClientImpl::set_client_token(const string& new_client_token) {
       client_token_.empty() && !new_client_token.empty();
   client_token_ = new_client_token;
 
-  if (!new_client_token.empty()) {
-    // Token control message succeeded - reset the network delay so that the
-    // next time we acquire a token, the delay starts from the original value.
-    token_exponential_backoff_.Reset();
-  }
-
   if (finish_starting_ticl) {
     FinishStartingTiclAndInformListener();
   }
@@ -712,24 +753,8 @@ void InvalidationClientImpl::FinishStartingTiclAndInformListener() {
   TLOG(logger_, INFO, "Ticl started: %s", ToString().c_str());
 }
 
-void InvalidationClientImpl::WriteCallback(Status status) {
-  TLOG(logger_, INFO, "Write state completed: %s", status.message().c_str());
-  if (!status.IsSuccess()) {
-    // Retry with exponential backoff.
-    statistics_->RecordError(
-        Statistics::ClientErrorType_PERSISTENT_WRITE_FAILURE);
-    internal_scheduler_->Schedule(
-        persistence_exponential_backoff_.GetNextDelay(),
-        NewPermanentCallback(this, &InvalidationClientImpl::WriteStateBlob));
-  } else {
-    // Write succeeded - reset the backoff delay.
-    persistence_exponential_backoff_.Reset();
-  }
-}
-
 void InvalidationClientImpl::ScheduleStartAfterReadingStateBlob() {
-  resources_->storage()->ReadKey(
-      kClientTokenKey,
+  storage_->ReadKey(kClientTokenKey,
       NewPermanentCallback(this, &InvalidationClientImpl::ReadCallback));
 }
 
@@ -751,12 +776,11 @@ void InvalidationClientImpl::ReadCallback(
           this, &InvalidationClientImpl::StartInternal, serialized_state));
 }
 
-void InvalidationClientImpl::HeartbeatTask() {
-  // Send info message.
-  TLOG(logger_, INFO, "Sending heartbeat to server: %s", ToString().c_str());
-  SendInfoMessageToServer(
-      false, !registration_manager_.IsStateInSyncWithServer());
-  operation_scheduler_.Schedule(heartbeat_task_.get());
+ExponentialBackoffDelayGenerator*
+InvalidationClientImpl::CreateExpBackOffGenerator(
+    const TimeDelta& initial_delay) {
+  return new ExponentialBackoffDelayGenerator(random_.get(), initial_delay,
+      config_.max_exponential_backoff_factor());
 }
 
 InvalidationListener::RegistrationState
@@ -769,6 +793,16 @@ InvalidationClientImpl::ConvertOpTypeToRegState(RegistrationP::OpType
   return reg_state;
 }
 
-const char* InvalidationClientImpl::kClientTokenKey = "ClientToken";
+void InvalidationClientImpl::ChangeNetworkTimeoutDelayForTest(
+    const TimeDelta& delay) {
+  config_.set_network_timeout_delay_ms(delay.InMilliseconds());
+  CreateSchedulingTasks();
+}
+
+void InvalidationClientImpl::ChangeHeartbeatDelayForTest(
+    const TimeDelta& delay) {
+  config_.set_heartbeat_interval_ms(delay.InMilliseconds());
+  CreateSchedulingTasks();
+}
 
 }  // namespace invalidation
