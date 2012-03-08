@@ -35,9 +35,9 @@ using ::ipc::invalidation::ServerHeader;
 using ::ipc::invalidation::ServerToClientMessage;
 using ::ipc::invalidation::TokenControlMessage;
 
-bool ServerMessageHeader::operator==(const ServerMessageHeader& other) const {
-  // If the token is different or if one of the registration summary is
-  // null and the other is non-null, return false.
+bool ServerMessageHeader::Equals(const ServerMessageHeader& other) const {
+  // If the token is different or if one of the registration summaries is NULL
+  // and the other is non-NULL, return false.
   if (((registration_summary() != NULL) !=
       (other.registration_summary() != NULL)) ||
       (token_ != other.token_)) {
@@ -63,9 +63,9 @@ ProtocolHandler::ProtocolHandler(
     const ProtocolHandlerConfigP& config, SystemResources* resources,
     Smearer* smearer, Statistics* statistics, const string& application_name,
     ProtocolListener* listener, TiclMessageValidator* msg_validator)
-    : resources_(resources),
-      logger_(resources->logger()),
+    : logger_(resources->logger()),
       internal_scheduler_(resources->internal_scheduler()),
+      network_(resources->network()),
       throttled_message_sender_(
           config.rate_limit(), internal_scheduler_,
           NewPermanentCallback(this, &ProtocolHandler::SendMessageToServer)),
@@ -83,17 +83,17 @@ ProtocolHandler::ProtocolHandler(
           this, &ProtocolHandler::BatchingTask)) {
   // Initialize client version.
   ProtoHelpers::InitClientVersion(resources->platform(), application_name,
-     &client_version_);
+      &client_version_);
 
   operation_scheduler_->SetOperation(
       TimeDelta::FromMilliseconds(config.batching_delay_ms()),
-        batching_task_.get(), "[batching task]");
+      batching_task_.get(), "[batching task]");
 
   // Install ourselves as a receiver for server messages.
-  resources_->network()->SetMessageReceiver(
+  resources->network()->SetMessageReceiver(
       NewPermanentCallback(this, &ProtocolHandler::MessageReceiver));
 
-  resources_->network()->AddNetworkStatusReceiver(
+  resources->network()->AddNetworkStatusReceiver(
       NewPermanentCallback(this, &ProtocolHandler::NetworkStatusReceiver));
 }
 
@@ -146,7 +146,7 @@ void ProtocolHandler::HandleIncomingMessage(const string& incoming_message) {
       message_header.client_token(),
       message_header.registration_summary());
 
-  // Check the version of the message
+  // Check the version of the message.
   if (message_header.protocol_version().version().major_version() !=
       Constants::kProtocolMajorVersion) {
     statistics_->RecordError(
@@ -251,7 +251,7 @@ bool ProtocolHandler::CheckServerToken(const string& server_token) {
 
   // If we do not have a client token yet, there is nothing to compare. The
   // message must have an initialize message and the upper layer will do the
-  // appropriate checks. Hence, we return true for clientToken == null.
+  // appropriate checks. Hence, we return true if client_token is empty.
   if (client_token.empty()) {
     // No token. Return true so that we'll attempt to deliver a token control
     // message (if any) to the listener in handleIncomingMessage.
@@ -259,7 +259,7 @@ bool ProtocolHandler::CheckServerToken(const string& server_token) {
   }
 
   if (client_token != server_token) {
-    // Bad token - reject whole message
+    // Bad token - reject whole message.
     TLOG(logger_, WARNING, "Incoming message has bad token: %s, %s",
          ProtoHelpers::ToString(client_token).c_str(),
          ProtoHelpers::ToString(server_token).c_str());
@@ -296,7 +296,7 @@ void ProtocolHandler::SendInfoMessage(
   pending_info_message_.reset(new InfoMessage());
   pending_info_message_->mutable_client_version()->CopyFrom(client_version_);
 
-  // Add configuration parameters
+  // Add configuration parameters.
   if (client_config != NULL) {
     pending_info_message_.get()->mutable_client_config()->CopyFrom(
         *client_config);
@@ -431,7 +431,7 @@ void ProtocolHandler::SendMessageToServer() {
   statistics_->RecordSentMessage(Statistics::SentMessageType_TOTAL);
   string serialized;
   builder.SerializeToString(&serialized);
-  resources_->network()->SendMessage(serialized);
+  network_->SendMessage(serialized);
 }
 
 void ProtocolHandler::InitRegistrationMessage(
@@ -448,7 +448,7 @@ void ProtocolHandler::InitRegistrationMessage(
   pending_registrations_.clear();
 }
 
-void ProtocolHandler::InitAckMessage(InvalidationMessage *ack_message) {
+void ProtocolHandler::InitAckMessage(InvalidationMessage* ack_message) {
   CHECK(!pending_acked_invalidations_.empty());
 
   // Run through pending_acked_invalidations_ set.
@@ -468,7 +468,7 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
   builder->set_max_known_server_time_ms(last_known_server_time_ms_);
   listener_->GetRegistrationSummary(builder->mutable_registration_summary());
   const string& client_token = listener_->GetClientToken();
-  if (client_token != "") {
+  if (!client_token.empty()) {
     TLOG(logger_, FINE, "Sending token on client->server message: %s",
          ProtoHelpers::ToString(client_token).c_str());
     builder->set_client_token(client_token);

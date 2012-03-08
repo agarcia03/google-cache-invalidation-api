@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Unit tests for the ProtocolHandler class.
+
 #include "google/cacheinvalidation/v2/basic-system-resources.h"
 #include "google/cacheinvalidation/v2/constants.h"
 #include "google/cacheinvalidation/v2/gmock.h"
@@ -34,6 +36,7 @@ using ::ipc::invalidation::ClientType_Type_TEST;
 using ::ipc::invalidation::ObjectSource_Type_TEST;
 using ::testing::_;
 using ::testing::AllOf;
+using ::testing::ByRef;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
 using ::testing::EqualsProto;
@@ -47,33 +50,38 @@ using ::testing::SetArgPointee;
 using ::testing::StrictMock;
 using ::testing::proto::WhenDeserializedAs;
 
+MATCHER_P(EqualsHeader, header, "") {
+  const ServerMessageHeader& ref(header);
+  return ref.Equals(arg);
+}
+
 // A mock of the ProtocolListener interface.
 class MockProtocolListener : public ProtocolListener {
  public:
-  MOCK_METHOD1(HandleIncomingHeader, void(const ServerMessageHeader&));  // NOLINT
+  MOCK_METHOD1(HandleIncomingHeader, void(const ServerMessageHeader&));
 
   MOCK_METHOD2(HandleTokenChanged,
-               void(const ServerMessageHeader&, const string&));  // NOLINT
+               void(const ServerMessageHeader&, const string&));
 
   MOCK_METHOD2(
       HandleInvalidations,
-      void(const ServerMessageHeader&, const RepeatedPtrField<InvalidationP>&));  // NOLINT
+      void(const ServerMessageHeader&, const RepeatedPtrField<InvalidationP>&));
 
   MOCK_METHOD2(
       HandleRegistrationStatus,
       void(const ServerMessageHeader&,
-           const RepeatedPtrField<RegistrationStatus>&));  // NOLINT
+           const RepeatedPtrField<RegistrationStatus>&));
 
-  MOCK_METHOD1(HandleRegistrationSyncRequest, void(const ServerMessageHeader&));  // NOLINT
+  MOCK_METHOD1(HandleRegistrationSyncRequest, void(const ServerMessageHeader&));
 
   MOCK_METHOD2(HandleInfoMessage,
                void(const ServerMessageHeader&,
-                    const RepeatedField<InfoRequestMessage_InfoType>&));  // NOLINT
+                    const RepeatedField<InfoRequestMessage_InfoType>&));
 
   MOCK_METHOD3(
       HandleErrorMessage,
       void(const ServerMessageHeader&, ErrorMessage::Code,
-           const string&));  // NOLINT
+           const string&));
 
   MOCK_METHOD1(GetRegistrationSummary, void(RegistrationSummary*));  // NOLINT
 
@@ -104,21 +112,6 @@ class ProtocolHandlerTest : public UnitTestBase {
             "unit-test", &listener, validator.get()));
   }
 
- private:
-  void InitListenerExpectations() {
-    // When the handler asks the listener for the client token, return whatever
-    // |token| currently is.
-    EXPECT_CALL(listener, GetClientToken())
-        .WillRepeatedly(ReturnPointee(&token));
-
-    // If the handler asks the listener for a registration summary, respond by
-    // supplying a fake summary.
-    InitZeroRegistrationSummary(&summary);
-    EXPECT_CALL(listener, GetRegistrationSummary(_))
-        .WillRepeatedly(SetArgPointee<0>(summary));
-  }
-
- public:
   // Configuration for the protocol handler (uses defaults).
   ProtocolHandlerConfigP config;
 
@@ -146,6 +139,20 @@ class ProtocolHandlerTest : public UnitTestBase {
 
   // A random number generator.
   scoped_ptr<Random> random;
+
+ private:
+  void InitListenerExpectations() {
+    // When the handler asks the listener for the client token, return whatever
+    // |token| currently is.
+    EXPECT_CALL(listener, GetClientToken())
+        .WillRepeatedly(ReturnPointee(&token));
+
+    // If the handler asks the listener for a registration summary, respond by
+    // supplying a fake summary.
+    InitZeroRegistrationSummary(&summary);
+    EXPECT_CALL(listener, GetRegistrationSummary(_))
+        .WillRepeatedly(SetArgPointee<0>(summary));
+  }
 };
 
 // Asks the protocol handler to send an initialize message.  Waits for the
@@ -235,7 +242,9 @@ TEST_F(ProtocolHandlerTest, ReceiveTokenControlOnly) {
   message.mutable_token_control_message()->set_new_token(new_token);
 
   ServerMessageHeader expected_header(nonce, header->registration_summary());
-  EXPECT_CALL(listener, HandleTokenChanged(Eq(expected_header), Eq(new_token)));
+  EXPECT_CALL(
+      listener,
+      HandleTokenChanged(EqualsHeader(ByRef(expected_header)), Eq(new_token)));
 
   ProcessIncomingMessage(message, EndOfTestWaitTime());
 }
@@ -438,13 +447,15 @@ TEST_F(ProtocolHandlerTest, IncomingCompositeMessage) {
   // Listener should get each of the following calls:
 
   // Incoming header.
-  EXPECT_CALL(listener, HandleIncomingHeader(Eq(expected_header)));
+  EXPECT_CALL(
+      listener,
+      HandleIncomingHeader(EqualsHeader(ByRef(expected_header))));
 
   // Invalidations.
   EXPECT_CALL(
       listener,
       HandleInvalidations(
-          Eq(expected_header),
+          EqualsHeader(ByRef(expected_header)),
           ElementsAre(EqualsProto(invalidations[0]),
                       EqualsProto(invalidations[1]),
                       EqualsProto(invalidations[2]))));
@@ -453,19 +464,21 @@ TEST_F(ProtocolHandlerTest, IncomingCompositeMessage) {
   EXPECT_CALL(
       listener,
       HandleRegistrationStatus(
-          Eq(expected_header),
+          EqualsHeader(ByRef(expected_header)),
           ElementsAre(EqualsProto(registration_statuses[0]),
                       EqualsProto(registration_statuses[1]),
                       EqualsProto(registration_statuses[2]))));
 
   // Registration sync request.
-  EXPECT_CALL(listener, HandleRegistrationSyncRequest(Eq(expected_header)));
+  EXPECT_CALL(
+      listener,
+      HandleRegistrationSyncRequest(EqualsHeader(ByRef(expected_header))));
 
   // Info request message.
   EXPECT_CALL(
       listener,
       HandleInfoMessage(
-          Eq(expected_header),
+          EqualsHeader(ByRef(expected_header)),
           ElementsAre(
               Eq(InfoRequestMessage_InfoType_GET_PERFORMANCE_COUNTERS))));
 
@@ -520,7 +533,9 @@ TEST_F(ProtocolHandlerTest, MinorVersionMismatch) {
   header->mutable_protocol_version()->mutable_version()->set_minor_version(4);
 
   ServerMessageHeader expected_header(token, summary);
-  EXPECT_CALL(listener, HandleIncomingHeader(Eq(expected_header)));
+  EXPECT_CALL(
+      listener,
+      HandleIncomingHeader(EqualsHeader(ByRef(expected_header))));
 
   ProcessIncomingMessage(message, EndOfTestWaitTime());
   ASSERT_EQ(0, statistics->GetClientErrorCounterForTest(
@@ -583,12 +598,13 @@ TEST_F(ProtocolHandlerTest, ErrorMessage) {
   // The listener should still get a call to handle the incoming header.
   EXPECT_CALL(
       listener,
-      HandleIncomingHeader(Eq(expected_header)));
+      HandleIncomingHeader(EqualsHeader(ByRef(expected_header))));
 
   // It should also get a call to handle an error message.
   EXPECT_CALL(
       listener,
-      HandleErrorMessage(Eq(expected_header), Eq(error_code), Eq(description)));
+      HandleErrorMessage(EqualsHeader(ByRef(expected_header)), Eq(error_code),
+                         Eq(description)));
 
   // Deliver the message.
   ProcessIncomingMessage(message, TimeDelta());

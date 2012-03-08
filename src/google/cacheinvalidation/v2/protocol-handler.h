@@ -22,6 +22,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "google/cacheinvalidation/v2/system-resources.h"
 #include "google/cacheinvalidation/v2/client-protocol-namespace-fix.h"
@@ -48,7 +49,7 @@ struct ServerMessageHeader {
   /* Constructs an instance.
    *
    * Arguments:
-   *     init_token - server-sent token
+   *     init_token - server-sent token.
    *     init_registration_summary - summary over server registration state.
    *     If num_registations is not set, means no registration summary was
    *     received from the server.
@@ -69,17 +70,22 @@ struct ServerMessageHeader {
         &registration_summary_ : NULL;
   }
 
-  bool operator==(const ServerMessageHeader& other) const;
+  // Returns whether this message header is equivalent to |other|.
+  bool Equals(const ServerMessageHeader& other) const;
 
+  // Returns a human-readable representation of this object for debugging.
   string ToString() const;
 
  private:
+  // The session token specified by the server.
   string token_;
+  // Summary of what the server believes the client's registration state is.
   RegistrationSummary registration_summary_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServerMessageHeader);
 };
 
-/*
- * Listener for protocol events. The protocol client calls these methods when
+/* Listener for protocol events. The protocol client calls these methods when
  * a message is received from the server. It guarantees that the call will be
  * made on the internal thread that the SystemResources provides. When the
  * protocol listener is called, the token has been checked and message
@@ -89,6 +95,7 @@ struct ServerMessageHeader {
  */
 class ProtocolListener {
  public:
+  ProtocolListener() {}
   virtual ~ProtocolListener() {}
 
   /* Handles an incoming message from the server. This method may be called in
@@ -104,7 +111,8 @@ class ProtocolListener {
    *
    * Arguments:
    * header - server message header
-   * new_token - a new token for the client. If NULL, it means destroy the token.
+   * new_token - a new token for the client. If NULL, it means destroy the
+   *     token.
    */
   virtual void HandleTokenChanged(
       const ServerMessageHeader& header, const string& new_token) = 0;
@@ -146,12 +154,12 @@ class ProtocolListener {
       const ServerMessageHeader& header,
       const RepeatedField<InfoRequestMessage_InfoType>& info_types) = 0;
 
-   /* Handles an error message from the server.
-    *
-    * Arguments:
-    * code - error reason
-    * description - human-readable description of the error
-    */
+  /* Handles an error message from the server.
+   *
+   * Arguments:
+   * code - error reason
+   * description - human-readable description of the error
+   */
   virtual void HandleErrorMessage(
       const ServerMessageHeader& header,
       ErrorMessage::Code code,
@@ -162,8 +170,15 @@ class ProtocolListener {
 
   /* Returns the current server-assigned client token, if any. */
   virtual string GetClientToken() = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ProtocolListener);
 };
 
+/* Parses messages from the server and calls appropriate functions on the
+ * ProtocolListener to handle various types of message content.  Also buffers
+ * message data from the client and constructs and sends messages to the server.
+ */
 class ProtocolHandler {
  public:
   /* Creates an instance.
@@ -185,15 +200,16 @@ class ProtocolHandler {
                   TiclMessageValidator* msg_validator);
 
   /* Initializes |config| with default protocol handler config parameters. */
-  static void InitConfig(ProtocolHandlerConfigP *config);
+  static void InitConfig(ProtocolHandlerConfigP* config);
 
   /* Initializes |config| with protocol handler config parameters for unit
-   * tests
+   * tests.
    */
-  static void InitConfigForTest(ProtocolHandlerConfigP *config);
+  static void InitConfigForTest(ProtocolHandlerConfigP* config);
 
-  /* Returns the next time a message is allowed to be sent to the server (could
-   * be in the past).
+  /* Returns the next time a message is allowed to be sent to the server.
+   * Typically, this will be in the past, meaning that the client is free to
+   * send a message at any time.
    */
   int64 GetNextMessageSendTimeMsForTest() {
     return next_message_send_time_ms_;
@@ -243,8 +259,7 @@ class ProtocolHandler {
   /* Handles a message from the server. */
   void HandleIncomingMessage(const string& incoming_message);
 
-  /* Verifies that the {@code serverToken} matches the token currently held by
-   * the client.
+  /* Verifies that server_token matches the token currently held by the client.
    */
   bool CheckServerToken(const string& server_token);
 
@@ -284,16 +299,26 @@ class ProtocolHandler {
     return InvalidationClientUtil::GetCurrentTimeMs(internal_scheduler_);
   }
 
+  // The version of the code this client is running.
   ClientVersion client_version_;
-  SystemResources* resources_;
 
-  // Cached from resources
+  // A logger.
   Logger* logger_;
+  // Single-threaded scheduler for the client's internal processing.
   Scheduler* internal_scheduler_;
+  // Network channel for sending and receiving messages to and from the server.
+  NetworkChannel* network_;
 
+  // A throttler to prevent the client from sending too many messages in a given
+  // interval.
   Throttle throttled_message_sender_;
+  // The protocol listener.
   ProtocolListener* listener_;
+  // Used to ensure that the message-batching task is scheduled when needed, but
+  // at most once.
   scoped_ptr<OperationScheduler> operation_scheduler_;
+  // Checks that messages (inbound and outbound) conform to basic validity
+  // constraints.
   TiclMessageValidator* msg_validator_;
 
   /* A debug message id that is added to every message to the server. */
@@ -333,6 +358,8 @@ class ProtocolHandler {
 
   /* Task to send all batched messages to the server. */
   scoped_ptr<Closure> batching_task_;
+
+  DISALLOW_COPY_AND_ASSIGN(ProtocolHandler);
 };
 
 }  // namespace invalidation
