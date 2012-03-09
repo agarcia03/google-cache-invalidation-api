@@ -283,8 +283,9 @@ TEST_F(InvalidationClientImplTest, Register) {
 }
 
 // Tests that given invalidations from the server, the right listener methods
-// are invoked. Ack the invalidations and make sure that the ack message is
-// sent out.
+// are invoked. Ack the invalidations and make sure that the ack message is sent
+// out. Include a payload in one invalidation and make sure the client does not
+// include it in the ack.
 TEST_F(InvalidationClientImplTest, Invalidations) {
     // Set some expectations for starting the client.
   SetExpectationsForTiclStart(2);
@@ -300,6 +301,8 @@ TEST_F(InvalidationClientImplTest, Invalidations) {
   vector<InvalidationP> invalidations;
   vector<Invalidation> expected_invs;
   MakeInvalidationsFromObjectIds(oid_protos, &invalidations);
+  // Put a payload in one of the invalidations.
+  invalidations[0].set_payload("this is a payload");
   ConvertFromInvalidationProtos(invalidations, &expected_invs);
 
   // Set up expectations for the acks.
@@ -339,6 +342,8 @@ TEST_F(InvalidationClientImplTest, Invalidations) {
   ASSERT_TRUE(client_msg.has_invalidation_ack_message());
 
   InvalidationMessage expected_msg;
+  // The client should strip the payload from the invalidation.
+  invalidations[0].clear_payload();
   InitInvalidationMessage(invalidations, &expected_msg);
   const InvalidationMessage& actual_msg =
       client_msg.invalidation_ack_message();

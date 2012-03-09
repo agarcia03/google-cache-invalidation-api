@@ -434,10 +434,11 @@ void InvalidationClientImpl::AcknowledgeInternal(
   }
 
   // Currently, only invalidations have non-trivial ack handle.
-  const InvalidationP& invalidation = ack_handle.invalidation();
+  InvalidationP* invalidation = ack_handle.mutable_invalidation();
+  invalidation->clear_payload();  // Don't send the payload back.
   statistics_->RecordIncomingOperation(
       Statistics::IncomingOperationType_ACKNOWLEDGE);
-  protocol_handler_.SendInvalidationAck(invalidation);
+  protocol_handler_.SendInvalidationAck(*invalidation);
 }
 
 string InvalidationClientImpl::ToString() {
