@@ -55,16 +55,25 @@ using ::testing::Property;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
 
-/* A random class whose RandDouble method always returns 1.0 */
+/* A random class whose RandDouble method always returns a given constant. */
 class FakeRandom : public Random {
  public:
-  FakeRandom() : Random(0) {}
+  // Constructs a fake random generator that always returns |return_value|,
+  // which must be in the range [0, 1).
+  explicit FakeRandom(double return_value)
+      : Random(0), return_value_(return_value) {
+    CHECK_GE(return_value_, 0.0);
+    CHECK_LT(return_value_, 1.0);
+  }
 
   virtual ~FakeRandom() {}
 
   virtual double RandDouble() {
-    return 1.0;
+    return return_value_;
   }
+
+ private:
+  double return_value_;
 };
 
 // A mock of the Scheduler interface.

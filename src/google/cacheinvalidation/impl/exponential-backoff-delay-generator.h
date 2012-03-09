@@ -73,6 +73,7 @@ class ExponentialBackoffDelayGenerator {
 
   Random* random_;
 };
+
 }  // namespace invalidation
 
 #endif  // GOOGLE_CACHEINVALIDATION_IMPL_EXPONENTIAL_BACKOFF_DELAY_GENERATOR_H_

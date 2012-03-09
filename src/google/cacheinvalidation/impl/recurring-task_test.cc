@@ -100,7 +100,7 @@ class RecurringTaskTest : public testing::Test {
     end_of_test_delay = 1000 * TestTask::timeout_delay;
 
     // Initialize state for every test.
-    random.reset(new FakeRandom());
+    random.reset(new FakeRandom(0.99));  // The test expects a value close to 1.
     logger.reset(new TestLogger());
     scheduler.reset(new SimpleDeterministicScheduler(logger.get()));
     smearer.reset(new Smearer(random.get(), 0));

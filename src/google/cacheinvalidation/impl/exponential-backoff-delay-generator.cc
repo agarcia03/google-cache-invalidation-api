@@ -19,7 +19,11 @@ namespace invalidation {
 TimeDelta ExponentialBackoffDelayGenerator::GetNextDelay() {
   TimeDelta delay = Scheduler::NoDelay();  // After a reset, delay is zero.
   if (in_retry_mode) {
-    delay = random_->RandDouble() * current_max_delay_;
+    // We used to multiply the current_max_delay_ by the double, but this
+    // implicitly truncated the double to an integer, which would always be 0.
+    // By converting to and from milliseconds, we avoid this problem.
+    delay = TimeDelta::FromMilliseconds(
+        random_->RandDouble() * current_max_delay_.InMilliseconds());
 
     // Adjust the max for the next run.
     TimeDelta max_delay = initial_max_delay_ * max_exponential_factor_;
