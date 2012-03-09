@@ -22,7 +22,6 @@
 
 #include <string>
 
-#include "google/cacheinvalidation/include/types.h"
 #include "google/cacheinvalidation/deps/stl-namespace.h"
 
 namespace invalidation {
