@@ -20,30 +20,58 @@
 
 namespace invalidation {
 
-void SimpleRegistrationStore::Add(const ObjectIdP& oid) {
-  registrations_[ObjectIdDigestUtils::GetDigest(oid, digest_function_)] = oid;
-  RecomputeDigest();
+bool SimpleRegistrationStore::Add(const ObjectIdP& oid) {
+  const string digest = ObjectIdDigestUtils::GetDigest(oid, digest_function_);
+  bool will_add = (registrations_.find(digest) == registrations_.end());
+  if (will_add) {
+    registrations_[digest] = oid;
+    RecomputeDigest();
+  }
+  return will_add;
 }
 
-void SimpleRegistrationStore::Add(const vector<ObjectIdP>& oids) {
+void SimpleRegistrationStore::Add(const vector<ObjectIdP>& oids,
+                                  vector<ObjectIdP>* oids_to_send) {
   for (size_t i = 0; i < oids.size(); ++i) {
     const ObjectIdP& oid = oids[i];
-    registrations_[ObjectIdDigestUtils::GetDigest(oid, digest_function_)] = oid;
+    const string digest = ObjectIdDigestUtils::GetDigest(oid, digest_function_);
+    bool will_add = (registrations_.find(digest) == registrations_.end());
+    if (will_add) {
+      registrations_[digest] = oid;
+      oids_to_send->push_back(oid);
+    }
   }
-  RecomputeDigest();
+  if (!oids_to_send->empty()) {
+    // Only recompute the digest if we made changes.
+    RecomputeDigest();
+  }
 }
 
-void SimpleRegistrationStore::Remove(const ObjectIdP& oid) {
-  registrations_.erase(ObjectIdDigestUtils::GetDigest(oid, digest_function_));
-  RecomputeDigest();
+bool SimpleRegistrationStore::Remove(const ObjectIdP& oid) {
+  const string digest = ObjectIdDigestUtils::GetDigest(oid, digest_function_);
+  bool will_remove = (registrations_.find(digest) != registrations_.end());
+  if (will_remove) {
+    registrations_.erase(digest);
+    RecomputeDigest();
+  }
+  return will_remove;
 }
 
-void SimpleRegistrationStore::Remove(const vector<ObjectIdP>& oids) {
+void SimpleRegistrationStore::Remove(const vector<ObjectIdP>& oids,
+                                     vector<ObjectIdP>* oids_to_send) {
   for (size_t i = 0; i < oids.size(); ++i) {
     const ObjectIdP& oid = oids[i];
-    registrations_.erase(ObjectIdDigestUtils::GetDigest(oid, digest_function_));
+    const string digest = ObjectIdDigestUtils::GetDigest(oid, digest_function_);
+    bool will_remove = (registrations_.find(digest) != registrations_.end());
+    if (will_remove) {
+      registrations_.erase(digest);
+      oids_to_send->push_back(oid);
+    }
   }
-  RecomputeDigest();
+  if (!oids_to_send->empty()) {
+    // Only recompute the digest if we made changes.
+    RecomputeDigest();
+  }
 }
 
 void SimpleRegistrationStore::RemoveAll(vector<ObjectIdP>* oids) {

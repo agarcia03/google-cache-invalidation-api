@@ -47,9 +47,13 @@ class RegistrationManager {
     desired_registrations_->GetElements(kEmptyPrefix, 0, registrations);
   }
 
-  /* (Un)registers for object_id. */
+  /* (Un)registers for object_ids. When the function returns, oids_to_send will
+   * have been modified to contain those object ids for which registration
+   * messages must be sent to the server.
+   */
   void PerformOperations(const vector<ObjectIdP>& object_ids,
-                         RegistrationP::OpType reg_op_type);
+                         RegistrationP::OpType reg_op_type,
+                         vector<ObjectIdP>* oids_to_send);
 
   /* Initializes a registration subtree for registrations where the digest of
    * the object id begins with the prefix digest_prefix of prefix_len bits. This

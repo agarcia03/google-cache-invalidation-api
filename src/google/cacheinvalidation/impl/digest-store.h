@@ -49,23 +49,33 @@ class DigestStore {
    * by digest_prefix, e.g., it could return all the objects in the store.
    */
   virtual void GetElements(const string& digest_prefix, int prefix_len,
-                           vector<ObjectIdP>* result) = 0;
+      vector<ObjectIdP>* result) = 0;
 
-  /* Adds element to the store. No-op if element is already present. */
-  virtual void Add(const ElementType& element) = 0;
+  /* Adds element to the store. No-op if element is already present.
+   * Returns whether the element was added.
+   */
+  virtual bool Add(const ElementType& element) = 0;
 
   /* Adds elements to the store. If any element in elements is already present,
-   * the addition is a no-op for that element.
+   * the addition is a no-op for that element. When the function returns,
+   * added_elements will have been modified to contain all the elements
+   * of elements that were not previously present.
    */
-  virtual void Add(const vector<ElementType>& elements) = 0;
+  virtual void Add(const vector<ElementType>& elements,
+      vector<ElementType>* added_elements) = 0;
 
-  /* Removes element from the store. No-op if element is not present. */
-  virtual void Remove(const ElementType& element) = 0;
-
-  /* Remove elements to the store. If any element in elementis not present, the
-   * addition is a no-op for that element.
+  /* Removes element from the store. No-op if element is not present.
+   * Returns whether the element was removed.
    */
-  virtual void Remove(const vector<ElementType>& elements) = 0;
+  virtual bool Remove(const ElementType& element) = 0;
+
+  /* Remove elements from the store. If any element in element is not present,
+   * the removal is a no-op for that element.
+   * When the function returns, removed_elements will have been modified to
+   * contain all the elements of elements that were previously present
+   */
+  virtual void Remove(const vector<ElementType>& elements,
+      vector<ElementType>* removed_elements) = 0;
 
   /* Removes all elements in this and stores them in elements. */
   virtual void RemoveAll(vector<ElementType>* elements) = 0;

@@ -385,12 +385,14 @@ void InvalidationClientImpl::PerformRegisterOperationsInternal(
 
   // Update the registration manager state, then have the protocol client send a
   // message.
-  registration_manager_.PerformOperations(object_id_protos, reg_op_type);
+  vector<ObjectIdP> object_id_protos_to_send;
+  registration_manager_.PerformOperations(object_id_protos, reg_op_type,
+      &object_id_protos_to_send);
 
   // Check whether we should suppress sending registrations because we don't
   // yet know the server's summary.
-  if (should_send_registrations_) {
-    protocol_handler_.SendRegistrations(object_id_protos, reg_op_type);
+  if (should_send_registrations_ && (!object_id_protos_to_send.empty())) {
+    protocol_handler_.SendRegistrations(object_id_protos_to_send, reg_op_type);
   }
   reg_sync_heartbeat_task_.get()->EnsureScheduled("PerformRegister");
 }

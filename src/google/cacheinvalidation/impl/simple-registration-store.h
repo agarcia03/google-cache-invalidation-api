@@ -37,13 +37,15 @@ class SimpleRegistrationStore : public DigestStore<ObjectIdP> {
 
   virtual ~SimpleRegistrationStore() {}
 
-  virtual void Add(const ObjectIdP& oid);
+  virtual bool Add(const ObjectIdP& oid);
 
-  virtual void Add(const vector<ObjectIdP>& oids);
+  virtual void Add(const vector<ObjectIdP>& oids,
+                   vector<ObjectIdP>* oids_to_send);
 
-  virtual void Remove(const ObjectIdP& oid);
+  virtual bool Remove(const ObjectIdP& oid);
 
-  virtual void Remove(const vector<ObjectIdP>& oids);
+  virtual void Remove(const vector<ObjectIdP>& oids,
+                      vector<ObjectIdP>* oids_to_send);
 
   virtual void RemoveAll(vector<ObjectIdP>* oids);
 

@@ -37,11 +37,12 @@ RegistrationManager::RegistrationManager(
 }
 
 void RegistrationManager::PerformOperations(
-    const vector<ObjectIdP>& object_ids, RegistrationP::OpType reg_op_type) {
+    const vector<ObjectIdP>& object_ids, RegistrationP::OpType reg_op_type,
+    vector<ObjectIdP>* oids_to_send) {
   if (reg_op_type == RegistrationP_OpType_REGISTER) {
-    desired_registrations_->Add(object_ids);
+    desired_registrations_->Add(object_ids, oids_to_send);
   } else {
-    desired_registrations_->Remove(object_ids);
+    desired_registrations_->Remove(object_ids, oids_to_send);
   }
 }
 
