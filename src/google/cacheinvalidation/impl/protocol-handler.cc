@@ -91,15 +91,24 @@ ProtocolHandler::ProtocolHandler(
 
 void ProtocolHandler::InitConfig(ProtocolHandlerConfigP* config) {
   // Add rate limits.
-  // At most one message per second.
-  ProtoHelpers::InitRateLimitP(1000, 1, config->add_rate_limit());
-  // At most six messages per minute.
-  ProtoHelpers::InitRateLimitP(60 * 1000, 6, config->add_rate_limit());
+  // Allow at most 1 message every 1000 msec.
+  int window0_ms = 1000;
+  int num_messages_per_window0 = 1;
+
+  // Allow at most 6 messages every minute.
+  int window1_ms = 60 * 1000;
+  int num_messages_per_window1 = 6;
+
+  ProtoHelpers::InitRateLimitP(window0_ms, num_messages_per_window0,
+      config->add_rate_limit());
+  ProtoHelpers::InitRateLimitP(window1_ms, num_messages_per_window1,
+      config->add_rate_limit());
 }
 
 void ProtocolHandler::InitConfigForTest(ProtocolHandlerConfigP* config) {
   // No rate limits.
-  config->set_batching_delay_ms(200);
+  int small_batch_delay_for_test = 200;
+  config->set_batching_delay_ms(small_batch_delay_for_test);
 
   // At most one message per second.
   ProtoHelpers::InitRateLimitP(1000, 1, config->add_rate_limit());
