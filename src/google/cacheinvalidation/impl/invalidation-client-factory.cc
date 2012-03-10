@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cacheinvalidation/include/invalidation-client.h"
+#include "google/cacheinvalidation/include/invalidation-client-factory.h"
 
 #include "google/cacheinvalidation/impl/invalidation-client-impl.h"
 
