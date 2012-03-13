@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include "google/cacheinvalidation/v2/stl-namespace.h"
+#include "google/cacheinvalidation/deps/stl-namespace.h"
 
 namespace invalidation {
 
