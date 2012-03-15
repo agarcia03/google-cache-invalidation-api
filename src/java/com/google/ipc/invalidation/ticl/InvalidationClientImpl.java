@@ -749,8 +749,7 @@ public class InvalidationClientImpl extends InternalBase
     for (InvalidationP invalidation : invalidations) {
       AckHandle ackHandle = AckHandle.newInstance(
           CommonProtos2.newAckHandleP(invalidation).toByteArray());
-      if (TypedUtil.<ObjectIdP>equals(invalidation.getObjectId(),
-          CommonInvalidationConstants2.ALL_OBJECT_ID)) {
+      if (CommonProtos2.isAllObjectId(invalidation.getObjectId())) {
         logger.info("Issuing invalidate all");
         listener.invalidateAll(InvalidationClientImpl.this, ackHandle);
       } else {

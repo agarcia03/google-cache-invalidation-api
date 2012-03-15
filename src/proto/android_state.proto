@@ -22,6 +22,8 @@ package com.google.protos.ipc.invalidation;
 
 option optimize_for = LITE_RUNTIME;
 
+option java_outer_classname = "AndroidState";
+
 
 // TODO: Factor out Version and remove this dependency
 import "proto/client_protocol.proto";

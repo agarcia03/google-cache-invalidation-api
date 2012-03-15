@@ -53,7 +53,7 @@ class RegistrationManager extends InternalBase {
   private final Statistics statistics;
 
   /** Latest known server registration state summary. */
-  private RegistrationSummary lastKnownServerSummary;
+  private ProtoWrapper<RegistrationSummary> lastKnownServerSummary;
 
   private final Logger logger;
 
@@ -65,7 +65,7 @@ class RegistrationManager extends InternalBase {
     // Initialize the server summary with a 0 size and the digest corresponding
     // to it.  Using defaultInstance would wrong since the server digest will
     // not match unnecessarily and result in an info message being sent.
-    this.lastKnownServerSummary = getRegistrationSummary();
+    this.lastKnownServerSummary = ProtoWrapper.of(getRegistrationSummary());
   }
 
   /**
@@ -82,7 +82,7 @@ class RegistrationManager extends InternalBase {
     }
     return new RegistrationManagerState(
         RegistrationSummary.newBuilder(getRegistrationSummary()).build(),
-        RegistrationSummary.newBuilder(lastKnownServerSummary).build(),
+        RegistrationSummary.newBuilder(lastKnownServerSummary.getProto()).build(),
         registeredObjects);
   }
 
@@ -94,7 +94,7 @@ class RegistrationManager extends InternalBase {
   
   void setDigestStoreForTest(DigestStore<ObjectIdP> digestStore) {
     this.desiredRegistrations = digestStore;
-    this.lastKnownServerSummary = getRegistrationSummary();
+    this.lastKnownServerSummary = ProtoWrapper.of(getRegistrationSummary());
   }
 
   
@@ -191,7 +191,7 @@ class RegistrationManager extends InternalBase {
   /** Informs the manager of a new registration state summary from the server. */
   void informServerRegistrationSummary(RegistrationSummary regSummary) {
     if (regSummary != null) {
-      this.lastKnownServerSummary = regSummary;
+      this.lastKnownServerSummary = ProtoWrapper.of(regSummary);
     }
   }
 
@@ -200,7 +200,7 @@ class RegistrationManager extends InternalBase {
    * received server summary (from {@link #informServerRegistrationSummary}).
    */
   boolean isStateInSyncWithServer() {
-    return TypedUtil.equals(lastKnownServerSummary, getRegistrationSummary());
+    return TypedUtil.equals(lastKnownServerSummary, ProtoWrapper.of(getRegistrationSummary()));
   }
 
   @Override

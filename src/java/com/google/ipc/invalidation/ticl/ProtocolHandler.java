@@ -230,14 +230,16 @@ class ProtocolHandler {
   private long nextMessageSendTimeMs = 0;
 
   /** Set of pending registrations stored as a map for overriding later operations. */
-  private final Map<ObjectIdP, RegistrationP.OpType> pendingRegistrations =
-      new HashMap<ObjectIdP, RegistrationP.OpType>();
+  private final Map<ProtoWrapper<ObjectIdP>, RegistrationP.OpType> pendingRegistrations =
+      new HashMap<ProtoWrapper<ObjectIdP>, RegistrationP.OpType>();
 
   /** Set of pending invalidation acks. */
-  private final Set<InvalidationP> pendingAckedInvalidations = new HashSet<InvalidationP>();
+  private final Set<ProtoWrapper<InvalidationP>> pendingAckedInvalidations =
+      new HashSet<ProtoWrapper<InvalidationP>>();
 
   /** Set of pending registration sub trees for registration sync. */
-  private final Set<RegistrationSubtree> pendingRegSubtrees = new HashSet<RegistrationSubtree>();
+  private final Set<ProtoWrapper<RegistrationSubtree>> pendingRegSubtrees =
+      new HashSet<ProtoWrapper<RegistrationSubtree>>();
 
   /** Pending initialization message to send to the server, if any. */
   private InitializeMessage pendingInitializeMessage = null;
@@ -304,15 +306,24 @@ class ProtocolHandler {
 
   /** Returns a default config for the protocol handler. */
   static ProtocolHandlerConfigP.Builder createConfig() {
+    // Allow at most 1 message every 1000 msec.
+    int window0Ms = 1000;
+    int numMessagesPerWindow0 = 1;
+
+    // Allow at most 6 messages every minute.
+    int window1Ms = 60 * 1000;
+    int numMessagesPerWindow1 = 6;
+
     return ProtocolHandlerConfigP.newBuilder()
-        .addRateLimit(CommonProtos2.newRateLimitP(1000, 1))  // one message per second
-        .addRateLimit(CommonProtos2.newRateLimitP(60 * 1000, 6));  // six messages per minute
+        .addRateLimit(CommonProtos2.newRateLimitP(window0Ms, numMessagesPerWindow0))
+        .addRateLimit(CommonProtos2.newRateLimitP(window1Ms, numMessagesPerWindow1));
   }
 
   /** Returns a configuration object with parameters set for unit tests. */
   static ProtocolHandlerConfigP.Builder createConfigForTest() {
     // No rate limits
-    return ProtocolHandlerConfigP.newBuilder().setBatchingDelayMs(200);
+    int smallBatchDelayForTest = 200;
+    return ProtocolHandlerConfigP.newBuilder().setBatchingDelayMs(smallBatchDelayForTest);
   }
 
   /**
@@ -513,7 +524,7 @@ class ProtocolHandler {
   void sendRegistrations(Collection<ObjectIdP> objectIds, RegistrationP.OpType regOpType) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     for (ObjectIdP objectId : objectIds) {
-      pendingRegistrations.put(objectId, regOpType);
+      pendingRegistrations.put(ProtoWrapper.of(objectId), regOpType);
     }
     batchingTask.ensureScheduled("Send-registrations");
   }
@@ -523,7 +534,7 @@ class ProtocolHandler {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     // We could do squelching - we don't since it is unlikely to be too beneficial here.
     logger.fine("Sending ack for invalidation %s", invalidation);
-    pendingAckedInvalidations.add(invalidation);
+    pendingAckedInvalidations.add(ProtoWrapper.of(invalidation));
     batchingTask.ensureScheduled("Send-Ack");
   }
 
@@ -534,7 +545,7 @@ class ProtocolHandler {
    */
   void sendRegistrationSyncSubtree(RegistrationSubtree regSubtree) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    pendingRegSubtrees.add(regSubtree);
+    pendingRegSubtrees.add(ProtoWrapper.of(regSubtree));
     logger.info("Adding subtree: %s", regSubtree);
     batchingTask.ensureScheduled("Send-reg-sync");
  }
@@ -587,8 +598,10 @@ class ProtocolHandler {
 
     // Check reg substrees.
     if (!pendingRegSubtrees.isEmpty()) {
-      builder.setRegistrationSyncMessage(RegistrationSyncMessage.newBuilder()
-          .addAllSubtree(pendingRegSubtrees));
+      for (ProtoWrapper<RegistrationSubtree> subtree : pendingRegSubtrees) {
+        builder.setRegistrationSyncMessage(RegistrationSyncMessage.newBuilder()
+            .addSubtree(subtree.getProto()));
+      }
       pendingRegSubtrees.clear();
       statistics.recordSentMessage(SentMessageType.REGISTRATION_SYNC);
     }
@@ -625,9 +638,9 @@ class ProtocolHandler {
     RegistrationMessage.Builder regMessage = RegistrationMessage.newBuilder();
 
     // Run through the pendingRegistrations map.
-    Set<Map.Entry<ObjectIdP, RegistrationP.OpType>> entrySet = pendingRegistrations.entrySet();
-    for (Map.Entry<ObjectIdP, RegistrationP.OpType> entry : entrySet) {
-      RegistrationP reg = CommonProtos2.newRegistrationP(entry.getKey(),
+    for (Map.Entry<ProtoWrapper<ObjectIdP>, RegistrationP.OpType> entry :
+         pendingRegistrations.entrySet()) {
+      RegistrationP reg = CommonProtos2.newRegistrationP(entry.getKey().getProto(),
           entry.getValue() == RegistrationP.OpType.REGISTER);
       regMessage.addRegistration(reg);
     }
@@ -643,10 +656,12 @@ class ProtocolHandler {
    */
   private InvalidationMessage createInvalidationAckMessage() {
     Preconditions.checkState(!pendingAckedInvalidations.isEmpty());
-    InvalidationMessage ackMessage =
-        CommonProtos2.newInvalidationMessage(pendingAckedInvalidations);
+    InvalidationMessage.Builder ackMessage = InvalidationMessage.newBuilder();
+    for (ProtoWrapper<InvalidationP> wrapper : pendingAckedInvalidations) {
+      ackMessage.addInvalidation(wrapper.getProto());
+    }
     pendingAckedInvalidations.clear();
-    return ackMessage;
+    return ackMessage.build();
   }
 
   /** Returns the header to include on a message to the server. */

@@ -185,6 +185,8 @@ public class C2DMManager extends IntentService {
 
   public C2DMManager() {
     super("C2DMManager");
+    // Always redeliver intents if evicted while processing
+    setIntentRedelivery(true);
   }
 
   @Override
@@ -222,6 +224,8 @@ public class C2DMManager extends IntentService {
   @Override
   public final void onHandleIntent(Intent intent) {
     try {
+      // OK to block here (if needed) because IntentService guarantees that onHandleIntent will
+      // only be called on a background thread.
       waitForInitialization();
       if (intent.getAction().equals(REGISTRATION_CALLBACK_INTENT)) {
         handleRegistration(intent);

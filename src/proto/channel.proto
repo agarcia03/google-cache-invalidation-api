@@ -20,10 +20,12 @@
 
 syntax = "proto2";
 
-
 package com.google.protos.ipc.invalidation;
 
 option optimize_for = LITE_RUNTIME;
+
+option java_outer_classname = "Channel";
+
 
 
 import "proto/channel_common.proto";

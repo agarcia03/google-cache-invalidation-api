@@ -100,6 +100,13 @@ public class CommonProtos2 {
     return newObjectIdP(source, ByteString.copyFrom(name));
   }
 
+  public static boolean isAllObjectId(ObjectIdP objectId) {
+    return (objectId != null) &&
+        (CommonInvalidationConstants2.ALL_OBJECT_ID.getSource() == objectId.getSource()) &&
+        (CommonInvalidationConstants2.ALL_OBJECT_ID.getName().equals(objectId.getName()));
+
+  }
+
   public static RateLimitP newRateLimitP(int windowMs, int count) {
     return RateLimitP.newBuilder()
         .setWindowMs(windowMs)
@@ -357,7 +364,8 @@ public class CommonProtos2 {
       ByteString clientAddr) {
     return NetworkEndpointId.newBuilder()
         .setNetworkAddress(networkAddr)
-        .setClientAddress(clientAddr).build();
+        .setClientAddress(clientAddr)
+        .build();
   }
 
   private CommonProtos2() { // To prevent instantiation

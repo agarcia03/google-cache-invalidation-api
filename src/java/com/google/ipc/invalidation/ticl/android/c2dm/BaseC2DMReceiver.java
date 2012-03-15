@@ -45,6 +45,8 @@ public abstract class BaseC2DMReceiver extends IntentService {
    */
   protected BaseC2DMReceiver(String name, boolean automaticallyReleaseWakeLock) {
     super(name);
+    // Always redeliver if evicted while processing intents.
+    setIntentRedelivery(true);
     this.automaticallyReleaseWakelock = automaticallyReleaseWakeLock;
   }
 
