@@ -372,7 +372,8 @@ public class TiclMessageValidator2 {
         }
 
         // If set, message id must not be empty.
-        if (header.hasMessageId() && header.getMessageId().isEmpty()) {
+        // Do not use String.isEmpty() here for Froyo (JDK5) compat
+        if (header.hasMessageId() && (header.getMessageId().length() == 0)) {
           logger.info("Message id was set but empty: %s", header);
           return false;
         }
@@ -496,7 +497,8 @@ public class TiclMessageValidator2 {
           return false;
         }
         // If set, message id must not be empty.
-        if (header.hasMessageId() && header.getMessageId().isEmpty()) {
+        // Do not use String.isEmpty() here for Froyo (JDK5) compat
+        if (header.hasMessageId() && (header.getMessageId().length() == 0)) {
           logger.info("Message id was set but empty: %s", header);
           return false;
         }

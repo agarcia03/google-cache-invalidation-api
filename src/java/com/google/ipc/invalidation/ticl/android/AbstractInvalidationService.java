@@ -16,6 +16,8 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.InvalidationService;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
@@ -28,7 +30,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.util.Log;
 
 /**
  * Abstract base class for implementing the Android invalidation service. The service implements the
@@ -42,7 +43,7 @@ import android.util.Log;
  */
 public abstract class AbstractInvalidationService extends Service {
 
-  private static final String TAG = "AbstractInvalidationService";
+  private static final Logger logger = AndroidLogger.forTag("InvService");
 
   /**
    * Simple service stub that delegates back to methods on the service.
@@ -69,7 +70,7 @@ public abstract class AbstractInvalidationService extends Service {
     Request request = new Request(input);
     Response.Builder response = Response.newBuilder(request.getActionOrdinal(), output);
     Action action = request.getAction();
-    Log.d(TAG, "Request: " + action + " from " + request.getClientKey());
+    logger.fine("%s request from %s", action, request.getClientKey());
     try {
       switch(action) {
         case CREATE:
@@ -100,7 +101,7 @@ public abstract class AbstractInvalidationService extends Service {
           throw new IllegalStateException("Unknown action:" + action);
       }
     } catch (Exception e) {
-      Log.e(TAG, "Error in " + request.getAction(), e);
+      logger.severe("Client request error", e);
       response.setException(e);
     }
   }
@@ -127,16 +128,16 @@ public abstract class AbstractInvalidationService extends Service {
    */
   protected void sendEvent(ListenerService listenerService, Event event) {
     try {
-      Log.i(TAG, "Sending " + event.getAction() + " event");
+      logger.fine("Sending %s event", event.getAction());
       Bundle responseBundle = new Bundle();
       listenerService.handleEvent(event.getBundle(), responseBundle);
 
       // Wrap the response bundle and throw on any failure from the client
       Response response = new Response(responseBundle);
       response.throwOnFailure();
-    } catch (RemoteException re) {
-      Log.e(TAG, "Unable to send event", re);
-      throw new RuntimeException("Unable to send event", re);
+    } catch (RemoteException exception) {
+      logger.severe("Unable to send event", exception);
+      throw new RuntimeException("Unable to send event", exception);
     }
   }
 }

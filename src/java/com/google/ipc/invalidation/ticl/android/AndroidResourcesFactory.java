@@ -20,6 +20,7 @@ import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.SystemResourcesBuilder;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.util.NamedRunnable;
 
 import java.util.concurrent.Executors;
@@ -104,7 +105,7 @@ public class AndroidResourcesFactory {
    */
   public static SystemResourcesBuilder createResourcesBuilder(String logPrefix,
       NetworkChannel network, AndroidStorage storage) {
-    return new SystemResourcesBuilder(new AndroidLogger(logPrefix),
+    return new SystemResourcesBuilder(AndroidLogger.forPrefix(logPrefix),
       new ExecutorBasedScheduler("ticl" + logPrefix),
       new ExecutorBasedScheduler("ticl-listener" + logPrefix),
       network, storage);

@@ -18,7 +18,9 @@ package com.google.ipc.invalidation.ticl.android;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.Storage;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.external.client.types.Status;
@@ -33,7 +35,6 @@ import android.accounts.Account;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -65,8 +66,8 @@ public class AndroidStorage implements Storage {
    * or other mechanisms without requiring any changes to the public interface.
    */
 
-  /** The logging tag */
-  private static final String TAG = "AndroidStorage";
+  /** Storage logger */
+  private static final Logger logger = AndroidLogger.forTag("InvStorage");
 
   /** The version value that is stored within written state */
   private static final Version CURRENT_VERSION =
@@ -235,31 +236,31 @@ public class AndroidStorage implements Storage {
       StoredState fullState = StoredState.parseFrom(inputStream);
       metadata = fullState.getMetadata();
       if (!key.equals(metadata.getClientKey())) {
-        Log.e(TAG, "Unexpected client key mismatch:" + key + "," + metadata.getClientKey());
+        logger.severe("Unexpected client key mismatch: %s, %s", key, metadata.getClientKey());
         return false;
       }
-      Log.d(TAG, "Loaded metadata:" + metadata);
+      logger.fine("Loaded metadata: %s", metadata);
 
       // Unpack the client properties into a map for easy lookup / iteration / update
       for (ClientProperty clientProperty : fullState.getPropertyList()) {
-        Log.d(TAG, "Loaded property: " + clientProperty);
+        logger.fine("Loaded property: %s", clientProperty);
         properties.put(clientProperty.getKey(), clientProperty.getValue().toByteArray());
       }
-      Log.i(TAG, "Loaded state for " + key);
+      logger.fine("Loaded state for %s", key);
       return true;
     } catch (FileNotFoundException e) {
       // No state persisted on disk
       client = null;
-    } catch (IOException e) {
+    } catch (IOException exception) {
       // Log error regarding client state read and return null
-      Log.e(TAG, "Error reading client state", e);
+      logger.severe("Error reading client state", exception);
       client = null;
     } finally {
       if (inputStream != null) {
         try {
           inputStream.close();
-        } catch (IOException e) {
-          Log.e(TAG, "Unable to close state file", e);
+        } catch (IOException exception) {
+          logger.severe("Unable to close state file", exception);
         }
       }
     }
@@ -273,7 +274,7 @@ public class AndroidStorage implements Storage {
     File stateFile = getStateFile();
     if (stateFile.exists()) {
       stateFile.delete();
-      Log.i(TAG, "Deleted state for " + key + " from " + stateFile.getName());
+      logger.info("Deleted state for %s from %s", key, stateFile.getName());
     }
   }
 
@@ -296,18 +297,18 @@ public class AndroidStorage implements Storage {
     try {
       outputStream = getStateOutputStream();
       state.writeTo(outputStream);
-      Log.i(TAG, "State written for " + key);
-    } catch (FileNotFoundException e) {
+      logger.info("State written for %s", key);
+    } catch (FileNotFoundException exception) {
       // This should not happen when opening to create / replace
-      Log.e(TAG, "Unable to open state file", e);
-    } catch (IOException e) {
-      Log.e(TAG, "Error writing state", e);
+      logger.severe("Unable to open state file", exception);
+    } catch (IOException exception) {
+      logger.severe("Error writing state", exception);
     } finally {
       if (outputStream != null) {
         try {
           outputStream.close();
-        } catch (IOException e) {
-          Log.w(TAG, "Unable to close state file", e);
+        } catch (IOException exception) {
+          logger.warning("Unable to close state file", exception);
         }
       }
     }

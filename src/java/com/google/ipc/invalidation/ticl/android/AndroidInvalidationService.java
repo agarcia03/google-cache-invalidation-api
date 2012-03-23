@@ -16,9 +16,10 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
-import com.google.common.base.Preconditions;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
 import com.google.ipc.invalidation.external.client.android.service.AndroidClientException;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.InvalidationService;
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
@@ -31,13 +32,7 @@ import com.google.ipc.invalidation.ticl.android.c2dm.WakeLockManager;
 import android.accounts.Account;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
-import android.content.pm.ServiceInfo;
 import android.os.AsyncTask;
-import android.util.Log;
-
-import java.util.List;
 
 /**
  * The AndroidInvalidationService class provides an Android service implementation that bridges
@@ -51,22 +46,13 @@ import java.util.List;
  */
 public class AndroidInvalidationService extends AbstractInvalidationService {
 
-  private static final String TAG = "AndroidInvalidationService";
-
-  /**
-   * The name of the {@code meta-data} element on this service that contains the HTTP URL
-   * of the channel service.
-   */
-  public static final String CHANNEL_URL = "channel-url";
-
   /** The client manager tracking in-memory client instances */
    protected static AndroidClientManager clientManager;
 
-  /**
-   * The HTTP URL of the channel service.  This value is retrieved from the {@code channel-url}
-   * metadata attribute of the service.
-   */
-  private static String channelUrl;
+  private static final Logger logger = AndroidLogger.forTag("InvService");
+
+  /** The HTTP URL of the channel service. */
+  private static String channelUrl = AndroidHttpConstants.CHANNEL_URL;
 
   // The AndroidInvalidationService handles a set of internal intents that are used for
   // communication and coordination between the it and the C2DM handling service.   These
@@ -189,39 +175,17 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   public void onCreate() {
     super.onCreate();
 
-    // Retrieve the channel URL from service metadata if not already set
-    if (channelUrl == null) {
-      List<ResolveInfo> resolveInfos =
-          getPackageManager().queryIntentServices(Request.SERVICE_INTENT,
-              PackageManager.GET_META_DATA);
-      Preconditions.checkState(!resolveInfos.isEmpty(), "Cannot find service metadata");
-      ServiceInfo serviceInfo = resolveInfos.get(0).serviceInfo;
-      if (serviceInfo.metaData != null) {
-        channelUrl = serviceInfo.metaData.getString(CHANNEL_URL);
-        if (channelUrl == null) {
-          Log.e(TAG, "No meta-data element with the name " + CHANNEL_URL +
-          "found on the service declaration.  An element with this name must have a value that " +
-          "is the invalidation channel frontend url");
-          stopSelf();
-        }
-      } else {
-        Log.e(TAG, "No meta-data elements found on the service declaration. One with a name of " +
-            CHANNEL_URL + "must have a value that is the invalidation channel frontend url.");
-        stopSelf();
-      }
-    }
-
     // Retrieve the C2DM sender ID
     senderId = C2DMessaging.getSenderId(this);
     if (senderId == null) {
-      Log.e(TAG, "No C2DM sender ID is available");
+      logger.severe("No C2DM sender ID is available");
       stopSelf();
     }
 
     // Retrieve the current registration ID and normalize the empty string value (for none)
     // to null
     String registrationId = C2DMessaging.getRegistrationId(this);
-    Log.i(TAG, "Has Registration ID:" + (registrationId != null));
+    logger.fine("Registration ID:" + (registrationId != null));
 
     // Create the client manager
     if (clientManager == null) {
@@ -229,7 +193,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     }
 
     // Register for C2DM events related to the invalidation client
-    Log.i(TAG, "Registering for C2DM events");
+    logger.fine("Registering for C2DM events");
     C2DMessaging.register(this, AndroidC2DMReceiver.class, AndroidC2DMConstants.CLIENT_KEY_PARAM,
         null, false);
   }
@@ -238,7 +202,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   public int onStartCommand(Intent intent, int flags, int startId) {
 
     // Process C2DM related messages from the AndroidC2DMReceiver service
-    Log.d(TAG, "Received " + intent.getAction());
+    logger.fine("Received " + intent.getAction());
     if (MESSAGE_ACTION.equals(intent.getAction())) {
       handleC2dmMessage(intent);
     } else if (REGISTRATION_ACTION.equals(intent.getAction())) {
@@ -342,11 +306,11 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     try {
       proxy = clientManager.get(clientKey);
       if (!proxy.isStarted()) {
-        Log.w(TAG, "Dropping C2DM message for unstarted client:" + clientKey);
+        logger.warning("Dropping C2DM message for unstarted client: %s", clientKey);
         return;
       }
-    } catch (AndroidClientException e) {
-      Log.w(TAG, "Unable to find client: ", e);
+    } catch (AndroidClientException exception) {
+      logger.warning("Unable to find client: %s", exception);
       return;
     }
     byte [] message = intent.getByteArrayExtra(MESSAGE_DATA);
@@ -382,7 +346,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   private void handleError(Intent intent) {
-    Log.e(TAG, "Unable to perform C2DM registration:" + intent.getStringExtra(ERROR_MESSAGE));
+    logger.severe("Unable to perform C2DM registration: %s", intent.getStringExtra(ERROR_MESSAGE));
   }
 
   // TODO: Add interval timer to iterate over managed clients, drop the inactive

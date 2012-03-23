@@ -124,7 +124,15 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
    * from}, {@code to}).
    */
   public Bytes subsequence(int from, int to) {
-    return new Bytes(Arrays.copyOfRange(bytes, from, to));
+    // Identical semantics to Arrays.copyOfRange() but implemented manually
+    // so runs on Froyo (JDK 1.5).
+    int newLength = to - from;
+    if (newLength < 0) {
+      throw new IllegalArgumentException(from + " > " + to);
+    }
+    byte[] copy = new byte[newLength];
+    System.arraycopy(bytes, from, copy, 0, Math.min(bytes.length - from, newLength));
+    return new Bytes(copy);
   }
 
   @Override

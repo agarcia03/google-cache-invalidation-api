@@ -19,6 +19,8 @@ package com.google.ipc.invalidation.external.client.android;
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.InvalidationBinder;
 import com.google.ipc.invalidation.external.client.android.service.InvalidationService;
@@ -34,7 +36,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.RemoteException;
-import android.util.Log;
 
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,8 +51,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
 
-  /** Logging tag */
-  private static final String TAG = "AndroidInvalidationClient";
+  /** Logger */
+  private static final Logger logger = AndroidLogger.forTag("InvClient");
 
   /**
    * The application context associated with the client.
@@ -332,7 +333,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
       // is responsible for stopping itself when no work remains to be done.
       Intent serviceIntent = serviceBinder.getIntent(context);
       if (context.startService(serviceIntent) == null) {
-        Log.e(TAG, "Unable to start invalidation service:" + serviceIntent);
+        logger.severe("Unable to start invalidation service: %s", serviceIntent);
         throw new IllegalStateException("Unable to start invalidation service");
       }
     }

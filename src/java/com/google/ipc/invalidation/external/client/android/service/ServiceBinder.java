@@ -17,13 +17,13 @@
 package com.google.ipc.invalidation.external.client.android.service;
 
 import com.google.common.base.Preconditions;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
-import android.util.Log;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class ServiceBinder<BoundService> {
 
-  /** Logging tag */
-  private static final String TAG = "ServiceBinder";
+  /** Logger */
+  private static final Logger logger = AndroidLogger.forTag("InvServiceBinder");
 
   /** The maximum amount of time to wait (milliseconds) for a successful binding to the service */
   private static final int CONNECTION_TIMEOUT = 60 * 1000;
@@ -71,7 +71,7 @@ public abstract class ServiceBinder<BoundService> {
 
     @Override
     public void onServiceConnected(ComponentName serviceName, IBinder binder) {
-      Log.i(TAG, "onServiceConnected:" + serviceName);
+      logger.fine("onServiceConnected: %s", serviceName);
       Preconditions.checkNotNull(connectLatch, "No connection in progress");
       serviceInstance = asInterface(binder);
       connectLatch.countDown();
@@ -79,7 +79,7 @@ public abstract class ServiceBinder<BoundService> {
 
     @Override
     public void onServiceDisconnected(ComponentName serviceName) {
-      Log.i(TAG, "onServiceDisconnected:" + serviceClass);
+      logger.fine("onServiceDisconnected: %s", serviceClass);
       serviceInstance = null;
     }
   };
@@ -121,18 +121,18 @@ public abstract class ServiceBinder<BoundService> {
         connectLatch = new CountDownLatch(1);
         Intent bindIntent = getIntent(context);
         if (!context.bindService(bindIntent, serviceConnection, Context.BIND_AUTO_CREATE)) {
-          Log.e(TAG, "Unable to bind to service:" + bindIntent);
+          logger.severe("Unable to bind to service: %s", bindIntent);
           return null;
         }
         try {
           connectLatch.await(CONNECTION_TIMEOUT, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-          Log.w(TAG, "Connection interrupted", e);
+        } catch (InterruptedException exception) {
+          logger.warning("Connection interrupted", exception);
         }
         if (connectLatch.getCount() != 0) {
-          Log.e(TAG, "Failure waiting for service connection");
+          logger.severe("Failure waiting for service connection");
         } else {
-          Log.i(TAG, "Bound " + serviceClass + " to " + serviceInstance);
+          logger.fine("Bound %s to %s", serviceClass, serviceInstance);
           connectLatch = null;
         }
       }
@@ -146,7 +146,7 @@ public abstract class ServiceBinder<BoundService> {
   public void unbind(Context context) {
     synchronized (lock) {
       if (isBound()) {
-        Log.i(TAG, "Unbinding " + serviceClass + " from " + serviceInstance);
+        logger.fine("Unbinding %s from %s", serviceClass, serviceInstance);
         context.unbindService(serviceConnection);
         serviceInstance = null;
       }

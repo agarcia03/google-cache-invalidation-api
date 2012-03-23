@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.ipc.invalidation.ticl.android;
+package com.google.ipc.invalidation.external.client.android.service;
 
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
@@ -33,17 +33,34 @@ import java.util.logging.Level;
  */
 public class AndroidLogger implements Logger {
 
+  /** Creates a new AndroidLogger that uses the provided value as the Android logging tag */
+  public static AndroidLogger forTag(String tag) {
+    return new AndroidLogger(tag, null);
+  }
+
+  /** Creates a new AndroidLogger that will compute a tag value dynamically based upon the class
+   * that calls into the logger and will prepend the provided prefix (if any) on all
+   * logged messages.
+   */
+  public static AndroidLogger forPrefix(String prefix) {
+    return new AndroidLogger(null, prefix);
+  }
+
   /**
    * The maximum length of an Android logging tag. There's no formal constants but the constraint is
    * mentioned in the Log javadoc
    */
   private static final int MAX_TAG_LENGTH = 23;
 
+  /** Constant tag to use for logged messages (or {@code null} to use topmost class on stack */
+  private final String tag;
+
   /** Prefix added to Android logging messages */
   private final String logPrefix;
 
   /** Creates a logger that prefixes every logging stmt with {@code logPrefix}. */
-  public AndroidLogger(String logPrefix) {
+  private AndroidLogger(String tag, String logPrefix) {
+    this.tag = tag;
     this.logPrefix = logPrefix;
   }
 
@@ -99,7 +116,7 @@ public class AndroidLogger implements Logger {
   public void fine(String template, Object...args) {
     String tag = getTag();
     if (Log.isLoggable(tag, Log.DEBUG)) {
-      Log.v(tag, format(template, args));
+      Log.d(tag, format(template, args));
     }
   }
 
@@ -123,11 +140,19 @@ public class AndroidLogger implements Logger {
     }
   }
 
+  /** Formats the content of a logged messages for output, prepending the log prefix if any. */
   private String format(String template, Object...args) {
-    return "[" + logPrefix + "] " + Formatter.format(template, args);
+    return (logPrefix != null) ?
+        ("[" + logPrefix + "] " + Formatter.format(template, args)) :
+        Formatter.format(template, args);
   }
 
-  private static String getTag() {
+  /** Returns the Android logging tag that should be placed on logged messages */
+  private String getTag() {
+    if (tag != null) {
+      return tag;
+    }
+
     StackTraceElement[] stackTrace = new Throwable().getStackTrace();
     String className = null;
     for (int i = 0; i < stackTrace.length; i++) {

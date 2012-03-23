@@ -20,7 +20,9 @@ import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.ListenerBinder;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
@@ -34,7 +36,6 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 
 import android.accounts.Account;
 import android.net.http.AndroidHttpClient;
-import android.util.Log;
 
 import java.util.Collection;
 import java.util.Random;
@@ -47,13 +48,13 @@ import java.util.Random;
  */
 class AndroidClientProxy implements AndroidInvalidationClient {
 
+  private static final Logger logger = AndroidLogger.forTag("InvClientProxy");
+
   /**
    * A reverse proxy for delegating raised invalidation events back to the client (via the
    * associated service).
    */
   class AndroidListenerProxy implements InvalidationListener {
-
-    private static final String TAG = "AndroidListenerProxy";
 
     /** Binder that can be use to bind back to event listener service */
     
@@ -141,10 +142,10 @@ class AndroidClientProxy implements AndroidInvalidationClient {
       if (listenerService == null) {
         // If unable to bind to the client listener service, then log a warning
         // and exit. It's possible that the application has been uninstalled.
-        Log.w(TAG, "Cannot bind using " + binder + " to send event:" + event);
+        logger.warning("Cannot bind using %s to send event:", event);
         return;
       }
-      Log.i(TAG, "Sending " + event.getAction() + " event to " + clientKey);
+      logger.fine("Sending %s event to %s", event.getAction(), clientKey);
       service.sendEvent(listenerService, event);
     }
   }

@@ -22,6 +22,9 @@ package com.google.ipc.invalidation.ticl.android;
  */
 public class AndroidHttpConstants {
 
+  /** The URL of the invalidation channel service */
+  public static final String CHANNEL_URL = "https://clients4.google.com/";
+
   /** The MIME content type to use for requests that contain binary protobuf */
   public static final String PROTO_CONTENT_TYPE = "application/x-protobuffer";
 

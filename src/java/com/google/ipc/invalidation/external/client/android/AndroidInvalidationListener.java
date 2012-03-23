@@ -17,6 +17,8 @@
 package com.google.ipc.invalidation.external.client.android;
 
 import com.google.ipc.invalidation.external.client.InvalidationListener;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.Event.Action;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
@@ -30,7 +32,6 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
 
 /**
  * An abstract base class for implementing a {@link Service} component
@@ -64,8 +65,8 @@ import android.util.Log;
 public abstract class AndroidInvalidationListener extends Service
     implements InvalidationListener {
 
-  /** Logging tag */
-  private static final String TAG = "AndroidInvalidationListener";
+  /** Logger */
+  private static final Logger logger = AndroidLogger.forTag("InvListener");
 
   /**
    * Simple service stub that delegates back to methods on the service.
@@ -81,12 +82,12 @@ public abstract class AndroidInvalidationListener extends Service
   @Override
   public void onCreate() {
     super.onCreate();
-    Log.i(TAG, "onCreate:" + this.getClass());
+    logger.fine("onCreate: %s", this.getClass());
   }
 
   @Override
   public IBinder onBind(Intent arg0) {
-    Log.i(TAG, "Binding: " + arg0);
+    logger.fine("Binding: %s", arg0);
     return listenerBinder;
   }
 
@@ -104,7 +105,7 @@ public abstract class AndroidInvalidationListener extends Service
     // All events should contain an action and client id
     Action action = event.getAction();
     String clientKey = event.getClientKey();
-    Log.d(TAG, "Received " + action + " event for " + clientKey);
+    logger.fine("Received %s event for %s", action, clientKey);
 
     AndroidInvalidationClient client = null;
     try {
@@ -117,16 +118,15 @@ public abstract class AndroidInvalidationListener extends Service
 
       // Determine the event type based upon the request action, extract parameters
       // from extras, and invoke the listener event handler method.
+      logger.fine("%s event for %s", action, clientKey);
       switch(action) {
         case READY:
         {
-          Log.i(TAG, "READY event for " + clientKey);
           ready(client);
           break;
         }
         case INVALIDATE:
         {
-          Log.i(TAG, "INVALIDATE event for " + clientKey);
           Invalidation invalidation = event.getInvalidation();
           AckHandle ackHandle = event.getAckHandle();
           invalidate(client, invalidation, ackHandle);
@@ -134,7 +134,6 @@ public abstract class AndroidInvalidationListener extends Service
         }
         case INVALIDATE_UNKNOWN:
           {
-            Log.i(TAG, "INVALIDATE_UNKNOWN_VERSION event for " + clientKey);
             ObjectId objectId = event.getObjectId();
             AckHandle ackHandle = event.getAckHandle();
             invalidateUnknownVersion(client, objectId, ackHandle);
@@ -142,14 +141,12 @@ public abstract class AndroidInvalidationListener extends Service
           }
         case INVALIDATE_ALL:
           {
-            Log.i(TAG, "INVALIDATE_ALL event for " + clientKey);
             AckHandle ackHandle = event.getAckHandle();
             invalidateAll(client, ackHandle);
             break;
           }
         case INFORM_REGISTRATION_STATUS:
         {
-          Log.i(TAG, "INFORM_REGISTRATION_STATUS event for " + clientKey);
           ObjectId objectId = event.getObjectId();
           RegistrationState state = event.getRegistrationState();
           informRegistrationStatus(client, objectId, state);
@@ -157,7 +154,6 @@ public abstract class AndroidInvalidationListener extends Service
         }
         case INFORM_REGISTRATION_FAILURE:
         {
-          Log.i(TAG, "INFORM_REGISTRATION_FAILURE event for " + clientKey);
           ObjectId objectId = event.getObjectId();
           String errorMsg = event.getError();
           boolean isTransient = event.getIsTransient();
@@ -166,7 +162,6 @@ public abstract class AndroidInvalidationListener extends Service
         }
         case REISSUE_REGISTRATIONS:
         {
-          Log.i(TAG, "REISSUE_REGISTRATIONS event for " + clientKey);
           byte[] prefix = event.getPrefix();
           int prefixLength = event.getPrefixLength();
           reissueRegistrations(client, prefix, prefixLength);
@@ -174,19 +169,18 @@ public abstract class AndroidInvalidationListener extends Service
         }
         case INFORM_ERROR:
         {
-          Log.i(TAG, "INFORM_ERROR event for " + clientKey);
           ErrorInfo errorInfo = event.getErrorInfo();
           informError(client, errorInfo);
           break;
         }
         default:
-          Log.w(TAG, "Urecognized event: " + event);
+          logger.warning("Urecognized event: %s", event);
       }
       response.setStatus(Response.Status.SUCCESS);
     } catch (RuntimeException re) {
       // If an exception occurs during processing, log it, store the
       // result in the response sent back to the service, then rethrow.
-      Log.e(TAG, "Failure in handleEvent", re);
+      logger.severe("Failure in handleEvent", re);
       response.setException(re);
       throw re;
     } finally {

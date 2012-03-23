@@ -16,7 +16,9 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidClientException;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
 import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
@@ -24,7 +26,6 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 import android.accounts.Account;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,8 +38,8 @@ import java.util.Map;
  */
 class AndroidClientManager {
 
-  /** Logging tag */
-  private static final String TAG = "AndroidClientManager";
+  /** Logger */
+  private static final Logger logger = AndroidLogger.forTag("InvClientManager");
 
   /**
    * The client configuration used creating new invalidation client instances.   This is normally
@@ -108,7 +109,7 @@ class AndroidClientManager {
       store.create(clientType, account, authType, eventIntent);
       proxy = new AndroidClientProxy(service, registrationId, store, clientConfig);
       clientMap.put(clientKey, proxy);
-      Log.d(TAG, "Client " + clientKey + " created");
+      logger.fine("Client %s created", clientKey);
       return proxy;
     }
   }
@@ -163,7 +164,7 @@ class AndroidClientManager {
         // Attempt to load the client from the store
         AndroidStorage storage = createAndroidStorage(service, clientKey);
         if (storage.load()) {
-          Log.d(TAG, "Client " + clientKey + " loaded from disk");
+          logger.fine("Client %s loaded from disk", clientKey);
           client = new AndroidClientProxy(service, registrationId, storage, clientConfig);
           clientMap.put(clientKey, client);
         }
@@ -218,7 +219,7 @@ class AndroidClientManager {
 
   
   static ClientConfigP setConfigForTest(ClientConfigP newConfig) {
-    Log.i(TAG, "Setting client configuration: " + newConfig);
+    logger.info("Setting client configuration: %s", newConfig);
     ClientConfigP currentConfig = clientConfig;
     clientConfig = newConfig;
     return clientConfig;

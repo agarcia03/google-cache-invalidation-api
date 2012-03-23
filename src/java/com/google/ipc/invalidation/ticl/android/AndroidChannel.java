@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.ticl.TestableNetworkChannel;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -38,7 +39,6 @@ import android.net.http.AndroidHttpClient;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Base64;
-import android.util.Log;
 
 import org.apache.http.client.HttpClient;
 
@@ -60,7 +60,7 @@ import java.util.concurrent.Executors;
  */
 class AndroidChannel extends AndroidChannelBase implements TestableNetworkChannel {
 
-  private static final String TAG = "AndroidChannel";
+  private static final Logger logger = AndroidLogger.forTag("InvChannel");
 
   /**
    * The maximum number of outbound messages that will be buffered while waiting for async delivery
@@ -187,24 +187,24 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
                 if (result.containsKey(AccountManager.KEY_INTENT)) {
                   // TODO: Handle case where there are no authentication credentials
                   // associated with the client account
-                  Log.e(TAG, "Token acquisition requires user login");
+                  logger.severe("Token acquisition requires user login");
                   return;
                 }
                 setAuthToken(result.getString(AccountManager.KEY_AUTHTOKEN));
               } catch (OperationCanceledException exception) {
-                Log.w("Auth cancelled", exception);
+                logger.warning("Auth cancelled", exception);
                 // TODO: Send error to client
               } catch (AuthenticatorException exception) {
-                Log.i(TAG, "Auth error acquiring token", exception);
+                logger.warning("Auth error acquiring token", exception);
                 requestAuthToken();
               } catch (IOException exception) {
-                Log.i(TAG, "IO Exception acquiring token", exception);
+                logger.warning("IO Exception acquiring token", exception);
                 requestAuthToken();
               }
             }
       }, null);
     } else {
-      Log.d(TAG, "Token request already pending");
+      logger.fine("Token request already pending");
     }
   }
 
@@ -215,7 +215,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   synchronized void setRegistrationId(String updatedRegistrationId) {
     // Synchronized to avoid concurrent access to pendingMessages
     if (registrationId != updatedRegistrationId) {
-      Log.i(TAG, "Setting registration ID for " + proxy.getClientKey());
+      logger.fine("Setting registration ID for %s", proxy.getClientKey());
       registrationId = updatedRegistrationId;
       if (pendingMessages != null) {
         checkReady();
@@ -232,7 +232,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
    * @param authToken the authentication token
    */
   synchronized void setAuthToken(String authToken) {
-    Log.i(TAG, "Auth token received for " + proxy.getClientKey());
+    logger.fine("Auth token received fo %s", proxy.getClientKey());
     this.authToken = authToken;
     checkReady();
   }
@@ -253,12 +253,12 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
       if (pendingMessages == null) {
         pendingMessages = new ArrayList<byte[]>();
       }
-      Log.i(TAG, "Buffering outbound message: hasRegId: " + (registrationId != null) +
-          ", hasAuthToken: " + (authToken != null));
+      logger.fine("Buffering outbound message: hasRegId: %s, hasAuthToken: %s",
+          registrationId != null, authToken != null);
       if (pendingMessages.size() < MAX_BUFFERED_MESSAGES) {
         pendingMessages.add(outgoingMessage);
       } else {
-        Log.w(TAG, "Exceeded maximum number of buffered messages, dropping outbound message");
+        logger.warning("Exceeded maximum number of buffered messages, dropping outbound message");
       }
       return;
     }
@@ -271,7 +271,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
         if (resources.isStarted()) {
           deliverOutboundMessage(outgoingMessage);
         } else {
-          Log.i(TAG, "Dropping outbound messages because resources are stopped");
+          logger.warning("Dropping outbound messages because resources are stopped");
         }
       }
     });
@@ -285,7 +285,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   private synchronized void checkReady() {
     if ((registrationId != null) && (authToken != null)) {
 
-      Log.i(TAG, "Enabling network endpoint: " + getWebEncodedEndpointId());
+      logger.fine("Enabling network endpoint: %s", getWebEncodedEndpointId());
 
       // Notify the status receiver that we are now network enabled
       if (statusReceiver != null) {
@@ -307,7 +307,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
       AddressedAndroidMessage addrMessage = AddressedAndroidMessage.parseFrom(inboundMessage);
       tryDeliverMessage(addrMessage);
     } catch (InvalidProtocolBufferException exception) {
-      Log.e(TAG, "Failed decoding AddressedAndroidMessage as C2DM payload", exception);
+      logger.severe("Failed decoding AddressedAndroidMessage as C2DM payload", exception);
     }
   }
 
@@ -320,8 +320,8 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
     if (addrMessage.getClientKey().equals(proxy.getClientKey())) {
       callbackReceiver.accept(addrMessage.getMessage().toByteArray());
     } else {
-      Log.e(TAG, "Not delivering message due to key mismatch: " + addrMessage.getClientKey()
-          + " vs " + proxy.getClientKey());
+      logger.severe("Not delivering message due to key mismatch: %s vs %s",
+          addrMessage.getClientKey(), proxy.getClientKey());
     }
   }
 

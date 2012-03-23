@@ -17,15 +17,12 @@
 package com.google.ipc.invalidation.external.client.android.service;
 
 import android.os.IBinder;
-import android.util.Log;
 
 /**
  * A service binder implementation for connecting to the {@link InvalidationService}.
  *
  */
 public class InvalidationBinder extends ServiceBinder<InvalidationService> {
-
-  private static final String TAG = "InvalidationBinder";
 
   /**
    * Contains the name of the service implementation class that will be explicit bound to or
@@ -45,7 +42,6 @@ public class InvalidationBinder extends ServiceBinder<InvalidationService> {
 
       serviceClassName = null;
     }
-    Log.i(TAG, "Invalidation service class name:" + serviceClassName);
   }
 
   /**

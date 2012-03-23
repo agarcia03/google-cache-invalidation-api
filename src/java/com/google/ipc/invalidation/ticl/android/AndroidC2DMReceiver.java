@@ -16,12 +16,13 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.ticl.android.c2dm.BaseC2DMReceiver;
 
 import android.content.Context;
 import android.content.Intent;
 import android.util.Base64;
-import android.util.Log;
 
 /**
  * Service that handles system C2DM messages (with support from the {@link BaseC2DMReceiver} base
@@ -31,8 +32,11 @@ import android.util.Log;
  */
 public class AndroidC2DMReceiver extends BaseC2DMReceiver {
 
-  /** Logging tag */
-  private static final String TAG = "AndroidC2DMReceiver";
+  /** Logger */
+  private static final String TAG = "InvC2DMReceiver";
+
+  /** Logger */
+  private static final Logger logger = AndroidLogger.forTag(TAG);
 
   public AndroidC2DMReceiver() {
     super(TAG, true);
@@ -40,7 +44,7 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
 
   @Override
   public void onRegistered(Context context, String registrationId) {
-    Log.i(TAG, "Registration received");
+    logger.info("C2DM Registration received");
 
     // Upon receiving a new updated c2dm ID, notify the invalidation service
     Intent serviceIntent =
@@ -50,7 +54,7 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
 
   @Override
   public void onUnregistered(Context context) {
-    Log.w(TAG, "Registraiton revoked");
+    logger.info("C2DM Registraiton revoked");
 
     // If the c2dm registration ID is revoked, also notify the invalidation service
     Intent serviceIntent = AndroidInvalidationService.createRegistrationIntent(context, null);
@@ -71,7 +75,7 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
     Intent serviceIntent;
     String clientKey = intent.getStringExtra(AndroidC2DMConstants.CLIENT_KEY_PARAM);
     if (clientKey == null) {
-      Log.e(TAG, "Intent does not contain client key value");
+      logger.severe("C2DM Intent does not contain client key value: %s", intent);
       return;
     }
     String encodedData = intent.getStringExtra(AndroidC2DMConstants.CONTENT_PARAM);
@@ -79,8 +83,8 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
       try {
         byte [] rawData = Base64.decode(encodedData, Base64.URL_SAFE);
         serviceIntent = AndroidInvalidationService.createDataIntent(this, clientKey, rawData);
-      } catch (IllegalArgumentException iae) {
-        Log.e(TAG, "Unable to decode intent data", iae);
+      } catch (IllegalArgumentException exception) {
+        logger.severe("Unable to decode intent data", exception);
         return;
       }
     } else {

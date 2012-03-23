@@ -44,6 +44,12 @@ enum MajorVersion {
   // will represent earlier versions and higher numbers will represent
   // experimental versions that are not yet released.
   DEFAULT = 0;
+
+  // The minimum and maximum supported channel major versions.  Used to validate
+  // incoming requests, so update as new versions are added or old versions are
+  // no longer supported.
+  MIN_SUPPORTED = 0;
+  MAX_SUPPORTED = 1;
 }
 
 // An id that specifies how to route a message to a Ticl on an Android device
