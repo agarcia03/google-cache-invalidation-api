@@ -451,8 +451,9 @@ class ProtocolHandler {
     }
 
     if (!TypedUtil.<ByteString>equals(serverToken, clientToken)) {
-      // Bad token - reject whole message.
-      logger.warning("Incoming message has bad token: %s, %s",
+      // Bad token - reject whole message.  However, our channel can send us messages intended for
+      // other clients belonging to the same user, so don't log too loudly.
+      logger.info("Incoming message has bad token: %s, %s",
           CommonProtoStrings2.toLazyCompactString(serverToken),
           CommonProtoStrings2.toLazyCompactString(clientToken));
       statistics.recordError(ClientErrorType.TOKEN_MISMATCH);

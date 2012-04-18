@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.ticl.android.c2dm;
 
+import com.google.ipc.invalidation.ticl.android.AndroidC2DMConstants;
 
 import android.app.AlarmManager;
 import android.app.IntentService;
@@ -132,7 +133,7 @@ public class C2DMManager extends IntentService {
    * completed successfully.   No intents should be handled or other work done until the latch
    * reaches the initialized state.
    */
-  private CountDownLatch initLatch = new CountDownLatch(1);
+  private final CountDownLatch initLatch = new CountDownLatch(1);
 
   /**
    * The sender ID we have read from the meta-data in AndroidManifest.xml for this service.
@@ -526,27 +527,26 @@ public class C2DMManager extends IntentService {
 
   /**
    * Reads the meta-data to find the field specified in SENDER_ID_METADATA_FIELD. The value of that
-   * field is used when registering towards C2DM.
+   * field is used when registering towards C2DM. If no value is found,
+   * {@link AndroidC2DMConstants#SENDER_ID} is returned.
    */
   static String readSenderIdFromMetaData(Context context) {
-    String senderId = null;
+    String senderId = AndroidC2DMConstants.SENDER_ID;
     try {
       ServiceInfo serviceInfo = context.getPackageManager().getServiceInfo(
           new ComponentName(context, C2DMManager.class), PackageManager.GET_META_DATA);
       if (serviceInfo.metaData != null) {
-        senderId = serviceInfo.metaData.getString(SENDER_ID_METADATA_FIELD);
-        if (senderId == null) {
-          Log.e(TAG, "No meta-data element with the name " + SENDER_ID_METADATA_FIELD
-              + " found on the service declaration.  An element with this name "
-              + "must have a value that is the server side account in use for C2DM");
+        String manifestSenderId = serviceInfo.metaData.getString(SENDER_ID_METADATA_FIELD);
+        if (manifestSenderId != null) {
+          Log.d(TAG, "Using manifest-specified sender-id: " + manifestSenderId);
+          senderId = manifestSenderId;
+        } else {
+          Log.e(TAG, "No meta-data element with the name " + SENDER_ID_METADATA_FIELD +
+              " found on the service declaration");
         }
-      } else {
-        Log.e(TAG, "No meta-data elements found on the service declaration. One with a name of "
-            + SENDER_ID_METADATA_FIELD
-            + " must have a value that is the server side account in use for C2DM");
       }
     } catch (NameNotFoundException exception) {
-      Log.e(TAG, "Could not find C2DMManager service info");
+      Log.i(TAG, "Could not find C2DMManager service info in manifest");
     }
     return senderId;
   }

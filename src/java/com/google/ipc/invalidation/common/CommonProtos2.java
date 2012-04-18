@@ -340,14 +340,14 @@ public class CommonProtos2 {
 
   /**
    * Constructs a network endpoint id for an Android client with the given {@code registrationId},
-   * {@code clientKey}, and {@code senderId}.
+   * {@code clientKey}, and {@code packageName}.
    */
   public static NetworkEndpointId newAndroidEndpointId(String registrationId, String clientKey,
-      String senderId, Version channelVersion) {
+      String packageName, Version channelVersion) {
     AndroidChannel.EndpointId.Builder endpointBuilder = AndroidChannel.EndpointId.newBuilder()
         .setC2DmRegistrationId(registrationId)
         .setClientKey(clientKey)
-        .setSenderId(senderId);
+        .setPackageName(packageName);
 
     // The protocol version field was set in the INITIAL channel implementation but subsequent
     // versions only set the channel version.

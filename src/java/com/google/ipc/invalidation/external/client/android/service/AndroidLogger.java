@@ -22,6 +22,8 @@ import com.google.ipc.invalidation.util.Formatter;
 
 import android.util.Log;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 
 
@@ -47,6 +49,35 @@ public class AndroidLogger implements Logger {
   }
 
   /**
+   * If {@code false}, then Log.isLoggable() is called to filter log messages
+   */
+  private static boolean filteringDisabled = false;
+
+  /**
+   * Maps from a Java {@link Level} to the android {@link Log} priority value used to log
+   * messages at that level.
+   */
+  private static Map<Level, Integer> levelToPriority = new HashMap<Level, Integer>();
+
+  static {
+    // Define the mappings for Java log levels to the associated Android log priorities
+    levelToPriority.put(Level.INFO, Log.INFO);
+    levelToPriority.put(Level.WARNING, Log.WARN);
+    levelToPriority.put(Level.SEVERE, Log.ERROR);
+    levelToPriority.put(Level.FINE, Log.DEBUG);
+    levelToPriority.put(Level.FINER, Log.VERBOSE);
+    levelToPriority.put(Level.FINEST, Log.VERBOSE);
+    levelToPriority.put(Level.CONFIG, Log.INFO);
+  }
+
+  /**
+   * Disables log filtering so all logged messages will be captured.
+   */
+  public static void disableFilteringForTest() {
+    filteringDisabled = true;
+  }
+
+  /**
    * The maximum length of an Android logging tag. There's no formal constants but the constraint is
    * mentioned in the Log javadoc
    */
@@ -66,14 +97,14 @@ public class AndroidLogger implements Logger {
 
   @Override
   public boolean isLoggable(Level level) {
-    return Log.isLoggable(getTag(), javaLevelToAndroidLevel(level));
+    return isLoggable(getTag(), levelToPriority(level));
   }
 
   @Override
   public void log(Level level, String template, Object... args) {
-    int androidLevel = javaLevelToAndroidLevel(level);
+    int androidLevel = levelToPriority(level);
     String tag = getTag();
-    if (Log.isLoggable(tag, androidLevel)) {
+    if (isLoggable(tag, androidLevel)) {
       Log.println(androidLevel, tag, format(template, args));
     }
   }
@@ -81,7 +112,7 @@ public class AndroidLogger implements Logger {
   @Override
   public void severe(String template, Object...args) {
     String tag = getTag();
-    if (Log.isLoggable(tag, Log.ERROR)) {
+    if (isLoggable(tag, Log.ERROR)) {
       // If the first argument is an exception, use the form of Log that will dump a stack trace
       if ((args.length > 0) && (args[0] instanceof Throwable)) {
         Log.e(tag, format(template, args), (Throwable) args[0]);
@@ -94,7 +125,7 @@ public class AndroidLogger implements Logger {
   @Override
   public void warning(String template, Object...args) {
     String tag = getTag();
-    if (Log.isLoggable(tag, Log.WARN)){
+    if (isLoggable(tag, Log.WARN)){
       // If the first argument is an exception, use the form of Log that will dump a stack trace
       if ((args.length > 0) && (args[0] instanceof Throwable)) {
         Log.w(tag, format(template, args), (Throwable) args[0]);
@@ -107,7 +138,7 @@ public class AndroidLogger implements Logger {
   @Override
   public void info(String template, Object...args) {
     String tag = getTag();
-    if (Log.isLoggable(tag, Log.INFO)) {
+    if (isLoggable(tag, Log.INFO)) {
       Log.i(tag, format(template, args));
     }
   }
@@ -115,7 +146,7 @@ public class AndroidLogger implements Logger {
   @Override
   public void fine(String template, Object...args) {
     String tag = getTag();
-    if (Log.isLoggable(tag, Log.DEBUG)) {
+    if (isLoggable(tag, Log.DEBUG)) {
       Log.d(tag, format(template, args));
     }
   }
@@ -125,19 +156,13 @@ public class AndroidLogger implements Logger {
     // No-op.
   }
 
-  /** Given a Java logging level, returns the corresponding Android level. */
-  private static int javaLevelToAndroidLevel(Level level) {
-    if (level == Level.INFO) {
-      return android.util.Log.INFO;
-    } else if (level ==  Level.WARNING) {
-      return android.util.Log.WARN;
-    } else if (level == Level.SEVERE) {
-      return android.util.Log.ERROR;
-    } else if (level == Level.FINE) {
-      return android.util.Log.DEBUG;
-    } else {
-      throw new RuntimeException("Unsupported level: " + level);
+  /** Given a Java logging level, returns the corresponding Android log priority. */
+  private static int levelToPriority(Level level) {
+    Integer priority = levelToPriority.get(level);
+    if (priority != null) {
+      return priority;
     }
+    throw new IllegalArgumentException("Unsupported level: " + level);
   }
 
   /** Formats the content of a logged messages for output, prepending the log prefix if any. */
@@ -178,5 +203,12 @@ public class AndroidLogger implements Logger {
       unqualEnd = unqualBegin + MAX_TAG_LENGTH;
     }
     return className.substring(unqualBegin, unqualEnd);
+  }
+
+  /**
+   * Returns {@code true} is the provided tag/level will produce logged output.
+   */
+  private boolean isLoggable(String tag, int priority) {
+    return filteringDisabled || Log.isLoggable(tag, priority);
   }
 }

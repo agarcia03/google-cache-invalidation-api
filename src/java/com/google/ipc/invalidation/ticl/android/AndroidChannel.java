@@ -328,9 +328,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   /** Returns the web encoded version of the channel network endpoint ID for HTTP requests. */
   @Override
   protected String getWebEncodedEndpointId() {
-    NetworkEndpointId networkEndpointId =
-      CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey(),
-          proxy.getService().getSenderId(), CHANNEL_VERSION);
+    NetworkEndpointId networkEndpointId = getNetworkId();
     return Base64.encodeToString(networkEndpointId.toByteArray(),
         Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING);
   }
@@ -347,13 +345,17 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
 
   @Override
   public NetworkEndpointId getNetworkIdForTest() {
-    // TODO: implement.
-    throw new UnsupportedOperationException();
+    return getNetworkId();
   }
 
   @Override
   protected Logger getLogger() {
     return resources.getLogger();
+  }
+
+  private NetworkEndpointId getNetworkId() {
+    return CommonProtos2.newAndroidEndpointId(registrationId, proxy.getClientKey(),
+        proxy.getService().getPackageName(), CHANNEL_VERSION);
   }
 
   ExecutorService getExecutorServiceForTest() {

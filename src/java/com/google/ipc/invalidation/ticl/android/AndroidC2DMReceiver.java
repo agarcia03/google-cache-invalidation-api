@@ -44,7 +44,7 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
 
   @Override
   public void onRegistered(Context context, String registrationId) {
-    logger.info("C2DM Registration received");
+    logger.info("C2DM Registration received: %s", registrationId);
 
     // Upon receiving a new updated c2dm ID, notify the invalidation service
     Intent serviceIntent =

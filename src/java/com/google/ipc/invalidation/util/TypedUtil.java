@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.util;
 
 import com.google.common.base.Objects;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
@@ -50,6 +51,12 @@ public class TypedUtil {
   /** A statically type-safe version of {@link Set#contains}. */
   public static <ElementType> boolean contains(Set<ElementType> set, ElementType element) {
     return set.contains(element);
+  }
+
+  /** A statically type-safe version of {@link Set#contains}. */
+  public static <ElementType> boolean contains(
+      Collection<ElementType> collection, ElementType element) {
+    return collection.contains(element);
   }
 
   /** A statically type-safe version of {@link Set#remove}. */

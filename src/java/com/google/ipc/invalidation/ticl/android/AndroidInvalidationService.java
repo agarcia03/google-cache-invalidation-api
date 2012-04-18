@@ -175,13 +175,6 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   public void onCreate() {
     super.onCreate();
 
-    // Retrieve the C2DM sender ID
-    senderId = C2DMessaging.getSenderId(this);
-    if (senderId == null) {
-      logger.severe("No C2DM sender ID is available");
-      stopSelf();
-    }
-
     // Retrieve the current registration ID and normalize the empty string value (for none)
     // to null
     String registrationId = C2DMessaging.getRegistrationId(this);
@@ -293,11 +286,6 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   /** Returns the base URL used to send messages to the outbound network channel */
   String getChannelUrl() {
     return channelUrl;
-  }
-
-  /** Returns the C2DM sender ID used to communicate back to the inbound network channel */
-  String getSenderId() {
-    return senderId;
   }
 
   private void handleC2dmMessage(Intent intent) {

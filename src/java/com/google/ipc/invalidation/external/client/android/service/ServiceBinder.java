@@ -147,7 +147,11 @@ public abstract class ServiceBinder<BoundService> {
     synchronized (lock) {
       if (isBound()) {
         logger.fine("Unbinding %s from %s", serviceClass, serviceInstance);
-        context.unbindService(serviceConnection);
+        try {
+          context.unbindService(serviceConnection);
+        } catch (IllegalArgumentException exception) {
+          logger.fine("Exception unbinding from %s: %s", serviceClass, exception.getMessage());
+        }
         serviceInstance = null;
       }
     }
