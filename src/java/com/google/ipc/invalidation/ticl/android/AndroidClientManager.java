@@ -30,6 +30,7 @@ import android.content.Intent;
 import java.util.HashMap;
 import java.util.Map;
 
+
 /**
  * Manages active client instances for the Android invalidation service. The client manager contains
  * the code to create, persist, load, and lookup client instances, as well as handling the
@@ -87,11 +88,9 @@ class AndroidClientManager {
    * @param authType authentication type for the client.
    * @param eventIntent intent that can be used to bind to an event listener for the client.
    * @return an android invalidation client instance representing the client.
-   * @throws AndroidClientException if an existing client is found that does not match, or a new
-   *         client cannot be created.
    */
   AndroidClientProxy create(String clientKey, int clientType, Account account, String authType,
-      Intent eventIntent) throws AndroidClientException {
+      Intent eventIntent) {
     synchronized (lock) {
 
       // First check to see if an existing client is found
@@ -119,16 +118,11 @@ class AndroidClientManager {
    * matching client can be found, an exception is thrown.
    *
    * @param clientKey the client key for the client to retrieve.
-   * @return the matching client instance.
-   * @throws AndroidClientException if no matching client can be found.
+   * @return the matching client instance
    */
-  AndroidClientProxy get(String clientKey) throws AndroidClientException {
+  AndroidClientProxy get(String clientKey) {
     synchronized (lock) {
-      AndroidClientProxy client = lookup(clientKey);
-      if (client != null) {
-        return client;
-      }
-      throw new AndroidClientException(Status.INVALID_CLIENT, "No client for key:" + clientKey);
+      return lookup(clientKey);
     }
   }
 
@@ -223,5 +217,17 @@ class AndroidClientManager {
     ClientConfigP currentConfig = clientConfig;
     clientConfig = newConfig;
     return clientConfig;
+  }
+
+  /** Returns whether all loaded clients are stopped. */
+  public boolean areAllClientsStopped() {
+    synchronized (lock) {
+      for (AndroidClientProxy proxy : clientMap.values()) {
+        if (proxy.isStarted()) {
+          return false;
+        }
+      }
+      return true;
+    }
   }
 }

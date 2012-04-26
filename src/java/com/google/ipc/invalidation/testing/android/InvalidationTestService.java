@@ -26,6 +26,7 @@ import com.google.ipc.invalidation.external.client.android.service.Request.Param
 import com.google.ipc.invalidation.external.client.android.service.Response;
 import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
 import com.google.ipc.invalidation.ticl.android.AbstractInvalidationService;
+import com.google.ipc.invalidation.util.TypedUtil;
 
 import android.accounts.Account;
 import android.content.Intent;
@@ -89,8 +90,8 @@ public class InvalidationTestService extends AbstractInvalidationService {
   /** The stored events that are available for retrieval */
   private static List<Bundle> events = new ArrayList<Bundle>();
 
-  public InvalidationTestService() {
-  }
+  /** Lock over all state in all instances. */
+  private static final Object LOCK = new Object();
 
   /**
    * InvalidationTest stub to handle calls from clients.
@@ -99,213 +100,252 @@ public class InvalidationTestService extends AbstractInvalidationService {
 
     @Override
     public void setCapture(boolean captureActions, boolean captureEvents) {
-      InvalidationTestService.captureActions = captureActions;
-      InvalidationTestService.captureEvents = captureEvents;
+      synchronized (LOCK) {
+        InvalidationTestService.captureActions = captureActions;
+        InvalidationTestService.captureEvents = captureEvents;
+      }
     }
 
     @Override
     public Bundle[] getRequests() {
-      Log.d(TAG, "Reading actions from " + actions + ":" + actions.size());
-      Bundle[] value = new Bundle[actions.size()];
-      actions.toArray(value);
-      actions.clear();
-      return value;
+      synchronized (LOCK) {
+        Log.d(TAG, "Reading actions from " + actions + ":" + actions.size());
+        Bundle[] value = new Bundle[actions.size()];
+        actions.toArray(value);
+        actions.clear();
+        return value;
+      }
     }
 
     @Override
     public Bundle[] getEvents() {
-      Bundle[] value = new Bundle[events.size()];
-      events.toArray(value);
-      events.clear();
-      return value;
+      synchronized (LOCK) {
+        Bundle[] value = new Bundle[events.size()];
+        events.toArray(value);
+        events.clear();
+        return value;
+      }
     }
 
     @Override
     public void sendEvent(Bundle eventBundle) {
+      synchronized (LOCK) {
+        // Retrive info for that target client
+        String clientKey = eventBundle.getString(Parameter.CLIENT);
+        ClientState state = clientMap.get(clientKey);
+        Preconditions.checkNotNull(state, "No state for %s in %s", clientKey, clientMap.keySet());
 
-      // Retrive info for that target client
-      String clientKey = eventBundle.getString(Parameter.CLIENT);
-      ClientState state = clientMap.get(clientKey);
-      Preconditions.checkNotNull(state);
-
-      // Bind to the listener associated with the client and send the event
-      ListenerBinder binder = null;
-      InvalidationTestService theService = InvalidationTestService.this;
-      try {
-        binder = new ListenerBinder(state.eventIntent, InvalidationTestListener.class.getName());
-        ListenerService service = binder.bind(theService);
-        theService.sendEvent(service, new Event(eventBundle));
-      } finally {
-        // Ensure that listener binding is released
-        if (binder != null) {
-          binder.unbind(theService);
+        // Bind to the listener associated with the client and send the event
+        ListenerBinder binder = null;
+        InvalidationTestService theService = InvalidationTestService.this;
+        try {
+          binder = new ListenerBinder(state.eventIntent, InvalidationTestListener.class.getName());
+          ListenerService service = binder.bind(theService);
+          theService.sendEvent(service, new Event(eventBundle));
+        } finally {
+          // Ensure that listener binding is released
+          if (binder != null) {
+            binder.unbind(theService);
+          }
         }
       }
     }
 
     @Override
     public void reset() {
-      Log.i(TAG, "Resetting test service");
-      captureActions = false;
-      captureEvents = false;
-      clientMap.clear();
-      actions.clear();
-      events.clear();
+      synchronized (LOCK) {
+        Log.i(TAG, "Resetting test service");
+        captureActions = false;
+        captureEvents = false;
+        clientMap.clear();
+        actions.clear();
+        events.clear();
+      }
     }
   };
 
   @Override
   public void onCreate() {
-    Log.i(TAG, "onCreate");
-    super.onCreate();
+    synchronized (LOCK) {
+      Log.i(TAG, "onCreate");
+      super.onCreate();
+    }
   }
 
   @Override
   public void onDestroy() {
-    Log.i(TAG, "onDestroy");
-    super.onDestroy();
+    synchronized (LOCK) {
+      Log.i(TAG, "onDestroy");
+      super.onDestroy();
+    }
   }
 
   @Override
   public void onStart(Intent intent, int startId) {
-    Log.i(TAG, "onStart");
-    super.onStart(intent, startId);
+    synchronized (LOCK) {
+      Log.i(TAG, "onStart");
+      super.onStart(intent, startId);
+    }
   }
 
   @Override
   public IBinder onBind(Intent intent) {
-    Log.i(TAG, "onBind");
+    synchronized (LOCK) {
+      Log.i(TAG, "onBind");
 
-    // For InvalidationService binding, delegate to the superclass
-    if (Request.SERVICE_INTENT.getAction().equals(intent.getAction())) {
-      return super.onBind(intent);
+      // For InvalidationService binding, delegate to the superclass
+      if (Request.SERVICE_INTENT.getAction().equals(intent.getAction())) {
+        return super.onBind(intent);
+      }
+
+      // Otherwise, return the test interface binder
+      return testBinder;
     }
-
-    // Otherwise, return the test interface binder
-    return testBinder;
   }
 
   @Override
   public boolean onUnbind(Intent intent) {
-    Log.i(TAG, "onUnbind");
-    return super.onUnbind(intent);
+    synchronized (LOCK) {
+      Log.i(TAG, "onUnbind");
+      return super.onUnbind(intent);
+    }
   }
 
   @Override
   protected void handleRequest(Bundle input, Bundle output) {
-    if (captureActions) {
-      actions.add(input);
+    synchronized (LOCK) {
+      super.handleRequest(input, output);
+      if (captureActions) {
+        actions.add(input);
+      }
+      validateResponse(input, output);
     }
-    super.handleRequest(input, output);
-    validateResponse(output);
   }
 
   @Override
   protected void sendEvent(ListenerService listenerService, Event event) {
-    if (captureEvents) {
-      events.add(event.getBundle());
+    synchronized (LOCK) {
+      if (captureEvents) {
+        events.add(event.getBundle());
+      }
+      super.sendEvent(listenerService, event);
     }
-    super.sendEvent(listenerService, event);
   }
 
 
   @Override
   protected void create(Request request, Builder response) {
-    validateRequest(request, Action.CREATE, Parameter.ACTION, Parameter.CLIENT,
-        Parameter.CLIENT_TYPE, Parameter.ACCOUNT, Parameter.AUTH_TYPE, Parameter.INTENT);
-    Log.i(TAG, "Creating client " + request.getClientKey() + ":" + clientMap.keySet());
-    clientMap.put(
-        request.getClientKey(), new ClientState(request.getAccount(), request.getAuthType(),
-            request.getIntent()));
-    response.setStatus(Response.Status.SUCCESS);
+    synchronized (LOCK) {
+      validateRequest(request, Action.CREATE, Parameter.ACTION, Parameter.CLIENT,
+          Parameter.CLIENT_TYPE, Parameter.ACCOUNT, Parameter.AUTH_TYPE, Parameter.INTENT);
+      Log.i(TAG, "Creating client " + request.getClientKey() + ": " + clientMap.keySet());
+      clientMap.put(
+          request.getClientKey(), new ClientState(request.getAccount(), request.getAuthType(),
+              request.getIntent()));
+      response.setStatus(Response.Status.SUCCESS);
+    }
   }
 
   @Override
   protected void resume(Request request, Builder response) {
-    validateRequest(
-        request, Action.RESUME, Parameter.ACTION, Parameter.CLIENT);
-    ClientState state = clientMap.get(request.getClientKey());
-    if (state != null) {
-      Log.i(TAG, "Resuming client " + request.getClientKey() + ":" + clientMap.keySet());
-      response.setStatus(Response.Status.SUCCESS);
-      response.setAccount(state.account);
-      response.setAuthType(state.authType);
-    } else {
-      Log.w(TAG, "Cannot resume client " + request.getClientKey() + ":" + clientMap.keySet());
-      response.setStatus(Response.Status.INVALID_CLIENT);
+    synchronized (LOCK) {
+      validateRequest(
+          request, Action.RESUME, Parameter.ACTION, Parameter.CLIENT);
+      ClientState state = clientMap.get(request.getClientKey());
+      if (state != null) {
+        Log.i(TAG, "Resuming client " + request.getClientKey() + ":" + clientMap.keySet());
+        response.setStatus(Response.Status.SUCCESS);
+        response.setAccount(state.account);
+        response.setAuthType(state.authType);
+      } else {
+        Log.w(TAG, "Cannot resume client " + request.getClientKey() + ":" + clientMap.keySet());
+        response.setStatus(Response.Status.INVALID_CLIENT);
+      }
     }
   }
 
   @Override
   protected void register(Request request, Builder response) {
-    // Ensure that one (and only one) of the variant object id forms is used
-    String objectParam =
-      request.getBundle().containsKey(Parameter.OBJECT_ID) ?
-          Parameter.OBJECT_ID : Parameter.OBJECT_ID_LIST;
-    validateRequest(request, Action.REGISTER, Parameter.ACTION, Parameter.CLIENT, objectParam);
-    if (!validateClient(request)) {
-      response.setStatus(Response.Status.INVALID_CLIENT);
-      return;
+    synchronized (LOCK) {
+      // Ensure that one (and only one) of the variant object id forms is used
+      String objectParam =
+        request.getBundle().containsKey(Parameter.OBJECT_ID) ?
+            Parameter.OBJECT_ID : Parameter.OBJECT_ID_LIST;
+      validateRequest(request, Action.REGISTER, Parameter.ACTION, Parameter.CLIENT, objectParam);
+      if (!validateClient(request)) {
+        response.setStatus(Response.Status.INVALID_CLIENT);
+        return;
+      }
+      response.setStatus(Response.Status.SUCCESS);
     }
-    response.setStatus(Response.Status.SUCCESS);
   }
 
   @Override
   protected void unregister(Request request, Builder response) {
-    // Ensure that one (and only one) of the variant object id forms is used
-    String objectParam =
-      request.getBundle().containsKey(Parameter.OBJECT_ID) ?
-          Parameter.OBJECT_ID :
-          Parameter.OBJECT_ID_LIST;
-    validateRequest(request, Action.UNREGISTER, Parameter.ACTION,
-        Parameter.CLIENT, objectParam);
-    if (!validateClient(request)) {
-      response.setStatus(Response.Status.INVALID_CLIENT);
-      return;
+    synchronized (LOCK) {
+      // Ensure that one (and only one) of the variant object id forms is used
+      String objectParam =
+        request.getBundle().containsKey(Parameter.OBJECT_ID) ?
+            Parameter.OBJECT_ID :
+            Parameter.OBJECT_ID_LIST;
+      validateRequest(request, Action.UNREGISTER, Parameter.ACTION,
+          Parameter.CLIENT, objectParam);
+      if (!validateClient(request)) {
+        response.setStatus(Response.Status.INVALID_CLIENT);
+        return;
+      }
+      response.setStatus(Response.Status.SUCCESS);
     }
-    response.setStatus(Response.Status.SUCCESS);
   }
 
   @Override
   protected void start(Request request, Builder response) {
-    validateRequest(
-        request, Action.START, Parameter.ACTION, Parameter.CLIENT);
-    if (!validateClient(request)) {
-      response.setStatus(Response.Status.INVALID_CLIENT);
-      return;
+    synchronized (LOCK) {
+      validateRequest(
+          request, Action.START, Parameter.ACTION, Parameter.CLIENT);
+      if (!validateClient(request)) {
+        response.setStatus(Response.Status.INVALID_CLIENT);
+        return;
+      }
+      response.setStatus(Response.Status.SUCCESS);
     }
-    response.setStatus(Response.Status.SUCCESS);
   }
 
   @Override
   protected void stop(Request request, Builder response) {
-    validateRequest(request, Action.STOP, Parameter.ACTION, Parameter.CLIENT);
-    if (!validateClient(request)) {
-      response.setStatus(Response.Status.INVALID_CLIENT);
-      return;
+    synchronized (LOCK) {
+      validateRequest(request, Action.STOP, Parameter.ACTION, Parameter.CLIENT);
+      if (!validateClient(request)) {
+        response.setStatus(Response.Status.INVALID_CLIENT);
+        return;
+      }
+      response.setStatus(Response.Status.SUCCESS);
     }
-    response.setStatus(Response.Status.SUCCESS);
   }
 
   @Override
   protected void acknowledge(Request request, Builder response) {
-    validateRequest(request, Action.ACKNOWLEDGE, Parameter.ACTION, Parameter.CLIENT,
-        Parameter.ACK_TOKEN);
-    if (!validateClient(request)) {
-      response.setStatus(Response.Status.INVALID_CLIENT);
-      return;
+    synchronized (LOCK) {
+      validateRequest(request, Action.ACKNOWLEDGE, Parameter.ACTION, Parameter.CLIENT,
+          Parameter.ACK_TOKEN);
+      if (!validateClient(request)) {
+        response.setStatus(Response.Status.INVALID_CLIENT);
+        return;
+      }
+      response.setStatus(Response.Status.SUCCESS);
     }
-    response.setStatus(Response.Status.SUCCESS);
   }
 
   @Override
   protected void destroy(Request request, Builder response) {
-    validateRequest(request, Action.DESTROY, Parameter.ACTION, Parameter.CLIENT);
-    if (!validateClient(request)) {
-      response.setStatus(Response.Status.INVALID_CLIENT);
-      return;
+    synchronized (LOCK) {
+      validateRequest(request, Action.DESTROY, Parameter.ACTION, Parameter.CLIENT);
+      if (!validateClient(request)) {
+        response.setStatus(Response.Status.INVALID_CLIENT);
+        return;
+      }
+      response.setStatus(Response.Status.SUCCESS);
     }
-    response.setStatus(Response.Status.SUCCESS);
   }
 
   /**
@@ -346,10 +386,20 @@ public class InvalidationTestService extends AbstractInvalidationService {
    * Validates a response bundle being returned to a client contains valid
    * success response.
    */
-  protected void validateResponse(Bundle output) {
-    int status = output.getInt(Response.Parameter.STATUS, Response.Status.UNKNOWN);
-    Assert.assertEquals("Unexpected failure: " + output, Response.Status.SUCCESS, status);
-    String error = output.getString(Response.Parameter.ERROR);
-    Assert.assertNull(error);
+  protected void validateResponse(Bundle input, Bundle output) {
+    synchronized (LOCK) {
+      int status = output.getInt(Response.Parameter.STATUS, Response.Status.UNKNOWN);
+      Assert.assertEquals("Unexpected failure for input = " + input + "; output = " + output,
+          Response.Status.SUCCESS, status);
+      String error = output.getString(Response.Parameter.ERROR);
+      Assert.assertNull(error);
+    }
+  }
+
+  /** Returns whether a client with key {@code clientKey} is known to the service. */
+  public static boolean clientExists(String clientKey) {
+    synchronized (LOCK) {
+      return TypedUtil.containsKey(clientMap, clientKey);
+    }
   }
 }

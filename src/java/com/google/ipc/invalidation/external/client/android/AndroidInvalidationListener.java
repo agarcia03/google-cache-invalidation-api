@@ -79,16 +79,36 @@ public abstract class AndroidInvalidationListener extends Service
     }
   };
 
+  /** Lock over all state in this class. */
+  private final Object lock = new Object();
+
+  /** Whether the service is in the created state. */
+  private boolean isCreated = false;
+
   @Override
   public void onCreate() {
-    super.onCreate();
-    logger.fine("onCreate: %s", this.getClass());
+    synchronized (lock) {
+      super.onCreate();
+      logger.fine("onCreate: %s", this.getClass());
+      this.isCreated = true;
+    }
+  }
+
+  @Override
+  public void onDestroy() {
+    synchronized (lock) {
+      logger.fine("onDestroy: %s", this.getClass());
+      this.isCreated = false;
+      super.onDestroy();
+    }
   }
 
   @Override
   public IBinder onBind(Intent arg0) {
-    logger.fine("Binding: %s", arg0);
-    return listenerBinder;
+    synchronized (lock) {
+      logger.fine("Binding: %s", arg0);
+      return listenerBinder;
+    }
   }
 
   /**
@@ -99,95 +119,101 @@ public abstract class AndroidInvalidationListener extends Service
    * @param output bundled used to return response to the invalidation service.
    */
   protected void handleEvent(Bundle input, Bundle output) {
-
-    Event event = new Event(input);
-    Response.Builder response = Response.newBuilder(event.getActionOrdinal(), output);
-    // All events should contain an action and client id
-    Action action = event.getAction();
-    String clientKey = event.getClientKey();
-    logger.fine("Received %s event for %s", action, clientKey);
-
-    AndroidInvalidationClient client = null;
-    try {
-      if (clientKey == null) {
-        throw new IllegalStateException("Missing client id:" + event);
+    synchronized (lock) {
+      if (!isCreated) {
+        logger.warning("Dropping bundle since not created: %s", input);
+        return;
       }
+      Event event = new Event(input);
+      Response.Builder response = Response.newBuilder(event.getActionOrdinal(), output);
+      // All events should contain an action and client id
+      Action action = event.getAction();
+      String clientKey = event.getClientKey();
+      logger.fine("Received %s event for %s", action, clientKey);
 
-      // Obtain the client instance for the client receiving the event
-      client = AndroidClientFactory.resume(this, clientKey);
+      AndroidInvalidationClient client = null;
+      try {
+        if (clientKey == null) {
+          throw new IllegalStateException("Missing client id:" + event);
+        }
 
-      // Determine the event type based upon the request action, extract parameters
-      // from extras, and invoke the listener event handler method.
-      logger.fine("%s event for %s", action, clientKey);
-      switch(action) {
-        case READY:
-        {
-          ready(client);
-          break;
-        }
-        case INVALIDATE:
-        {
-          Invalidation invalidation = event.getInvalidation();
-          AckHandle ackHandle = event.getAckHandle();
-          invalidate(client, invalidation, ackHandle);
-          break;
-        }
-        case INVALIDATE_UNKNOWN:
+        // Obtain the client instance for the client receiving the event. Do not attempt to load it
+        // at the service: if a Ticl has been unloaded, the listener shouldn't resurrect it, because
+        // that can lead to a zombie client.
+        client = AndroidClientFactory.resume(this, clientKey, false);
+
+        // Determine the event type based upon the request action, extract parameters
+        // from extras, and invoke the listener event handler method.
+        logger.fine("%s event for %s", action, clientKey);
+        switch(action) {
+          case READY:
+          {
+            ready(client);
+            break;
+          }
+          case INVALIDATE:
+          {
+            Invalidation invalidation = event.getInvalidation();
+            AckHandle ackHandle = event.getAckHandle();
+            invalidate(client, invalidation, ackHandle);
+            break;
+          }
+          case INVALIDATE_UNKNOWN:
           {
             ObjectId objectId = event.getObjectId();
             AckHandle ackHandle = event.getAckHandle();
             invalidateUnknownVersion(client, objectId, ackHandle);
             break;
           }
-        case INVALIDATE_ALL:
+          case INVALIDATE_ALL:
           {
             AckHandle ackHandle = event.getAckHandle();
             invalidateAll(client, ackHandle);
             break;
           }
-        case INFORM_REGISTRATION_STATUS:
-        {
-          ObjectId objectId = event.getObjectId();
-          RegistrationState state = event.getRegistrationState();
-          informRegistrationStatus(client, objectId, state);
-          break;
+          case INFORM_REGISTRATION_STATUS:
+          {
+            ObjectId objectId = event.getObjectId();
+            RegistrationState state = event.getRegistrationState();
+            informRegistrationStatus(client, objectId, state);
+            break;
+          }
+          case INFORM_REGISTRATION_FAILURE:
+          {
+            ObjectId objectId = event.getObjectId();
+            String errorMsg = event.getError();
+            boolean isTransient = event.getIsTransient();
+            informRegistrationFailure(client, objectId, isTransient, errorMsg);
+            break;
+          }
+          case REISSUE_REGISTRATIONS:
+          {
+            byte[] prefix = event.getPrefix();
+            int prefixLength = event.getPrefixLength();
+            reissueRegistrations(client, prefix, prefixLength);
+            break;
+          }
+          case INFORM_ERROR:
+          {
+            ErrorInfo errorInfo = event.getErrorInfo();
+            informError(client, errorInfo);
+            break;
+          }
+          default:
+            logger.warning("Urecognized event: %s", event);
         }
-        case INFORM_REGISTRATION_FAILURE:
-        {
-          ObjectId objectId = event.getObjectId();
-          String errorMsg = event.getError();
-          boolean isTransient = event.getIsTransient();
-          informRegistrationFailure(client, objectId, isTransient, errorMsg);
-          break;
+        response.setStatus(Response.Status.SUCCESS);
+      } catch (RuntimeException re) {
+        // If an exception occurs during processing, log it, and store the
+        // result in the response sent back to the service.
+        logger.severe("Failure in handleEvent", re);
+        response.setError(re.getMessage());
+      } finally {
+        // Listeners will only use a client reference for the life of the event and release
+        // it immediately since there is no way to know if additional events are coming.
+        if (client != null) {
+          client.release();
         }
-        case REISSUE_REGISTRATIONS:
-        {
-          byte[] prefix = event.getPrefix();
-          int prefixLength = event.getPrefixLength();
-          reissueRegistrations(client, prefix, prefixLength);
-          break;
-        }
-        case INFORM_ERROR:
-        {
-          ErrorInfo errorInfo = event.getErrorInfo();
-          informError(client, errorInfo);
-          break;
-        }
-        default:
-          logger.warning("Urecognized event: %s", event);
-      }
-      response.setStatus(Response.Status.SUCCESS);
-    } catch (RuntimeException re) {
-      // If an exception occurs during processing, log it, store the
-      // result in the response sent back to the service, then rethrow.
-      logger.severe("Failure in handleEvent", re);
-      response.setException(re);
-      throw re;
-    } finally {
-      // Listeners will only use a client reference for the life of the event and release
-      // it immediately since there is no way to know if additional events are coming.
-      if (client != null) {
-        client.release();
       }
     }
   }

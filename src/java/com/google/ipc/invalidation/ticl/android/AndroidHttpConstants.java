@@ -39,4 +39,10 @@ public class AndroidHttpConstants {
    * validate the authentication token provided with the request.
    */
   public static final String SERVICE_PARAMETER = "service";
+
+  /**
+   * The name of the header that contains the echoed token. This token is included in all C2DM
+   * messages to the client and is echoed back under this header on all client HTTP requests.
+   */
+  public static final String ECHO_HEADER = "echo-token";
 }

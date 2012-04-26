@@ -17,7 +17,6 @@
 package com.google.ipc.invalidation.external.client.android;
 
 import com.google.common.base.Preconditions;
-import com.google.ipc.invalidation.external.client.InvalidationClient;
 
 import android.accounts.Account;
 import android.content.Context;
@@ -26,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Factory for obtaining an {@link InvalidationClient} for the Android platform. The {@link #create}
+ * Factory for obtaining an {@code InvalidationClient} for the Android platform. The {@link #create}
  * method will create a invalidation client associated with a particular application and user
  * account.
  * <p>
@@ -37,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  */
 public class AndroidClientFactory {
-
   /**
    * A mapping of application id to invalidation client instances that can be used to
    * resume/reassociate an existing invalidation client. Client instances are not guaranteed (nor
@@ -56,8 +54,7 @@ public class AndroidClientFactory {
    *
    * @param context the context for the client.
    * @param clientKey a unique id that identifies the created client within the scope of the
-   *        application. May be {@code null} if there is only a single invalidation client/listener
-   *        for the application.
+   *        application.
    * @param account user account that is registering the invalidations.
    * @param authType the authentication token type that should be used to authenticate the client.
    * @param listenerClass the {@link AndroidInvalidationListener} subclass that is registered to
@@ -88,13 +85,32 @@ public class AndroidClientFactory {
   /**
    * Creates a new AndroidInvalidationClient instance that is resuming processing for an existing
    * application id.
+   * <p>
+   * Use of this method is not recommended: use {@link #create} instead.
    *
    * @param context the context for the client.
    * @param clientKey a unique key that identifies the created client within the scope of the
-   *        device. May be {@code null} if there is only a single invalidation client/listener for
-   *        the application.
+   *        device.
    */
   public static AndroidInvalidationClient resume(Context context, String clientKey) {
+    return resume(context, clientKey, true);
+  }
+
+  /**
+   * Creates a new AndroidInvalidationClient instance that is resuming processing for an existing
+   * application id.
+   * <p>
+   * Use of this method is not recommended: use {@link #create} instead.
+   *
+   * @param context the context for the client.
+   * @param clientKey a unique key that identifies the created client within the scope of the
+   *        device.
+   * @param sendTiclResumeRequest whether to send a request to the service to resume the Ticl. If
+   *        {@code false}, assumes the Ticl is already loaded at the service. This is used in the
+   *         listener implementation and should not be set by clients.
+   */
+  public static AndroidInvalidationClient resume(Context context, String clientKey,
+      boolean sendTiclResumeRequest) {
     Preconditions.checkNotNull(context, "context");
 
     // See if a cached entry is available with a matching application id
@@ -105,7 +121,7 @@ public class AndroidClientFactory {
     } else {
       // Attempt to resume the client using the invalidation service
       client = new AndroidInvalidationClientImpl(context, clientKey);
-      client.initResumed();
+      client.initResumed(sendTiclResumeRequest);
     }
     return client;
   }

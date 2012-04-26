@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Base64;
 
+
 /**
  * Service that handles system C2DM messages (with support from the {@link BaseC2DMReceiver} base
  * class. It receives intents for C2DM registration, errors and message delivery. It does some basic
@@ -79,16 +80,18 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
       return;
     }
     String encodedData = intent.getStringExtra(AndroidC2DMConstants.CONTENT_PARAM);
+    String echoToken = intent.getStringExtra(AndroidC2DMConstants.ECHO_PARAM);
     if (encodedData != null) {
       try {
         byte [] rawData = Base64.decode(encodedData, Base64.URL_SAFE);
-        serviceIntent = AndroidInvalidationService.createDataIntent(this, clientKey, rawData);
+        serviceIntent = AndroidInvalidationService.createDataIntent(this, clientKey, echoToken,
+            rawData);
       } catch (IllegalArgumentException exception) {
         logger.severe("Unable to decode intent data", exception);
         return;
       }
     } else {
-      serviceIntent = AndroidInvalidationService.createMailboxIntent(this, clientKey);
+      serviceIntent = AndroidInvalidationService.createMailboxIntent(this, clientKey, echoToken);
     }
     context.startService(serviceIntent);
   }

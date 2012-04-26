@@ -43,6 +43,9 @@ public class AndroidC2DMConstants {
    * */
   public static final String CONTENT_PARAM = "content";
 
+  /** Name of the C2DM parameter containing an opaque token to be echoed on HTTP requests. */
+  public static final String ECHO_PARAM = "echo-token";
+
   /**
    * Returns the mailbox key to use for a client with C2DM registration id {@code c2dmRegId}
    * and client key {@code clientKey}.

@@ -24,6 +24,7 @@ import com.google.ipc.invalidation.external.client.android.service.ListenerServi
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Request.Action;
 import com.google.ipc.invalidation.external.client.android.service.Response;
+import com.google.ipc.invalidation.external.client.android.service.Response.Status;
 
 import android.app.Service;
 import android.content.Intent;
@@ -36,6 +37,9 @@ import android.os.RemoteException;
  * set of actions defined in {@link Action}. For each supported action, the service will extract the
  * action parameters and invoke an abstract methods that will be implemented by subclasses to
  * provide the action-specific processing.
+ * <p>
+ * This class acquires a lock before calling into the subclass and releases it after the call.
+ * It also ensures that no call into the subclass will be made after the service has been destroyed.
  * <p>
  * The class also provides {@code sendEvent} methods that can be used to generate events back to the
  * client.
@@ -56,6 +60,30 @@ public abstract class AbstractInvalidationService extends Service {
     }
   };
 
+  /** Lock over all state in this class. */
+  final Object lock = new Object();
+
+  /** Whether the service is in the created state. */
+  private boolean isCreated = false;
+
+  @Override
+  public void onCreate() {
+    synchronized (lock) {
+      super.onCreate();
+      logger.fine("onCreate: %s", this.getClass());
+      this.isCreated = true;
+    }
+  }
+
+  @Override
+  public void onDestroy() {
+    synchronized (lock) {
+      logger.fine("onDestroy: %s", this.getClass());
+      this.isCreated = false;
+      super.onDestroy();
+    }
+  }
+
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
     return START_NOT_STICKY;
@@ -66,43 +94,57 @@ public abstract class AbstractInvalidationService extends Service {
     return serviceBinder;
   }
 
+  /** Returns whether the service is started. */
+  boolean isCreatedForTest() {
+    synchronized (lock) {
+      return isCreated;
+    }
+  }
+
   protected void handleRequest(Bundle input, Bundle output) {
-    Request request = new Request(input);
-    Response.Builder response = Response.newBuilder(request.getActionOrdinal(), output);
-    Action action = request.getAction();
-    logger.fine("%s request from %s", action, request.getClientKey());
-    try {
-      switch(action) {
-        case CREATE:
-          create(request, response);
-          break;
-        case RESUME:
-          resume(request, response);
-          break;
-        case START:
-          start(request, response);
-          break;
-        case STOP:
-          stop(request, response);
-          break;
-        case REGISTER:
-          register(request, response);
-          break;
-        case UNREGISTER:
-          unregister(request, response);
-          break;
-        case ACKNOWLEDGE:
-          acknowledge(request, response);
-          break;
-        case DESTROY:
-          destroy(request, response);
-          break;
-        default:
-          throw new IllegalStateException("Unknown action:" + action);
+    synchronized (lock) {
+      if (!isCreated) {
+        logger.warning("Dropping bundle since not created: %s", input);
+        return;
       }
-    } catch (Exception e) {
-      logger.severe("Client request error", e);
-      response.setException(e);
+      Request request = new Request(input);
+      Response.Builder response = Response.newBuilder(request.getActionOrdinal(), output);
+      Action action = request.getAction();
+      logger.fine("%s request from %s", action, request.getClientKey());
+      try {
+        switch(action) {
+          case CREATE:
+            create(request, response);
+            break;
+          case RESUME:
+            resume(request, response);
+            break;
+          case START:
+            start(request, response);
+            break;
+          case STOP:
+            stop(request, response);
+            break;
+          case REGISTER:
+            register(request, response);
+            break;
+          case UNREGISTER:
+            unregister(request, response);
+            break;
+          case ACKNOWLEDGE:
+            acknowledge(request, response);
+            break;
+          case DESTROY:
+            destroy(request, response);
+            break;
+          default:
+            throw new IllegalStateException("Unknown action:" + action);
+        }
+      } catch (Exception e) {
+        logger.severe("Client request error", e);
+        response.setStatus(Status.RUNTIME_ERROR); // Subclass might already have set status.
+        response.setException(e);
+      }
     }
   }
 
@@ -134,7 +176,7 @@ public abstract class AbstractInvalidationService extends Service {
 
       // Wrap the response bundle and throw on any failure from the client
       Response response = new Response(responseBundle);
-      response.throwOnFailure();
+      response.warnOnFailure();
     } catch (RemoteException exception) {
       logger.severe("Unable to send event", exception);
       throw new RuntimeException("Unable to send event", exception);

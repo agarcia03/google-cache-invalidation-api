@@ -23,6 +23,7 @@ import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.ticl.TestableNetworkChannel;
+import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessage;
 import com.google.protos.ipc.invalidation.AndroidChannel.MajorVersion;
@@ -45,8 +46,10 @@ import org.apache.http.client.HttpClient;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 /**
@@ -75,6 +78,16 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   
   static final Version CHANNEL_VERSION =
       CommonProtos2.newVersion(MajorVersion.INITIAL.getNumber(), 0);
+
+  /** How to long to wait initially before retrying a failed auth token request. */
+  private static final int INITIAL_AUTH_TOKEN_RETRY_DELAY_MS = 1 * 1000;  // 1 second
+
+  /** Largest exponential backoff factor to use for auth token retries. */
+  private static final int MAX_AUTH_TOKEN_RETRY_FACTOR = 60 * 60 * 12; // 12 hours
+
+  /** Number of C2DM messages for unknown clients. */
+  
+  static final AtomicInteger numC2dmInvalidClients = new AtomicInteger();
 
   /** Invalidation client proxy using the channel. */
   private final AndroidClientProxy proxy;
@@ -135,10 +148,6 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
 
     // Store the current registration ID into the channel instance (may be null)
     registrationId = c2dmRegistrationId;
-
-    // Prefetch the auth sub token.  Since this might require an HTTP round trip, we do this
-    // at new client creation time.
-    requestAuthToken();
   }
 
   /** Returns the C2DM registration ID associated with the channel */
@@ -164,16 +173,62 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
     return authToken;
   }
 
+  /** A completion callback for an asynchronous operation. */
+  interface CompletionCallback {
+    void success();
+    void failure();
+  }
+
+  /** An asynchronous runnable that calls a completion callback. */
+  interface AsyncRunnable {
+    void run(CompletionCallback callback);
+  }
+
+  /**
+   * A utility function to run an async runnable with exponential backoff after failures.
+   * @param runnable the asynchronous runnable.
+   * @param scheduler used to schedule retries.
+   * @param backOffGenerator a backoff generator that returns how to long to wait between retries.
+   *     The client must pass a new instance or reset the backoff generator before calling this
+   *     method.
+   */
+  
+  static void retryUntilSuccessWithBackoff(final SystemResources.Scheduler scheduler,
+      final ExponentialBackoffDelayGenerator backOffGenerator, final AsyncRunnable runnable) {
+    logger.fine("Running %s", runnable);
+    runnable.run(new CompletionCallback() {
+        @Override
+        public void success() {
+          logger.fine("%s succeeded", runnable);
+        }
+
+        @Override
+        public void failure() {
+          int nextDelay = backOffGenerator.getNextDelay();
+          logger.fine("%s failed, retrying after %s ms", nextDelay);
+          scheduler.schedule(nextDelay, new Runnable() {
+            @Override
+            public void run() {
+              retryUntilSuccessWithBackoff(scheduler, backOffGenerator, runnable);
+            }
+          });
+        }
+    });
+  }
+
   /**
    * Initiates acquisition of an authentication token that can be used with channel HTTP requests.
    * Android token acquisition is asynchronous since it may require HTTP interactions with the
    * ClientLogin servers to obtain the token.
    */
   
-  synchronized void requestAuthToken() {
+  synchronized void requestAuthToken(final CompletionCallback callback) {
     // If there is currently no token and no pending request, initiate one.
-    if (authToken == null && !disableAccountManager) {
-
+    if (disableAccountManager) {
+      logger.fine("Not requesting auth token since account manager disabled");
+      return;
+    }
+    if (authToken == null) {
       // Ask the AccountManager for the token, with a pending future to store it on the channel
       // once available.
       final AndroidChannel theChannel = this;
@@ -188,7 +243,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
                   // TODO: Handle case where there are no authentication credentials
                   // associated with the client account
                   logger.severe("Token acquisition requires user login");
-                  return;
+                  callback.success(); // No further retries.
                 }
                 setAuthToken(result.getString(AccountManager.KEY_AUTHTOKEN));
               } catch (OperationCanceledException exception) {
@@ -196,15 +251,16 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
                 // TODO: Send error to client
               } catch (AuthenticatorException exception) {
                 logger.warning("Auth error acquiring token", exception);
-                requestAuthToken();
+                callback.failure();
               } catch (IOException exception) {
                 logger.warning("IO Exception acquiring token", exception);
-                requestAuthToken();
+                callback.failure();
               }
             }
       }, null);
     } else {
-      logger.fine("Token request already pending");
+      logger.fine("Auth token request already pending");
+      callback.success();
     }
   }
 
@@ -317,11 +373,14 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
    */
   @Override
   protected void tryDeliverMessage(AddressedAndroidMessage addrMessage) {
-    if (addrMessage.getClientKey().equals(proxy.getClientKey())) {
+    String clientKey = proxy.getClientKey();
+    if (addrMessage.getClientKey().equals(clientKey)) {
+      logger.fine("Deliver to %s message %s", clientKey, addrMessage);
       callbackReceiver.accept(addrMessage.getMessage().toByteArray());
     } else {
       logger.severe("Not delivering message due to key mismatch: %s vs %s",
-          addrMessage.getClientKey(), proxy.getClientKey());
+          addrMessage.getClientKey(), clientKey);
+      numC2dmInvalidClients.incrementAndGet();
     }
   }
 
@@ -341,6 +400,20 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   @Override
   public void setSystemResources(SystemResources resources) {
     this.resources = resources;
+
+    // Prefetch the auth sub token.  Since this might require an HTTP round trip, we do this
+    // as soon as the resources are available.
+    // TODO: Find a better place to fetch the auth token; this method
+    // doesn't sound like one that should be doing work.
+    retryUntilSuccessWithBackoff(resources.getInternalScheduler(),
+        new ExponentialBackoffDelayGenerator(
+            new Random(), INITIAL_AUTH_TOKEN_RETRY_DELAY_MS, MAX_AUTH_TOKEN_RETRY_FACTOR),
+        new AsyncRunnable() {
+          @Override
+          public void run(CompletionCallback callback) {
+            requestAuthToken(callback);
+          }
+        });
   }
 
   @Override

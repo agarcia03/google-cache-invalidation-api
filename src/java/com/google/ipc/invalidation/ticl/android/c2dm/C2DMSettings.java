@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * Stores and provides access to private settings used by the C2DM manager.
  */
-class C2DMSettings {
+public class C2DMSettings {
 
   private static final String TAG = "C2DMSettings";
 
@@ -41,6 +41,8 @@ class C2DMSettings {
 
   
   static final String REGISTRATION_ID = "registrationId";
+
+  private static final String APPLICATION_VERSION = "applicationVersion";
 
   private static final String BACKOFF = "c2dm_backoff";
 
@@ -78,6 +80,20 @@ class C2DMSettings {
    */
   static boolean hasC2DMRegistrationId(Context context) {
     return getC2DMRegistrationId(context) != null;
+  }
+
+  /**
+   * Sets the application version.
+   */
+  static void setApplicationVersion(Context context, String applicationVersion) {
+    storeField(context, APPLICATION_VERSION, applicationVersion);
+  }
+
+  /**
+   * Retrieves the application version (or {@code null} if not stored).
+   */
+  static String getApplicationVersion(Context context) {
+    return retrieveField(context, APPLICATION_VERSION, null);
   }
 
   /**
@@ -223,5 +239,15 @@ class C2DMSettings {
 
   private static SharedPreferences getPreferences(Context context) {
     return context.getSharedPreferences(PREFERENCE_PACKAGE, Context.MODE_PRIVATE);
+  }
+
+  /** Sets the C2DM registration id to {@code registrationId}. */
+  public static void setC2DMRegistrationIdForTest(Context context, String registrationId) {
+    setC2DMRegistrationId(context, registrationId);
+  }
+
+  /** Sets the C2DM application version to {@code version}. */
+  public static void setApplicationVersionForTest(Context context, String version) {
+    setApplicationVersion(context, version);
   }
 }

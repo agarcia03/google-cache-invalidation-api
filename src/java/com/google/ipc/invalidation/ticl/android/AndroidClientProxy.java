@@ -203,12 +203,10 @@ class AndroidClientProxy implements AndroidInvalidationClient {
         metadata.getListenerPkg(), listener, config);
   }
 
-  @Override
   public final Account getAccount() {
     return new Account(metadata.getAccountName(), metadata.getAccountType());
   }
 
-  @Override
   public final String getAuthType() {
     return metadata.getAuthType();
   }

@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.common;
 
+import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.AndroidChannel;
 import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
@@ -344,6 +345,11 @@ public class CommonProtos2 {
    */
   public static NetworkEndpointId newAndroidEndpointId(String registrationId, String clientKey,
       String packageName, Version channelVersion) {
+    Preconditions.checkNotNull(registrationId, "Null registration id");
+    Preconditions.checkNotNull(clientKey, "Null client key");
+    Preconditions.checkNotNull(packageName, "Null package name");
+    Preconditions.checkNotNull(channelVersion, "Null channel version");
+
     AndroidChannel.EndpointId.Builder endpointBuilder = AndroidChannel.EndpointId.newBuilder()
         .setC2DmRegistrationId(registrationId)
         .setClientKey(clientKey)

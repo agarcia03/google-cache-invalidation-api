@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.external.client.android.service;
 
+import com.google.ipc.invalidation.external.client.android.service.Request.Action;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 
@@ -173,5 +174,12 @@ public abstract class Message {
   public ObjectId getObjectId() {
     ParcelableObjectId parcelableObjectId = parameters.getParcelable(Parameter.OBJECT_ID);
     return parcelableObjectId != null ? parcelableObjectId.objectId : null;
+  }
+
+  @Override
+  public String toString() {
+    String actionStr = (getActionOrdinal() < Action.values().length) ?
+        Action.values()[getActionOrdinal()].toString() : "invalid";
+    return "Message ACTION = " + actionStr + " CLIENT = " + getClientKey();
   }
 }

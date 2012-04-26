@@ -17,6 +17,9 @@
 package com.google.ipc.invalidation.ticl.android.c2dm;
 
 
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
+
 import android.app.IntentService;
 import android.content.Context;
 import android.content.Intent;
@@ -27,6 +30,7 @@ import android.content.Intent;
  * registration or message handling.
  */
 public abstract class BaseC2DMReceiver extends IntentService {
+  private static final Logger logger = AndroidLogger.forTag("BaseC2DMReceiver");
 
   /**
    * If {@code true} indicates that the wakelock associated with messages should be automatically
@@ -52,6 +56,7 @@ public abstract class BaseC2DMReceiver extends IntentService {
 
   @Override
   protected void onHandleIntent(Intent intent) {
+    logger.fine("Handle intent: %s", intent);
     try {
       // Examine the action and raise the appropriate onYYY event
       if (intent.getAction().equals(C2DMessaging.ACTION_MESSAGE)) {

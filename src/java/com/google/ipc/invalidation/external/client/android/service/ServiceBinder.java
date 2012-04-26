@@ -27,6 +27,7 @@ import android.os.IBinder;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Abstract base class that assists in making connections to a bound service. Subclasses can define
@@ -60,8 +61,15 @@ public abstract class ServiceBinder<BoundService> {
   /** Used to synchronize */
   private final Object lock = new Object();
 
-  /** Bound service instance held by the binder or {@code null} if not bound */
-  BoundService serviceInstance;
+  /**
+   * Bound service instance held by the binder or {@code null} if not bound. We use an
+   * AtomicReference so that we can safely set it in {@code onServiceConnected} without holding
+   * {@link #lock}.
+   */
+  private final AtomicReference<BoundService> serviceInstance = new AtomicReference<BoundService>();
+
+  /** Whether bindService has been called. */
+  private boolean hasCalledBind = false;
 
   /**
    * Service connection implementation that handles connection/disconnection
@@ -73,14 +81,16 @@ public abstract class ServiceBinder<BoundService> {
     public void onServiceConnected(ComponentName serviceName, IBinder binder) {
       logger.fine("onServiceConnected: %s", serviceName);
       Preconditions.checkNotNull(connectLatch, "No connection in progress");
-      serviceInstance = asInterface(binder);
+      serviceInstance.set(asInterface(binder));
       connectLatch.countDown();
     }
 
     @Override
     public void onServiceDisconnected(ComponentName serviceName) {
+      // TODO: We don't have a test that would catch serviceInstance = null by
+      // mistake.
       logger.fine("onServiceDisconnected: %s", serviceClass);
-      serviceInstance = null;
+      serviceInstance.set(null);
     }
   };
 
@@ -117,7 +127,7 @@ public abstract class ServiceBinder<BoundService> {
    */
   public BoundService bind(Context context) {
     synchronized (lock) {
-      if (!isBound()) {
+      if (!hasCalledBind) {
         connectLatch = new CountDownLatch(1);
         Intent bindIntent = getIntent(context);
         if (!context.bindService(bindIntent, serviceConnection, Context.BIND_AUTO_CREATE)) {
@@ -132,11 +142,12 @@ public abstract class ServiceBinder<BoundService> {
         if (connectLatch.getCount() != 0) {
           logger.severe("Failure waiting for service connection");
         } else {
-          logger.fine("Bound %s to %s", serviceClass, serviceInstance);
+          logger.fine("Bound %s to %s", serviceClass, serviceInstance.get());
           connectLatch = null;
         }
+        hasCalledBind = true;
       }
-      return serviceInstance;
+      return serviceInstance.get();
     }
   }
 
@@ -145,14 +156,15 @@ public abstract class ServiceBinder<BoundService> {
    */
   public void unbind(Context context) {
     synchronized (lock) {
-      if (isBound()) {
-        logger.fine("Unbinding %s from %s", serviceClass, serviceInstance);
+      if (hasCalledBind) {
+        logger.fine("Unbinding %s from %s", serviceClass, serviceInstance.get());
         try {
           context.unbindService(serviceConnection);
         } catch (IllegalArgumentException exception) {
           logger.fine("Exception unbinding from %s: %s", serviceClass, exception.getMessage());
         }
-        serviceInstance = null;
+        serviceInstance.set(null);
+        hasCalledBind = false;
       }
     }
   }
@@ -163,7 +175,7 @@ public abstract class ServiceBinder<BoundService> {
    */
   public boolean isBound() {
     synchronized (lock) {
-      return serviceInstance != null;
+      return hasCalledBind;
     }
   }
 

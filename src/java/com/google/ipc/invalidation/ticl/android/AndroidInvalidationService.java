@@ -18,9 +18,7 @@ package com.google.ipc.invalidation.ticl.android;
 
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
-import com.google.ipc.invalidation.external.client.android.service.AndroidClientException;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
-import com.google.ipc.invalidation.external.client.android.service.InvalidationService;
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
@@ -34,20 +32,38 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+
 /**
  * The AndroidInvalidationService class provides an Android service implementation that bridges
- * between the {@link InvalidationService} interface and invalidation client service instances
+ * between the {@code InvalidationService} interface and invalidation client service instances
  * executing within the scope of that service. The invalidation service will have an associated
  * {@link AndroidClientManager} that is managing the set of active (in memory) clients associated
  * with the service.  It processes requests from invalidation applications (as invocations on
- * the {@link InvalidationService} bound service interface along with C2DM registration and
+ * the {@code InvalidationService} bound service interface along with C2DM registration and
  * activity (from {@link AndroidC2DMReceiver}.
  *
  */
 public class AndroidInvalidationService extends AbstractInvalidationService {
+  /** The last created instance, for testing. */
+  
+  static AtomicReference<AndroidInvalidationService> lastInstanceForTest =
+      new AtomicReference<AndroidInvalidationService>();
+
+  /** For tests only, the number of C2DM errors received. */
+  static final AtomicInteger numC2dmErrorsForTest = new AtomicInteger(0);
+
+  /** For tests only, the number of C2DM registration messages received. */
+  static final AtomicInteger numC2dmRegistrationForTest = new AtomicInteger(0);
+
+  /** For tests only, the number of C2DM messages received. */
+  static final AtomicInteger numC2dmMessagesForTest = new AtomicInteger(0);
 
   /** The client manager tracking in-memory client instances */
-   protected static AndroidClientManager clientManager;
+  
+  protected static AndroidClientManager clientManager;
 
   private static final Logger logger = AndroidLogger.forTag("InvService");
 
@@ -88,6 +104,9 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
    */
   static final String MESSAGE_DATA = "data";
 
+  /** The name of the string extra that contains the echo token in the C2DM message. */
+  static final String MESSAGE_ECHO = "echo-token";
+
   /**
    * This intent is sent when C2DM registration has failed irrevocably.
    */
@@ -119,21 +138,28 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   /**
    * Creates a new message intent to contains event data to deliver directly to a client.
    */
-  static Intent createDataIntent(Context context, String clientKey, byte [] data) {
+  static Intent createDataIntent(Context context, String clientKey, String token,
+      byte [] data) {
     Intent intent = new Intent(MESSAGE_ACTION);
     intent.setClass(context, AndroidInvalidationService.class);
     intent.putExtra(MESSAGE_CLIENT_KEY, clientKey);
     intent.putExtra(MESSAGE_DATA, data);
+    if (token != null) {
+      intent.putExtra(MESSAGE_ECHO, token);
+    }
     return intent;
   }
 
   /**
    * Creates a new message intent that references event data to retrieve from a mailbox.
    */
-  static Intent createMailboxIntent(Context context, String clientKey) {
+  static Intent createMailboxIntent(Context context, String clientKey, String token) {
     Intent intent = new Intent(MESSAGE_ACTION);
     intent.setClass(context, AndroidInvalidationService.class);
     intent.putExtra(MESSAGE_CLIENT_KEY, clientKey);
+    if (token != null) {
+      intent.putExtra(MESSAGE_ECHO, token);
+    }
     return intent;
   }
 
@@ -157,11 +183,6 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   /**
-   * The C2DM sender ID used to send messages to the service.
-   */
-  private String senderId;
-
-  /**
    * Resets the state of the service to destroy any existing clients
    */
   
@@ -171,46 +192,86 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     }
   }
 
+  public AndroidInvalidationService() {
+    lastInstanceForTest.set(this);
+  }
+
   @Override
   public void onCreate() {
-    super.onCreate();
+    synchronized (lock) {
+      super.onCreate();
 
-    // Retrieve the current registration ID and normalize the empty string value (for none)
-    // to null
-    String registrationId = C2DMessaging.getRegistrationId(this);
-    logger.fine("Registration ID:" + (registrationId != null));
+      // Retrieve the current registration ID and normalize the empty string value (for none)
+      // to null
+      String registrationId = C2DMessaging.getRegistrationId(this);
+      logger.fine("Registration ID:" + (registrationId != null));
 
-    // Create the client manager
-    if (clientManager == null) {
-      clientManager = new AndroidClientManager(this);
+      // Create the client manager
+      if (clientManager == null) {
+        clientManager = new AndroidClientManager(this);
+      }
+
+      // Register for C2DM events related to the invalidation client
+      logger.fine("Registering for C2DM events");
+      C2DMessaging.register(this, AndroidC2DMReceiver.class, AndroidC2DMConstants.CLIENT_KEY_PARAM,
+          null, false);
     }
-
-    // Register for C2DM events related to the invalidation client
-    logger.fine("Registering for C2DM events");
-    C2DMessaging.register(this, AndroidC2DMReceiver.class, AndroidC2DMConstants.CLIENT_KEY_PARAM,
-        null, false);
   }
 
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
+    // Process C2DM related messages from the AndroidC2DMReceiver service. We do not check isCreated
+    // here because this is part of the stop/start lifecycle, not bind/unbind.
+    synchronized (lock) {
+      logger.fine("Received action = %s", intent.getAction());
+      if (MESSAGE_ACTION.equals(intent.getAction())) {
+        handleC2dmMessage(intent);
+      } else if (REGISTRATION_ACTION.equals(intent.getAction())) {
+        handleRegistration(intent);
+      } else if (ERROR_ACTION.equals(intent.getAction())) {
+        handleError(intent);
+      }
+      final int retval = super.onStartCommand(intent, flags, startId);
 
-    // Process C2DM related messages from the AndroidC2DMReceiver service
-    logger.fine("Received " + intent.getAction());
-    if (MESSAGE_ACTION.equals(intent.getAction())) {
-      handleC2dmMessage(intent);
-    } else if (REGISTRATION_ACTION.equals(intent.getAction())) {
-      handleRegistration(intent);
-    } else if (ERROR_ACTION.equals(intent.getAction())) {
-      handleError(intent);
+      // Unless we are explicitly being asked to start, stop ourselves. Request.SERVICE_INTENT
+      // is the intent used by InvalidationBinder to bind the service, and
+      // AndroidInvalidationClientImpl uses the intent returned by InvalidationBinder.getIntent
+      // as the argument to its startService call.
+      if (!Request.SERVICE_INTENT.getAction().equals(intent.getAction())) {
+        stopServiceIfNoClientsRemain(intent.getAction());
+      }
+      return retval;
     }
-    return super.onStartCommand(intent, flags, startId);
   }
 
   @Override
   public void onDestroy() {
-    super.onDestroy();
-    reset();
+    synchronized (lock) {
+      reset();
+      super.onDestroy();
+    }
   }
+
+  @Override
+  public boolean onUnbind(Intent intent) {
+    synchronized (lock) {
+      logger.fine("onUnbind");
+      super.onUnbind(intent);
+
+      if ((clientManager != null) && (clientManager.getClientCount() > 0)) {
+        // This isn't wrong, per se, but it's potentially unusual.
+        logger.info(" clients still active in onUnbind");
+      }
+      stopServiceIfNoClientsRemain("onUnbind");
+
+      // We don't care about the onRebind event, which is what the documentation says a "true"
+      // return here will get us, but if we return false then we don't get a second onUnbind() event
+      // in a bind/unbind/bind/unbind cycle, which we require.
+      return true;
+    }
+  }
+
+  // The following protected methods are called holding "lock" by AbstractInvalidationService.
 
   @Override
   protected void create(Request request, Builder response) {
@@ -226,44 +287,49 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   @Override
   protected void resume(Request request, Builder response) {
     String clientKey = request.getClientKey();
-    AndroidInvalidationClient client = clientManager.get(clientKey);
-    response.setStatus(Status.SUCCESS);
-    response.setAccount(client.getAccount());
-    response.setAuthType(client.getAuthType());
+    AndroidClientProxy client = clientManager.get(clientKey);
+    if (setResponseStatus(client, request, response)) {
+      response.setAccount(client.getAccount());
+      response.setAuthType(client.getAuthType());
+    }
   }
 
   @Override
   protected void start(Request request, Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
-    client.start();
-    response.setStatus(Status.SUCCESS);
+    if (setResponseStatus(client, request, response)) {
+      client.start();
+    }
   }
 
   @Override
   protected void stop(Request request, Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
-    client.stop();
-    response.setStatus(Status.SUCCESS);
+    if (setResponseStatus(client, request, response)) {
+      client.stop();
+    }
   }
 
   @Override
   protected void register(Request request, Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
-    ObjectId objectId = request.getObjectId();
-    client.register(objectId);
-    response.setStatus(Status.SUCCESS);
+    if (setResponseStatus(client, request, response)) {
+      ObjectId objectId = request.getObjectId();
+      client.register(objectId);
+    }
   }
 
   @Override
   protected void unregister(Request request, Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
-    ObjectId objectId = request.getObjectId();
-    client.unregister(objectId);
-    response.setStatus(Status.SUCCESS);
+    if (setResponseStatus(client, request, response)) {
+      ObjectId objectId = request.getObjectId();
+      client.unregister(objectId);
+    }
   }
 
   @Override
@@ -271,40 +337,63 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     String clientKey = request.getClientKey();
     AckHandle ackHandle = request.getAckHandle();
     AndroidInvalidationClient client = clientManager.get(clientKey);
-    client.acknowledge(ackHandle);
-    response.setStatus(Status.SUCCESS);
+    if (setResponseStatus(client, request, response)) {
+      client.acknowledge(ackHandle);
+    }
   }
 
   @Override
   protected void destroy(Request request, Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
-    client.destroy();
-    response.setStatus(Status.SUCCESS);
+    if (setResponseStatus(client, request, response)) {
+      client.destroy();
+    }
+  }
+
+  /**
+   * If {@code client} is {@code null}, sets the {@code response} status to an error. Otherwise,
+   * sets the status to {@code success}.
+   * @return whether {@code client} was non-{@code null}.   *
+   */
+  private boolean setResponseStatus(AndroidInvalidationClient client, Request request,
+      Builder response) {
+    if (client == null) {
+      response.setError("Client does not exist: " + request);
+      return false;
+    } else {
+      response.setStatus(Status.SUCCESS);
+      return true;
+    }
   }
 
   /** Returns the base URL used to send messages to the outbound network channel */
   String getChannelUrl() {
-    return channelUrl;
+    synchronized (lock) {
+      return channelUrl;
+    }
   }
 
   private void handleC2dmMessage(Intent intent) {
+    numC2dmMessagesForTest.incrementAndGet();
     String clientKey = intent.getStringExtra(MESSAGE_CLIENT_KEY);
-    AndroidClientProxy proxy;
-    try {
-      proxy = clientManager.get(clientKey);
-      if (!proxy.isStarted()) {
-        logger.warning("Dropping C2DM message for unstarted client: %s", clientKey);
-        return;
-      }
-    } catch (AndroidClientException exception) {
-      logger.warning("Unable to find client: %s", exception);
+    AndroidClientProxy proxy = clientManager.get(clientKey);
+    if ((proxy == null) || !proxy.isStarted()) {
+      logger.warning("Dropping C2DM message for unknown or unstarted client: %s", clientKey);
       return;
     }
+
+    // Pass the new echo token to the channel.
+    String echoToken = intent.getStringExtra(MESSAGE_ECHO);
+    logger.fine("Update %s with new echo token: %s", clientKey, echoToken);
+    proxy.getChannel().updateEchoToken(echoToken);
+
     byte [] message = intent.getByteArrayExtra(MESSAGE_DATA);
     if (message != null) {
+      logger.fine("Deliver to %s message %s", clientKey, message);
       proxy.getChannel().receiveMessage(message);
     } else {
+      logger.fine("Retrieve mailbox for %s", clientKey);
       // Process mailbox messages on a background thread since they will do outbound HTTP for the
       // mailbox retrieval which is not allowed on the main service thread.
       final AndroidClientProxy finalProxy = proxy;
@@ -327,16 +416,28 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   private void handleRegistration(Intent intent) {
-    String id = intent.getStringExtra(REGISTER_ID);
-
     // Notify the client manager of the updated registration ID
+    String id = intent.getStringExtra(REGISTER_ID);
     clientManager.setRegistrationId(id);
+    numC2dmRegistrationForTest.incrementAndGet();
   }
 
   private void handleError(Intent intent) {
     logger.severe("Unable to perform C2DM registration: %s", intent.getStringExtra(ERROR_MESSAGE));
+    numC2dmErrorsForTest.incrementAndGet();
   }
 
-  // TODO: Add interval timer to iterate over managed clients, drop the inactive
-  // ones from memory, and stop the service if there are no active clients remaining
+  /**
+   * Stops the service if there are no clients in the client manager.
+   * @param debugInfo short string describing why the check was made
+   */
+  private void stopServiceIfNoClientsRemain(String debugInfo) {
+    if ((clientManager == null) || clientManager.areAllClientsStopped()) {
+      logger.info("Stopping AndroidInvalidationService since no clients remain: %s", debugInfo);
+      stopSelf();
+    } else {
+      logger.fine("Not stopping service since %s clients remain (%s)",
+          clientManager.getClientCount(), debugInfo);
+    }
+  }
 }

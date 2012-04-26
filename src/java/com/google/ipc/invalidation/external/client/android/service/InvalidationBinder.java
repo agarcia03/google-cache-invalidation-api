@@ -33,13 +33,12 @@ public class InvalidationBinder extends ServiceBinder<InvalidationService> {
   static {
     try {
       // If the expected service class if found in the current application, use an explicit binding
-      // otherwise an implicit, intent-based binding will be used.   The latter capability is
+      // otherwise an implicit, intent-based binding will be used.  The latter capability is
       // generally only to support mock and test service bindings.
       Class<?> serviceClass =
           Class.forName("com.google.ipc.invalidation.ticl.android.AndroidInvalidationService");
       serviceClassName = serviceClass.getName();
     } catch (ClassNotFoundException e) {
-
       serviceClassName = null;
     }
   }

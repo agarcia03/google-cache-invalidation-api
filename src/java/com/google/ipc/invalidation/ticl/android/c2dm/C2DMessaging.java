@@ -29,7 +29,6 @@ import android.content.Intent;
  * This is based on the open source chrometophone project.
  */
 public class C2DMessaging {
-
   static final String ACTION_MESSAGE = "com.google.android.c2dm.manager.intent.MESSAGE";
 
   static final String ACTION_REGISTER = "com.google.android.c2dm.manager.intent.REGISTER";

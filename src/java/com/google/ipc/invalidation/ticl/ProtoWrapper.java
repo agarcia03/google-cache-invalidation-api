@@ -84,4 +84,11 @@ public class ProtoWrapper<P extends AbstractMessageLite> {
     }
     return Arrays.equals(protoBytes, wrapper.protoBytes);
   }
+
+  @Override
+  public String toString() {
+    // Don't print exactly the protocol buffer because that could be extremely confusing when
+    // debugging, since this object isn't actually a protocol buffer.
+    return "PW-" + proto.toString();
+  }
 }

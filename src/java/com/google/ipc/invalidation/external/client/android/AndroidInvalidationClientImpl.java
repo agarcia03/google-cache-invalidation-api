@@ -16,9 +16,6 @@
 
 package com.google.ipc.invalidation.external.client.android;
 
-import com.google.common.base.Preconditions;
-import com.google.ipc.invalidation.external.client.InvalidationClient;
-import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
@@ -38,18 +35,28 @@ import android.os.Bundle;
 import android.os.RemoteException;
 
 import java.util.Collection;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Implementation of the {@link InvalidationClient} interface for Android. Instances of the class
+ * Implementation of the {@code InvalidationClient} interface for Android. Instances of the class
  * are obtained using {@link AndroidClientFactory#create} or {@link AndroidClientFactory#resume}.
  * <p>
- * The class provides implementations of the {@link InvalidationClient} methods that delegate to the
+ * The class provides implementations of the {@code InvalidationClient} methods that delegate to the
  *  invalidation service running on the device using the bound service model defined in
  * {@link InvalidationService}.
  *
  */
 final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
+  /**
+   * Work queue for all accesses to all instances of this class. Used to ensure that we never
+   * attempt to bind a service in a blocking way on the main thread, which can cause deadlock.
+   */
+  // TODO: consider a periodic watchdog event to ensure we have never deadlocked
+  // on this thread (for testing only).
+  private static final ExecutorService STUB_EXECUTOR = Executors.newSingleThreadExecutor();
 
   /** Logger */
   private static final Logger logger = AndroidLogger.forTag("InvClient");
@@ -85,7 +92,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   private final InvalidationBinder serviceBinder = new InvalidationBinder();
 
   /**
-   * The {@link InvalidationListener} service class that handles events for this client. May be
+   * The {@code InvalidationListener} service class that handles events for this client. May be
    * {@code null} for resumed clients.
    */
   private final Class<? extends AndroidInvalidationListener> listenerClass;
@@ -95,6 +102,10 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    * the service binding can be safely released.
    */
   private AtomicInteger refcnt = new AtomicInteger(0);
+
+  /** Whether {@link #release} was ever called with a non-positive {@code refcnt}. */
+  
+  AtomicBoolean wasOverReleasedForTest = new AtomicBoolean(false);
 
   /**
    * Creates a new invalidation client with the provided client key and account that sends
@@ -146,16 +157,6 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   @Override
   public String getClientKey() {
     return clientKey;
-  }
-
-  @Override
-  public Account getAccount() {
-    return account;
-  }
-
-  @Override
-  public String getAuthType() {
-    return authType;
   }
 
   /**
@@ -241,15 +242,23 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
 
   @Override
   public void release() {
-    Preconditions.checkState(refcnt.get() > 0, "No current references");
-
-    // Release the binding and remove from the client factory when the the service when the last
-    // reference is released.
-    int numReferences = refcnt.decrementAndGet();
-    if (numReferences == 0) {
-      AndroidClientFactory.release(clientKey);
-      serviceBinder.unbind(context);
-    }
+    // It is important to call release on the executor; otherwise, we could release the service
+    // binder before pending work in the executor can run.
+    STUB_EXECUTOR.execute(new Runnable() {
+      @Override
+      public void run() {
+        // Release the binding and remove from the client factory when the last reference is
+        // released.
+        final int refsRemaining = refcnt.decrementAndGet();
+        if (refsRemaining < 0) {
+          wasOverReleasedForTest.set(true);
+          logger.warning("Over-release of client %s", clientKey);
+        } else if (refsRemaining == 0) {
+          AndroidClientFactory.release(clientKey);
+          serviceBinder.unbind(context);
+        }
+      }
+    });
   }
 
   @Override
@@ -281,21 +290,19 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
         .setIntent(eventIntent)
         .build();
     executeServiceRequest(request);
-
     addReference();
   }
 
   /**
-   * Called to resume an existing client instance with the invalidation service.
+   * Called to resume an existing client instance with the invalidation service. Iff
+   * {@code sendTiclResumeRequest}, a request is sent to the invalidatation service to ensure
+   * that the Ticl is loaded.
    */
-  void initResumed() {
-    Request request = Request.newBuilder(Action.RESUME).setClientKey(clientKey).build();
-    Response response = executeServiceRequest(request);
-
-    // Save the account associated with the resumed client
-    account = response.getAccount();
-    authType = response.getAuthType();
-
+  void initResumed(boolean sendTiclResumeRequest) {
+    if (sendTiclResumeRequest) {
+      Request request = Request.newBuilder(Action.RESUME).setClientKey(clientKey).build();
+      executeServiceRequest(request);
+    }
     addReference();
   }
 
@@ -323,12 +330,38 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   }
 
   /**
+   * Executes a request against the invalidation service and does common error processing against
+   * the resulting response. If unable to connect to the service or an error status is received from
+   * it, a warning will be logged and the request will be dropped.
+   *
+   * @param request the request to execute.
+   */
+  private void executeServiceRequest(final Request request) {
+    STUB_EXECUTOR.execute(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          InvalidationService service = ensureService();
+          Bundle outBundle = new Bundle();
+          service.handleRequest(request.getBundle(), outBundle);
+          Response response = new Response(outBundle);
+          response.warnOnFailure();
+        } catch (RemoteException exception) {
+          // Ok to throw the exeption because the ExecutorService will create a new thread.
+          logger.warning("Remote exeption executing request %s: %s", request,
+              exception.getMessage());
+          throw new RuntimeException("Unable to contact invalidation service", exception);
+        }
+      }
+    });
+  }
+
+  /**
    * Ensures that the invalidation service has been started and that the client has a bound service
    * connection to it.
    */
   private InvalidationService ensureService() {
     if (!serviceBinder.isBound()) {
-
       // Start the service if not currently bound. The invalidation service
       // is responsible for stopping itself when no work remains to be done.
       Intent serviceIntent = serviceBinder.getIntent(context);
@@ -338,26 +371,5 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
       }
     }
     return serviceBinder.bind(context);
-  }
-
-  /**
-   * Executes a request against the invalidation service and does common error processing against
-   * the resulting response. If unable to connect to the service or an error status is received from
-   * it, a runtime exception will be thrown.
-   *
-   * @param request the request to execute.
-   * @return the resulting response if the request was successful.
-   */
-  private Response executeServiceRequest(Request request) {
-    try {
-      InvalidationService service = ensureService();
-      Bundle outBundle = new Bundle();
-      service.handleRequest(request.getBundle(), outBundle);
-      Response response = new Response(outBundle);
-      response.throwOnFailure();
-      return response;
-    } catch (RemoteException re) {
-      throw new RuntimeException("Unable to contact invalidation service", re);
-    }
   }
 }

@@ -16,10 +16,13 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
+import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessage;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessageBatch;
+
+import android.net.http.AndroidHttpClient;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -43,13 +46,16 @@ import java.util.List;
 
 public abstract class AndroidChannelBase {
   /** Http client to use when making requests to . */
-  private final HttpClient httpClient;
+  private HttpClient httpClient;
 
   /** Authentication type for  frontends. */
   private final String authType;
 
   /** URL of the frontends. */
   private final String channelUrl;
+
+  /** The token that will be echoed to the data center in the headers of all HTTP requests. */
+  private String echoToken = null;
 
   /**
    * Creates an instance that uses {@code httpClient} to send requests to {@code channelUrl}
@@ -84,7 +90,7 @@ public abstract class AndroidChannelBase {
     // Construct POST request with the entity content and appropriate authorization
     HttpPost httpPost = new HttpPost(target.toString());
     httpPost.setEntity(contentEntity);
-    httpPost.setHeader("Authorization", "GoogleLogin auth=" + getAuthToken());
+    setPostHeaders(httpPost);
     try {
       String response = httpClient.execute(httpPost, new BasicResponseHandler());
     } catch (ClientProtocolException exception) {
@@ -140,7 +146,7 @@ public abstract class AndroidChannelBase {
     target.append(authType);
 
     HttpPost httpPost = new HttpPost(target.toString());
-    httpPost.setHeader("Authorization", "GoogleLogin auth=" + getAuthToken());
+    setPostHeaders(httpPost);
     try {
       return httpClient.execute(httpPost, new ResponseHandler<AddressedAndroidMessageBatch>() {
         @Override
@@ -186,6 +192,34 @@ public abstract class AndroidChannelBase {
       getLogger().warning("Runtime exception retrieving mailbox: %s", exception);
     }
     return null;
+  }
+
+  /** Sets the Authorization and echo headers on {@code httpPost}. */
+  private void setPostHeaders(HttpPost httpPost) {
+    httpPost.setHeader("Authorization", "GoogleLogin auth=" + getAuthToken());
+    if (echoToken != null) {
+      // If we have a token to echo to the server, echo it.
+      httpPost.setHeader(AndroidHttpConstants.ECHO_HEADER, echoToken);
+    }
+  }
+
+  /**
+   * If {@code echoToken} is not {@code null}, updates the token that will be sent in the header
+   * of all HTTP requests.
+   */
+  void updateEchoToken(String echoToken) {
+    if (echoToken != null) {
+      this.echoToken = echoToken;
+    }
+  }
+
+  /** Sets the HTTP client to {@code client}. */
+  void setHttpClientForTest(HttpClient client) {
+    if (this.httpClient instanceof AndroidHttpClient) {
+      // Release the previous client if any.
+      ((AndroidHttpClient) this.httpClient).close();
+    }
+    this.httpClient = Preconditions.checkNotNull(client);
   }
 
   /** Returns the base-64-encoded network endpoint id for the client. */

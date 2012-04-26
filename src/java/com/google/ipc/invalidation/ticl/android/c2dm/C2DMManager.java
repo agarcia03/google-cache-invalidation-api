@@ -24,6 +24,7 @@ import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ServiceInfo;
@@ -34,6 +35,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Class for managing C2DM registration and dispatching of messages to observers.
@@ -54,7 +56,8 @@ public class C2DMManager extends IntentService {
    * The action of intents sent from the android c2dm framework regarding registration
    */
   
-  static final String REGISTRATION_CALLBACK_INTENT = "com.google.android.c2dm.intent.REGISTRATION";
+  public static final String REGISTRATION_CALLBACK_INTENT =
+      "com.google.android.c2dm.intent.REGISTRATION";
 
   /**
    * The action of intents sent from the Android C2DM framework when we are supposed to retry
@@ -97,14 +100,14 @@ public class C2DMManager extends IntentService {
    * The action of intents sent from the Android C2DM framework when a message is received.
    */
   
-  static final String C2DM_INTENT = "com.google.android.c2dm.intent.RECEIVE";
+  public static final String C2DM_INTENT = "com.google.android.c2dm.intent.RECEIVE";
 
   /**
    * The key in the bundle to use when we want to read the C2DM registration ID after a successful
    * registration
    */
   
-  static final String EXTRA_REGISTRATION_ID = "registration_id";
+  public static final String EXTRA_REGISTRATION_ID = "registration_id";
 
   /**
    * The key in the bundle to use when we want to see if we were unregistered from C2DM
@@ -126,6 +129,14 @@ public class C2DMManager extends IntentService {
    */
   
   static final String SENDER_ID_METADATA_FIELD = "sender_id";
+
+  /**
+   * If {@code true}, newly-registered observers will be informed of the current registration id
+   * if one is already held. Used in  service lifecycle testing to suppress inconvenient
+   * events.
+   */
+  public static final AtomicBoolean disableRegistrationCallbackOnRegisterForTest =
+      new AtomicBoolean(false);
 
   /**
    * C2DMMManager is initialized asynchronously because it requires I/O that should not be done on
@@ -176,6 +187,7 @@ public class C2DMManager extends IntentService {
    * @param context application to run service in
    * @param intent the intent received
    */
+  
   static void runIntentInService(Context context, Intent intent) {
     // This is called from C2DMBroadcastReceiver and C2DMessaging, there is no init.
     WakeLockManager.getInstance(context).acquire(C2DMManager.class);
@@ -226,6 +238,7 @@ public class C2DMManager extends IntentService {
     try {
       // OK to block here (if needed) because IntentService guarantees that onHandleIntent will
       // only be called on a background thread.
+      Log.d(TAG, "Handle intent = " + intent);
       waitForInitialization();
       if (intent.getAction().equals(REGISTRATION_CALLBACK_INTENT)) {
         handleRegistration(intent);
@@ -292,14 +305,32 @@ public class C2DMManager extends IntentService {
    * @param intent the received intent
    */
   private void onMessage(Intent intent) {
+    boolean matched = false;
     for (C2DMObserver observer : observers) {
       if (observer.matches(intent)) {
-        Intent outgoingIntent = new Intent(intent);
-        outgoingIntent.setAction(C2DMessaging.ACTION_MESSAGE);
-        outgoingIntent.setClass(context, observer.getObserverClass());
+        Intent outgoingIntent = createOnMessageIntent(
+            observer.getObserverClass(), context, intent);
         deliverObserverIntent(observer, outgoingIntent);
+        matched = true;
       }
     }
+    if (!matched) {
+      Log.i(TAG, "No receivers matched intent: " + intent);
+    }
+  }
+
+  /**
+   * Returns an intent to deliver a C2DM message to {@code observerClass}.
+   * @param context Android context to use to create the intent
+   * @param intent the C2DM message intent to deliver
+   */
+  
+  public static Intent createOnMessageIntent(Class<?> observerClass,
+      Context context, Intent intent) {
+    Intent outgoingIntent = new Intent(intent);
+    outgoingIntent.setAction(C2DMessaging.ACTION_MESSAGE);
+    outgoingIntent.setClass(context, observerClass);
+    return outgoingIntent;
   }
 
   /**
@@ -312,11 +343,23 @@ public class C2DMManager extends IntentService {
   private void onRegistrationError(String errorId) {
     setRegistrationInProcess(false);
     for (C2DMObserver observer : observers) {
-      Intent outgoingIntent = new Intent(context, observer.getObserverClass());
-      outgoingIntent.setAction(C2DMessaging.ACTION_REGISTRATION_ERROR);
-      outgoingIntent.putExtra(C2DMessaging.EXTRA_REGISTRATION_ERROR, errorId);
-      deliverObserverIntent(observer, outgoingIntent);
+      deliverObserverIntent(observer,
+          createOnRegistrationErrorIntent(observer.getObserverClass(),
+              context, errorId));
     }
+  }
+
+  /**
+   * Returns an intent to deliver the C2DM error {@code errorId} to {@code observerClass}.
+   * @param context Android context to use to create the intent
+   */
+  
+  public static Intent createOnRegistrationErrorIntent(Class<?> observerClass,
+      Context context, String errorId) {
+    Intent errorIntent = new Intent(context, observerClass);
+    errorIntent.setAction(C2DMessaging.ACTION_REGISTRATION_ERROR);
+    errorIntent.putExtra(C2DMessaging.EXTRA_REGISTRATION_ERROR, errorId);
+    return errorIntent;
   }
 
   /**
@@ -327,6 +370,11 @@ public class C2DMManager extends IntentService {
   private void onRegistered(String registrationId) {
     setRegistrationInProcess(false);
     C2DMSettings.setC2DMRegistrationId(context, registrationId);
+    try {
+      C2DMSettings.setApplicationVersion(context, getCurrentApplicationVersion(this));
+    } catch (NameNotFoundException e) {
+      Log.e(TAG, "Unable to find our own package name when storing application version.", e);
+    }
     for (C2DMObserver observer : observers) {
       onRegisteredSingleObserver(registrationId, observer);
     }
@@ -336,10 +384,23 @@ public class C2DMManager extends IntentService {
    * Informs the given observer about the registration ID
    */
   private void onRegisteredSingleObserver(String registrationId, C2DMObserver observer) {
-    Intent outgoingIntent = new Intent(context, observer.getObserverClass());
+    if (!disableRegistrationCallbackOnRegisterForTest.get()) {
+      deliverObserverIntent(observer,
+          createOnRegisteredIntent(observer.getObserverClass(), context, registrationId));
+    }
+  }
+
+  /**
+   * Returns an intent to deliver a new C2DM {@code registrationId} to {@code observerClass}.
+   * @param context Android context to use to create the intent
+   */
+  
+  public static Intent createOnRegisteredIntent(Class<?> observerClass, Context context,
+      String registrationId) {
+    Intent outgoingIntent = new Intent(context, observerClass);
     outgoingIntent.setAction(C2DMessaging.ACTION_REGISTERED);
     outgoingIntent.putExtra(C2DMessaging.EXTRA_REGISTRATION_ID, registrationId);
-    deliverObserverIntent(observer, outgoingIntent);
+    return outgoingIntent;
   }
 
   /**
@@ -381,6 +442,10 @@ public class C2DMManager extends IntentService {
    *
    *  If this was the first observer we also start registering towards C2DM. If we were already
    * registered, we do a callback to inform about the current C2DM registration ID.
+   *
+   * <p>We also start a registration if the application version stored does not match the
+   * current version number. This leads to any observer registering after an upgrade will trigger
+   * a new C2DM registration.
    */
   private void registerObserver(Intent intent) {
     C2DMObserver observer = C2DMObserver.createFromIntent(intent);
@@ -388,8 +453,13 @@ public class C2DMManager extends IntentService {
     C2DMSettings.setObservers(context, observers);
     if (C2DMSettings.hasC2DMRegistrationId(context)) {
       onRegisteredSingleObserver(C2DMSettings.getC2DMRegistrationId(context), observer);
+      if (!isApplicationVersionCurrent() && !isRegistrationInProcess()) {
+        Log.d(TAG, "Registering to C2DM since application version is not current.");
+        register();
+      }
     } else {
       if (!isRegistrationInProcess()) {
+        Log.d(TAG, "Registering to C2DM since we have no C2DM registration.");
         register();
       }
     }
@@ -510,6 +580,7 @@ public class C2DMManager extends IntentService {
     registrationIntent.putExtra(
         EXTRA_APPLICATION_PENDING_INTENT, PendingIntent.getBroadcast(context, 0, new Intent(), 0));
     registrationIntent.putExtra(EXTRA_SENDER, senderId);
+    setRegistrationInProcess(true);
     context.startService(registrationIntent);
   }
 
@@ -523,6 +594,32 @@ public class C2DMManager extends IntentService {
         EXTRA_APPLICATION_PENDING_INTENT, PendingIntent.getBroadcast(context, 0, new Intent(), 0));
     setUnregisteringInProcess(true);
     context.startService(regIntent);
+  }
+
+  /**
+   * Checks if the stored application version is the same as the current application version.
+   */
+  private boolean isApplicationVersionCurrent() {
+    try {
+      String currentApplicationVersion = getCurrentApplicationVersion(this);
+      if (currentApplicationVersion == null) {
+        return false;
+      }
+      return currentApplicationVersion.equals(C2DMSettings.getApplicationVersion(context));
+    } catch (NameNotFoundException e) {
+      Log.e(TAG, "Unable to find our own package name when reading application version.", e);
+      return false;
+    }
+  }
+
+  /**
+   * Retrieves the current application version.
+   */
+  
+  public static String getCurrentApplicationVersion(Context context) throws NameNotFoundException {
+    PackageInfo packageInfo =
+        context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+    return packageInfo.versionName;
   }
 
   /**

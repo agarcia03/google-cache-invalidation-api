@@ -24,6 +24,7 @@ import android.os.Bundle;
  *
  */
 public final class Response extends Message {
+  private static final AndroidLogger logger = AndroidLogger.forTag("Response");
 
   /** Contains the list of parameter names that are valid for response bundles. */
   public static class Parameter extends Message.Parameter {
@@ -113,17 +114,17 @@ public final class Response extends Message {
   }
 
   /**
-   * Throws a {@link RuntimeException} if the response message contains a
-   * status value other than {@link Status#SUCCESS}.
+   * Logs an error if the response message contains a status value other than
+   * {@link Status#SUCCESS}.
    */
-  public void throwOnFailure() throws AndroidClientException {
+  public void warnOnFailure() {
     int status = getStatus();
     if (status != Status.SUCCESS) {
       String error = parameters.getString(Parameter.ERROR);
       if (error == null) {
         error = "Unexpected status value:" + status;
       }
-      throw new AndroidClientException(status, error);
+      logger.warning("Error from AndroidInvalidationService: %s", error);
     }
   }
 }

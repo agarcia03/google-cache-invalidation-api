@@ -18,25 +18,12 @@ package com.google.ipc.invalidation.external.client.android;
 
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 
-import android.accounts.Account;
-
 /**
  * Extends the {@link InvalidationClient} interface to add Android-specific
  * client functionality.
  *
  */
 public interface AndroidInvalidationClient extends InvalidationClient {
-
-  /**
-   * Returns the {@link Account} associated with the client.
-   */
-  Account getAccount();
-
-  /**
-   * Returns the authenticate type that is used to authenticate the client.
-   */
-  String getAuthType();
-
   /**
    * Returns the client key that uniquely identifies this client.   The client key can be passed
    * to {@link AndroidClientFactory#resume} to resume processing with the client instance that
