@@ -21,6 +21,7 @@ import com.google.ipc.invalidation.external.client.android.service.AndroidClient
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
 import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
+import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 
 import android.accounts.Account;
@@ -228,6 +229,13 @@ class AndroidClientManager {
         }
       }
       return true;
+    }
+  }
+
+  /** Returns whether the client with key {@code clientKey} is in memory. */
+  public boolean isLoadedForTest(String clientKey) {
+    synchronized (lock) {
+      return TypedUtil.containsKey(clientMap, clientKey);
     }
   }
 }

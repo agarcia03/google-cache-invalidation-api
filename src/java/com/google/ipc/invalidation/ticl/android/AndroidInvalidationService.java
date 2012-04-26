@@ -360,6 +360,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       Builder response) {
     if (client == null) {
       response.setError("Client does not exist: " + request);
+      response.setStatus(Status.INVALID_CLIENT);
       return false;
     } else {
       response.setStatus(Status.SUCCESS);
