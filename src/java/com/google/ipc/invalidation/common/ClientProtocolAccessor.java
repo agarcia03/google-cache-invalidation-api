@@ -142,7 +142,8 @@ public class ClientProtocolAccessor {
         "smear_percent",
         "is_transient",
         "initial_persistent_heartbeat_delay_ms",
-        "protocol_handler_config"
+        "protocol_handler_config",
+        "channel_supports_offline_delivery"
       ));
     
     public static final Descriptor VERSION = new Descriptor("version");
@@ -155,6 +156,7 @@ public class ClientProtocolAccessor {
     public static final Descriptor IS_TRANSIENT = new Descriptor("is_transient");
     public static final Descriptor INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS = new Descriptor("initial_persistent_heartbeat_delay_ms");
     public static final Descriptor PROTOCOL_HANDLER_CONFIG = new Descriptor("protocol_handler_config");
+    public static final Descriptor CHANNEL_SUPPORTS_OFFLINE_DELIVERY = new Descriptor("channel_supports_offline_delivery");
     
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
@@ -192,6 +194,9 @@ public class ClientProtocolAccessor {
       }
       if (field == PROTOCOL_HANDLER_CONFIG) {
         return message.hasProtocolHandlerConfig();
+      }
+      if (field == CHANNEL_SUPPORTS_OFFLINE_DELIVERY) {
+        return message.hasChannelSupportsOfflineDelivery();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -232,6 +237,9 @@ public class ClientProtocolAccessor {
       }
       if (field == PROTOCOL_HANDLER_CONFIG) {
         return message.getProtocolHandlerConfig();
+      }
+      if (field == CHANNEL_SUPPORTS_OFFLINE_DELIVERY) {
+        return message.getChannelSupportsOfflineDelivery();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }

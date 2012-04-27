@@ -541,7 +541,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
    * REQUIRES: {@code storageForClient}.load() has been called successfully.
    */
   
-  @Nullable
+  
   PersistentTiclState decodeTiclState(final String clientKey, AndroidStorage storageForClient) {
     synchronized (lock) {
       // Retrieve the serialized state.
