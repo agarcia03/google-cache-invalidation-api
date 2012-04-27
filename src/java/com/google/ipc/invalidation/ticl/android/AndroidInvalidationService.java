@@ -31,6 +31,7 @@ import android.accounts.Account;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
+import android.os.IBinder;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +61,9 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
 
   /** For tests only, the number of C2DM messages received. */
   static final AtomicInteger numC2dmMessagesForTest = new AtomicInteger(0);
+
+  /** For tests only, the number of onCreate calls made. */
+  static final AtomicInteger numCreateForTest = new AtomicInteger(0);
 
   /** The client manager tracking in-memory client instances */
   
@@ -192,6 +196,9 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     }
   }
 
+  /** Whether the C2DM manager service has acknowledged our registration. */
+  private boolean isRegisteredWithC2dm = false;
+
   public AndroidInvalidationService() {
     lastInstanceForTest.set(this);
   }
@@ -210,11 +217,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       if (clientManager == null) {
         clientManager = new AndroidClientManager(this);
       }
-
-      // Register for C2DM events related to the invalidation client
-      logger.fine("Registering for C2DM events");
-      C2DMessaging.register(this, AndroidC2DMReceiver.class, AndroidC2DMConstants.CLIENT_KEY_PARAM,
-          null, false);
+      numCreateForTest.incrementAndGet();
     }
   }
 
@@ -250,6 +253,16 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       reset();
       super.onDestroy();
     }
+  }
+
+  @Override
+  public IBinder onBind(Intent intent) {
+    // We register with C2DM here, rather than in onStartCommand or onCreate, because doing so
+    // in either of those functions would cause a loop. We know that a Ticl cannot possibly be
+    // created in the service without onBind being called, so this is safe. See the comment on
+    // registerWithC2dmIfNeeded for more details.
+    registerWithC2dmIfNeeded();
+    return super.onBind(intent);
   }
 
   @Override
@@ -421,6 +434,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     String id = intent.getStringExtra(REGISTER_ID);
     clientManager.setRegistrationId(id);
     numC2dmRegistrationForTest.incrementAndGet();
+    isRegisteredWithC2dm = true;
   }
 
   private void handleError(Intent intent) {
@@ -440,5 +454,27 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       logger.fine("Not stopping service since %s clients remain (%s)",
           clientManager.getClientCount(), debugInfo);
     }
+  }
+
+  /**
+   * If not {@link #isRegisteredWithC2dm}, registers for C2DM events with the manager. Must
+   * never be called from onStartCommand or onCreate, or a loop with the manager could result. This
+   * would happen because a delayed c2dm-registered event could cause the service to be started. As
+   * part of starting, it would re-register with c2dm, since {@code isRegisteredWithC2dm} would be
+   * false, then shut down (since no Ticls are in memory). The c2dm response to the registration
+   * would then restart the service, causing the cycle.
+   */
+  private void registerWithC2dmIfNeeded() {
+    // Register for C2DM events related to the invalidation client
+    if (!isRegisteredWithC2dm) {
+      logger.fine("Registering for C2DM events");
+      C2DMessaging.register(this, AndroidC2DMReceiver.class, AndroidC2DMConstants.CLIENT_KEY_PARAM,
+          null, false);
+    }
+  }
+
+  /** Whether the service is registered with C2DM, for tests. */
+  boolean isRegisteredWithC2dmForTest() {
+    return isRegisteredWithC2dm;
   }
 }
