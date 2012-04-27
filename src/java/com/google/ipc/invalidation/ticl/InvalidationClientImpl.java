@@ -135,8 +135,8 @@ public class InvalidationClientImpl extends InternalBase
      * which the state currently in memory and the state currently in storage match.
      */
     /** The last client token that was written to to persistent state successfully. */
-    private final Box<PersistentTiclState> lastWrittenState =
-        Box.of(PersistentTiclState.getDefaultInstance());
+    private final Box<ProtoWrapper<PersistentTiclState>> lastWrittenState =
+        Box.of(ProtoWrapper.of(PersistentTiclState.getDefaultInstance()));
 
     PersistentWriteTask() {
       super("PersistentWrite", internalScheduler,
@@ -153,9 +153,9 @@ public class InvalidationClientImpl extends InternalBase
       }
 
       // Compute the state that we will write if we decide to go ahead with the write.
-      final PersistentTiclState state = CommonProtos2.newPersistentTiclState(clientToken,
-          lastMessageSendTimeMs);
-      byte[] serializedState = PersistenceUtils.serializeState(state, digestFn);
+      final ProtoWrapper<PersistentTiclState> state =
+          ProtoWrapper.of(CommonProtos2.newPersistentTiclState(clientToken, lastMessageSendTimeMs));
+      byte[] serializedState = PersistenceUtils.serializeState(state.getProto(), digestFn);
 
       // Decide whether or not to do the write. The decision varies depending on whether or
       // not the channel supports offline delivery. If we decide not to do the write, then
@@ -169,7 +169,8 @@ public class InvalidationClientImpl extends InternalBase
       } else {
         // If we do not support offline delivery, we avoid writing the state on each message, and
         // we avoid checking the last-sent time (we check only the client token).
-        if (state.getClientToken().equals(lastWrittenState.get().getClientToken())) {
+        if (state.getProto().getClientToken().equals(
+                lastWrittenState.get().getProto().getClientToken())) {
           return false;
         }
       }
@@ -178,7 +179,7 @@ public class InvalidationClientImpl extends InternalBase
       storage.writeKey(CLIENT_TOKEN_KEY, serializedState, new Callback<Status>() {
         @Override
         public void accept(Status status) {
-          logger.info("Write state completed: %s for %s", status, state);
+          logger.info("Write state completed: %s for %s", status, state.getProto());
           if (status.isSuccess()) {
             // Set lastWrittenToken to be the token that was written (NOT clientToken - which
             // could have changed while the write was happening).
