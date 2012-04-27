@@ -16,6 +16,8 @@
 
 package com.google.ipc.invalidation.ticl.android;
 
+import com.google.ipc.invalidation.common.DigestFunction;
+import com.google.ipc.invalidation.common.ObjectIdDigestUtils;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
@@ -24,8 +26,12 @@ import com.google.ipc.invalidation.external.client.android.service.Response.Buil
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
+import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
+import com.google.ipc.invalidation.ticl.PersistenceUtils;
 import com.google.ipc.invalidation.ticl.android.c2dm.C2DMessaging;
 import com.google.ipc.invalidation.ticl.android.c2dm.WakeLockManager;
+import com.google.ipc.invalidation.util.TypedUtil;
+import com.google.protos.ipc.invalidation.Client.PersistentTiclState;
 
 import android.accounts.Account;
 import android.content.Context;
@@ -33,6 +39,7 @@ import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.IBinder;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -195,6 +202,9 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       clientManager.releaseAll();
     }
   }
+
+  /** The function for computing persistence state digests when rewriting them. */
+  private final DigestFunction digestFn = new ObjectIdDigestUtils.Sha1DigestFunction();
 
   /** Whether the C2DM manager service has acknowledged our registration. */
   private boolean isRegisteredWithC2dm = false;
@@ -392,12 +402,16 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     numC2dmMessagesForTest.incrementAndGet();
     String clientKey = intent.getStringExtra(MESSAGE_CLIENT_KEY);
     AndroidClientProxy proxy = clientManager.get(clientKey);
+
+    // Client is unknown or unstarted; we can't deliver the message, but we need to
+    // remember that we dropped it if the client is known.
     if ((proxy == null) || !proxy.isStarted()) {
       logger.warning("Dropping C2DM message for unknown or unstarted client: %s", clientKey);
+      handleC2dmMessageForUnstartedClient(proxy);
       return;
     }
 
-    // Pass the new echo token to the channel.
+    // We can deliver the message. Pass the new echo token to the channel.
     String echoToken = intent.getStringExtra(MESSAGE_ECHO);
     logger.fine("Update %s with new echo token: %s", clientKey, echoToken);
     proxy.getChannel().updateEchoToken(echoToken);
@@ -427,6 +441,53 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
           }
       }.execute();
     }
+  }
+
+  /**
+   * Handles receipt of a C2DM message for a client that was unknown or not started. If the client
+   * was unknown, drops the message. If the client was not started, rewrites the client's
+   * persistent state to have a last-message-sent-time of 0, ensuring that the client will
+   * send a heartbeat to the server when restarted. Since we drop the received C2DM message,
+   * the client will be disconnected by the invalidation pusher; this heartbeat ensures a
+   * timely reconnection.
+   */
+  private void handleC2dmMessageForUnstartedClient(AndroidClientProxy proxy) {
+    if (proxy == null) {
+      // Unknown client; nothing to do.
+      return;
+    }
+
+    // Client is not started. Open its storage. We are going to use unsafe calls here that
+    // bypass the normal storage API. This is safe in this context because we hold a lock
+    // that prevents anyone else from starting this client or accessing its storage. We
+    // really should not be holding a lock across I/O, but at least this is only local
+    // file I/O, and we're only writing a few bytes. Additionally, since we currently only
+    // have one Ticl, we should only ever enter this function if we're not being used for
+    // anything else.
+    final String clientKey = proxy.getClientKey();
+    logger.info("Received message for unloaded client; rewriting state file: %s", clientKey);
+
+    // This storage must have been loaded, because we got this proxy from the client manager,
+    // which always ensures that its entries have that property.
+    AndroidStorage storageForClient = proxy.getStorage();
+    PersistentTiclState clientState = decodeTiclState(clientKey, storageForClient);
+    if (clientState == null) {
+      // Logging done in decodeTiclState.
+      return;
+    }
+
+    // Rewrite the last message sent time.
+    PersistentTiclState newState = PersistentTiclState.newBuilder()
+        .setClientToken(clientState.getClientToken())
+        .setLastMessageSendTimeMs(0).build();
+
+    // Serialize the new state.
+    byte[] newClientState = PersistenceUtils.serializeState(newState, digestFn);
+
+    // Write it out.
+    storageForClient.getPropertiesUnsafe().put(InvalidationClientImpl.CLIENT_TOKEN_KEY,
+        newClientState);
+    storageForClient.storeUnsafe();
   }
 
   private void handleRegistration(Intent intent) {
@@ -470,6 +531,37 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       logger.fine("Registering for C2DM events");
       C2DMessaging.register(this, AndroidC2DMReceiver.class, AndroidC2DMConstants.CLIENT_KEY_PARAM,
           null, false);
+    }
+  }
+
+  /**
+   * Returns the persisted state for the client with key {@code clientKey} in
+   * {@code storageForClient}, or {@code null} if no valid state could be found.
+   * <p>
+   * REQUIRES: {@code storageForClient}.load() has been called successfully.
+   */
+  
+  @Nullable
+  PersistentTiclState decodeTiclState(final String clientKey, AndroidStorage storageForClient) {
+    synchronized (lock) {
+      // Retrieve the serialized state.
+      final Map<String, byte[]> properties = storageForClient.getPropertiesUnsafe();
+      byte[] clientStateBytes = TypedUtil.mapGet(properties,
+          InvalidationClientImpl.CLIENT_TOKEN_KEY);
+      if (clientStateBytes == null) {
+        logger.warning("No client state found in storage for %s: %s", clientKey,
+            properties.keySet());
+        return null;
+      }
+
+      // Deserialize it.
+      PersistentTiclState clientState =
+          PersistenceUtils.deserializeState(logger, clientStateBytes, digestFn);
+      if (clientState == null) {
+        logger.warning("Invalid client state found in storage for %s", clientKey);
+        return null;
+      }
+      return clientState;
     }
   }
 

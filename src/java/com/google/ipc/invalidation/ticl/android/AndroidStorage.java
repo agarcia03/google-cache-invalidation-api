@@ -228,7 +228,6 @@ public class AndroidStorage implements Storage {
    * @returns {@code true} if loaded successfully, false otherwise.
    */
   boolean load() {
-    AndroidClientProxy client;
     InputStream inputStream = null;
     try {
       // Load the state from internal storage and parse it the protocol
@@ -250,11 +249,9 @@ public class AndroidStorage implements Storage {
       return true;
     } catch (FileNotFoundException e) {
       // No state persisted on disk
-      client = null;
     } catch (IOException exception) {
       // Log error regarding client state read and return null
       logger.severe("Error reading client state", exception);
-      client = null;
     } finally {
       if (inputStream != null) {
         try {
@@ -312,5 +309,23 @@ public class AndroidStorage implements Storage {
         }
       }
     }
+  }
+
+  /**
+   * Returns the underlying properties map for direct manipulation. This is extremely
+   * unsafe since it bypasses the concurrency control. It is intended only for use
+   * in {@code AndroidInvalidationService#handleC2dmMessageForUnstartedClient}.
+   */
+  Map<String, byte[]> getPropertiesUnsafe() {
+    return properties;
+  }
+
+  /**
+   * Stores the properties to disk. This is extremely unsafe since it bypasses the
+   * concurrency control. It is intended only for use in
+   * {@code AndroidInvalidationService#handleC2dmMessageForUnstartedClient}.
+   */
+  void storeUnsafe() {
+    store();
   }
 }

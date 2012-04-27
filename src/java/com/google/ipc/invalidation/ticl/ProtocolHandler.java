@@ -186,6 +186,9 @@ class ProtocolHandler {
      */
     void handleErrorMessage(ServerMessageHeader header, ErrorMessage.Code code, String description);
 
+    /** Records that a message was sent to the server at the current time. */
+    void handleMessageSent();
+
     /** Returns a summary of the current desired registrations. */
     RegistrationSummary getRegistrationSummary();
 
@@ -302,6 +305,8 @@ class ProtocolHandler {
         // Do nothing for now.
       }
     });
+    logger.info("Created protocol handler for application %s, platform %s", applicationName,
+        resources.getPlatform());
   }
 
   /** Returns a default config for the protocol handler. */
@@ -626,6 +631,15 @@ class ProtocolHandler {
     logger.fine("Sending message to server: %s", message);
     statistics.recordSentMessage(SentMessageType.TOTAL);
     network.sendMessage(message.toByteArray());
+
+    // Record that the message was sent. Schedule it as a separate event to avoid invoking
+    // a callback on the Ticl inline.
+    internalScheduler.schedule(NO_DELAY, new Runnable() {
+      @Override
+      public void run() {
+        listener.handleMessageSent();
+      }
+    });
   }
 
   /**

@@ -43,7 +43,7 @@ public class PersistenceUtils {
    * Deserializes a Ticl state blob. Returns either the parsed state or {@code null}
    * if it could not be parsed.
    */
-  static PersistentTiclState deserializeState(Logger logger, byte[] stateBlobBytes,
+  public static PersistentTiclState deserializeState(Logger logger, byte[] stateBlobBytes,
       DigestFunction digestFn) {
     PersistentStateBlob stateBlob;
     try {

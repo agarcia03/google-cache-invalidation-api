@@ -23,6 +23,7 @@ import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.SystemResources.Storage;
 import com.google.ipc.invalidation.ticl.BasicSystemResources;
 
+
 /**
  * A builder to override some or all resource components in {@code SystemResources} . See
  * discussion in {@code ResourceComponent} as well.
@@ -36,6 +37,7 @@ public class SystemResourcesBuilder {
   private Logger logger;
   private NetworkChannel network;
   private Storage storage;
+  private String platform;
 
   /** If the build method has been called on this builder. */
   private boolean sealed;
@@ -141,6 +143,17 @@ public class SystemResourcesBuilder {
   }
 
   /**
+   * Sets the platform to be {@code platform}.
+   * <p>
+   * REQUIRES: {@link #build} has not been called.
+   */
+  public SystemResourcesBuilder setPlatform(String platform) {
+    Preconditions.checkState(!sealed, "Builder's build method has already been called");
+    this.platform = platform;
+    return this;
+  }
+
+  /**
    * Builds the {@code SystemResources} object with the given resource components and returns it.
    * <p>
    * Caller must not call any mutation method (on this SystemResourcesBuilder) after
@@ -149,7 +162,8 @@ public class SystemResourcesBuilder {
   public SystemResources build() {
     Preconditions.checkState(!sealed, "Builder's build method has already been called");
     seal();
-    return new BasicSystemResources(logger, internalScheduler, listenerScheduler, network, storage);
+    return new BasicSystemResources(logger, internalScheduler, listenerScheduler, network, storage,
+        platform);
   }
 
   /** Seals the builder so that no mutation method can be called on this. */

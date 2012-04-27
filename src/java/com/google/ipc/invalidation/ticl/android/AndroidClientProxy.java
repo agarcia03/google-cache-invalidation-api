@@ -31,10 +31,13 @@ import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
+import com.google.ipc.invalidation.ticl.android.c2dm.C2DMManager;
 import com.google.protos.ipc.invalidation.AndroidState.ClientMetadata;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 
 import android.accounts.Account;
+import android.content.Context;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.http.AndroidHttpClient;
 
 import java.util.Collection;
@@ -199,8 +202,29 @@ class AndroidClientProxy implements AndroidInvalidationClient {
         new AndroidChannel(this, httpClient, c2dmRegistrationId);
     this.resources =
         AndroidResourcesFactory.createResourcesBuilder(clientKey, channel, storage).build();
+    String applicationName = getApplicationNameWithVersion(service,
+        storage.getClientMetadata().getListenerPkg());
     this.delegate = createClient(resources, metadata.getClientType(), clientKey.getBytes(),
-        metadata.getListenerPkg(), listener, config);
+        applicationName, listener, config);
+  }
+
+  /**
+   * Returns the application name string to pass to the Ticl, computed as a combination of the
+   * listener package and the application version.
+   */
+  
+  static String getApplicationNameWithVersion(Context context, String listenerPackage) {
+    String appVersion = "unknown";
+    try {
+      String retrievedVersion = C2DMManager.getCurrentApplicationVersion(context);
+      if (retrievedVersion != null) {
+        appVersion = retrievedVersion;
+      }
+    } catch (NameNotFoundException exception) {
+      // AndroidLogger does not use setSystemResources, so it's safe to use the logger here.
+      logger.warning("Cannot retrieve current application version: %s", exception);
+    }
+    return listenerPackage + "#" + appVersion;
   }
 
   public final Account getAccount() {
@@ -237,6 +261,11 @@ class AndroidClientProxy implements AndroidInvalidationClient {
   final AndroidListenerProxy getListener() {
     return listener;
   }
+
+  /** Returns the storage used by the proxy. */
+ final AndroidStorage getStorage() {
+   return (AndroidStorage) resources.getStorage();
+ }
 
   boolean isStarted() {
     return started;
@@ -328,9 +357,15 @@ class AndroidClientProxy implements AndroidInvalidationClient {
   
   InvalidationClient createClient(SystemResources resources, int clientType, byte[] clientName,
       String applicationName, InvalidationListener listener, ClientConfigP config) {
+    // We always use C2DM, so set the channel-supports-offline-delivery bit on our config.
+    final ClientConfigP.Builder configBuilder;
     if (config == null) {
-      config = InvalidationClientImpl.createConfig().build();
+      configBuilder = InvalidationClientImpl.createConfig();
+    } else {
+      configBuilder = ClientConfigP.newBuilder(config);
     }
+    configBuilder.setChannelSupportsOfflineDelivery(true);
+    config = configBuilder.build();
     Random random = new Random(resources.getInternalScheduler().getCurrentTimeMs());
     return new InvalidationClientImpl(resources, random, clientType, clientName, config,
         applicationName, listener);

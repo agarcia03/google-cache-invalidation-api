@@ -40,7 +40,12 @@ message AckHandleP {
 
 // The state persisted at a client so that it can be used after a reboot.
 message PersistentTiclState {
+  // Last token received from the server (required).
   optional bytes client_token = 1;
+
+  // Last time a message was sent to the server (optional). Must be a value
+  // returned by the clock in the Ticl system resources.
+  optional int64 last_message_send_time_ms = 2 [default = 0];
 }
 
 // An envelope containing a Ticl's internal state, along with a digest of the

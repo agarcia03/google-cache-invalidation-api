@@ -193,8 +193,12 @@ public class CommonProtos2 {
             .build();
   }
 
-  public static PersistentTiclState newPersistentTiclState(ByteString clientToken) {
-    return PersistentTiclState.newBuilder().setClientToken(clientToken).build();
+  public static PersistentTiclState newPersistentTiclState(ByteString clientToken,
+      long lastMessageSendTimeMs) {
+    return PersistentTiclState.newBuilder()
+        .setClientToken(clientToken)
+        .setLastMessageSendTimeMs(lastMessageSendTimeMs)
+        .build();
   }
 
   public static AckHandleP newAckHandleP(InvalidationP invalidation) {

@@ -105,9 +105,11 @@ public class AndroidResourcesFactory {
    */
   public static SystemResourcesBuilder createResourcesBuilder(String logPrefix,
       NetworkChannel network, AndroidStorage storage) {
-    return new SystemResourcesBuilder(AndroidLogger.forPrefix(logPrefix),
-      new ExecutorBasedScheduler("ticl" + logPrefix),
-      new ExecutorBasedScheduler("ticl-listener" + logPrefix),
-      network, storage);
+    SystemResourcesBuilder builder = new SystemResourcesBuilder(AndroidLogger.forPrefix(logPrefix),
+          new ExecutorBasedScheduler("ticl" + logPrefix),
+          new ExecutorBasedScheduler("ticl-listener" + logPrefix),
+          network, storage);
+    builder.setPlatform("Android-" + android.os.Build.VERSION.RELEASE);
+    return builder;
   }
 }

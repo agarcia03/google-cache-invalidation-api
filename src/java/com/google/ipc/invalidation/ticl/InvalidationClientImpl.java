@@ -129,8 +129,14 @@ public class InvalidationClientImpl extends InternalBase
 
   /** A task that writes the token to persistent storage. */
   private class PersistentWriteTask extends RecurringTask {
+    /*
+     * This class implements a "train" of events that attempt to reliably write state to
+     * storage. The train continues until runTask encounters a termination condition, in
+     * which the state currently in memory and the state currently in storage match.
+     */
     /** The last client token that was written to to persistent state successfully. */
-    private final Box<ByteString> lastWrittenToken = Box.of(null);
+    private final Box<PersistentTiclState> lastWrittenState =
+        Box.of(PersistentTiclState.getDefaultInstance());
 
     PersistentWriteTask() {
       super("PersistentWrite", internalScheduler,
@@ -140,23 +146,43 @@ public class InvalidationClientImpl extends InternalBase
 
     @Override
     public boolean runTask() {
-      if ((clientToken == null) || clientToken.equals(lastWrittenToken.get())) {
-        // No work to be done
-        return false;  // Do not reschedule
+      if (clientToken == null) {
+        // We cannot write without a token. We must do this check before creating the
+        // PersistentTiclState because newPersistentTiclState cannot handle null tokens.
+        return false;
       }
 
-      // Persistent write needs to happen.
-      final PersistentTiclState state = CommonProtos2.newPersistentTiclState(clientToken);
+      // Compute the state that we will write if we decide to go ahead with the write.
+      final PersistentTiclState state = CommonProtos2.newPersistentTiclState(clientToken,
+          lastMessageSendTimeMs);
       byte[] serializedState = PersistenceUtils.serializeState(state, digestFn);
 
+      // Decide whether or not to do the write. The decision varies depending on whether or
+      // not the channel supports offline delivery. If we decide not to do the write, then
+      // that means the in-memory and stored state match semantically, and the train stops.
+      if (config.getChannelSupportsOfflineDelivery()) {
+        // For offline delivery, we want the entire state to match, since we write the last
+        // send time for every message.
+        if (state.equals(lastWrittenState.get())) {
+          return false;
+        }
+      } else {
+        // If we do not support offline delivery, we avoid writing the state on each message, and
+        // we avoid checking the last-sent time (we check only the client token).
+        if (state.getClientToken().equals(lastWrittenState.get().getClientToken())) {
+          return false;
+        }
+      }
+
+      // We decided to do the write.
       storage.writeKey(CLIENT_TOKEN_KEY, serializedState, new Callback<Status>() {
         @Override
         public void accept(Status status) {
-          logger.info("Write state completed: %s", status);
+          logger.info("Write state completed: %s for %s", status, state);
           if (status.isSuccess()) {
             // Set lastWrittenToken to be the token that was written (NOT clientToken - which
             // could have changed while the write was happening).
-            lastWrittenToken.set(state.getClientToken());
+            lastWrittenState.set(state);
           } else {
             statistics.recordError(ClientErrorType.PERSISTENT_WRITE_FAILURE);
           }
@@ -263,6 +289,9 @@ public class InvalidationClientImpl extends InternalBase
 
   /** A random number generator. */
   private final Random random;
+
+  /** Last time a message was sent to the server. */
+  private long lastMessageSendTimeMs = 0;
 
   /** A task for acquiring the token (if the client has no token). */
   private AcquireTokenTask acquireTokenTask;
@@ -518,10 +547,10 @@ public class InvalidationClientImpl extends InternalBase
       setClientToken(persistentState.getClientToken());
       shouldSendRegistrations = false;
 
-      // Schedule an info message for the near future. We delay a little bit to allow the
-      // application to reissue its registrations locally and avoid triggering registration
-      // sync with the data center due to a hash mismatch.
-      internalScheduler.schedule(config.getInitialPersistentHeartbeatDelayMs(),
+      // Schedule an info message for the near future.
+      int initialHeartbeatDelayMs = computeInitialPersistentHeartbeatDelayMs(
+          config, resources, persistentState.getLastMessageSendTimeMs());
+      internalScheduler.schedule(initialHeartbeatDelayMs,
           new NamedRunnable("InvClient.sendInfoMessageAfterPersistentRead") {
         @Override
         public void run() {
@@ -545,6 +574,63 @@ public class InvalidationClientImpl extends InternalBase
     }
 
     // listener.ready() is called when ticl has acquired a new token.
+  }
+
+  /**
+   * Returns the delay for the initial heartbeat, given that the last message to the server was
+   * sent at {@code lastSendTimeMs}.
+   * @param config configuration object used by the client
+   * @param resources resources used by the client
+   */
+  
+  static int computeInitialPersistentHeartbeatDelayMs(ClientConfigP config,
+      SystemResources resources, long lastSendTimeMs) {
+      // There are five cases:
+      // 1. Channel does not support offline delivery. We delay a little bit to allow the
+      // application to reissue its registrations locally and avoid triggering registration
+      // sync with the data center due to a hash mismatch. This is the "default delay," and we
+      // never use a delay less than it.
+      //
+      // All other cases are for channels supporting offline delivery.
+      //
+      // 2. Last send time is in the future (something weird happened). Use the default delay.
+      // 3. We have been asleep for more than one heartbeat interval. Use the default delay.
+      // 4. We have been asleep for less than one heartbeat interval.
+      //    (a). The time remaining to the end of the interval is less than the default delay.
+      //         Use the default delay.
+      //    (b). The time remaining to the end of the interval is more than the default delay.
+      //         Use the remaining delay.
+    final long nowMs = resources.getInternalScheduler().getCurrentTimeMs();
+    final int initialHeartbeatDelayMs;
+    if (!config.getChannelSupportsOfflineDelivery()) {
+      // Case 1.
+      initialHeartbeatDelayMs = config.getInitialPersistentHeartbeatDelayMs();
+    } else {
+      // Offline delivery cases (2, 3, 4).
+      // The default of the last send time is zero, so even if it wasn't written in the persistent
+      // state, this logic is still correct.
+      if ((lastSendTimeMs > nowMs) ||                                       // Case 2.
+          ((lastSendTimeMs + config.getHeartbeatIntervalMs()) < nowMs)) {   // Case 3.
+        // Either something strange happened and the last send time is in the future, or we
+        // have been asleep for more than one heartbeat interval. Send immediately.
+        initialHeartbeatDelayMs = config.getInitialPersistentHeartbeatDelayMs();
+      } else {
+        // Case 4.
+        // We have been asleep for less than one heartbeat interval. Send after it expires,
+        // but ensure we let the initial heartbeat interval elapse.
+        final long timeSinceLastMessageMs = nowMs - lastSendTimeMs;
+        final int remainingHeartbeatIntervalMs =
+             (int) (config.getHeartbeatIntervalMs() - timeSinceLastMessageMs);
+        initialHeartbeatDelayMs = Math.max(remainingHeartbeatIntervalMs,
+            config.getInitialPersistentHeartbeatDelayMs());
+      }
+    }
+    resources.getLogger().info("Computed heartbeat delay %s from: offline-delivery = %s, "
+        + "initial-persistent-delay = %s, heartbeat-interval = %s, nowMs = %s",
+        initialHeartbeatDelayMs, config.getChannelSupportsOfflineDelivery(),
+        config.getInitialPersistentHeartbeatDelayMs(), config.getHeartbeatIntervalMs(),
+        nowMs);
+    return initialHeartbeatDelayMs;
   }
 
   @Override
@@ -878,6 +964,23 @@ public class InvalidationClientImpl extends InternalBase
         stop();
       }
     });
+  }
+
+  @Override
+  public void handleMessageSent() {
+    // The ProtocolHandler just sent a message to the server. If the channel supports offline
+    // delivery (see the comment in the ClientConfigP), store this time to stable storage. This
+    // only needs to be a best-effort write; if it fails, then we will "forget" that we sent the
+    // message and heartbeat needlessly when next restarted. That is a performance/battery bug,
+    // not a correctness bug.
+    lastMessageSendTimeMs = getResourcesTimeMs();
+    if (config.getChannelSupportsOfflineDelivery()) {
+      // Write whether or not we have a token. The persistent write task is a no-op if there is
+      // no token. We only write if the channel supports offline delivery. We could do the write
+      // regardless, and may want to do so in the future, since it might simplify some of the
+      // Ticl implementation.
+      persistentWriteTask.ensureScheduled("sent-message");
+    }
   }
 
   @Override

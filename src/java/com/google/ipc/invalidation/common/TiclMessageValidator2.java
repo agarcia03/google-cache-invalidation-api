@@ -149,10 +149,10 @@ public class TiclMessageValidator2 {
     private final ClientProtocolAccessor.Descriptor fieldDescriptor;
 
     /** Whether the field is required or optional. */
-    private Presence presence;
+    private final Presence presence;
 
     /** If not {@code null}, message info describing how to validate the field. */
-    private MessageInfo messageInfo;
+    private final MessageInfo messageInfo;
 
     /**
      * Constructs an instance.
@@ -335,6 +335,7 @@ public class TiclMessageValidator2 {
         FieldInfo.newOptional(ClientConfigPAccessor.SMEAR_PERCENT),
         FieldInfo.newOptional(ClientConfigPAccessor.IS_TRANSIENT),
         FieldInfo.newOptional(ClientConfigPAccessor.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS),
+        FieldInfo.newOptional(ClientConfigPAccessor.CHANNEL_SUPPORTS_OFFLINE_DELIVERY),
         FieldInfo.newRequired(ClientConfigPAccessor.PROTOCOL_HANDLER_CONFIG,
             PROTOCOL_HANDLER_CONFIG)
         );

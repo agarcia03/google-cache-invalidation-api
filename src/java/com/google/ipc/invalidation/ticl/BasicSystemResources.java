@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.ticl;
 
 import com.google.ipc.invalidation.external.client.SystemResources;
 
+
 /**
  * A simple implementation of {@code SystemResources} that just takes the resource components
  * and constructs a SystemResources object.
@@ -46,14 +47,23 @@ public class BasicSystemResources implements SystemResources {
    * @param listenerScheduler scheduler for scheduling the listener's events
    * @param network implementation of the network
    * @param storage implementation of storage
+   * @param platform if not {@code null}, platform string for client version. If {@code null},
+   *    a default string will be constructed.
    */
    public BasicSystemResources(Logger logger, Scheduler internalScheduler,
-      Scheduler listenerScheduler, NetworkChannel network, Storage storage) {
+      Scheduler listenerScheduler, NetworkChannel network, Storage storage,
+      String platform) {
     this.logger = logger;
     this.storage = storage;
     this.network = network;
-    this.platform = System.getProperty("os.name") + "/" + System.getProperty("os.version") +
-        "/" + System.getProperty("os.arch");
+    if (platform != null) {
+      this.platform = platform;
+    } else {
+      // If a platform string was not provided, try to compute a reasonable default.
+      this.platform = System.getProperty("os.name") + "/" + System.getProperty("os.version") +
+          "/" + System.getProperty("os.arch");
+    }
+
     this.internalScheduler = internalScheduler;
     this.listenerScheduler = listenerScheduler;
 
