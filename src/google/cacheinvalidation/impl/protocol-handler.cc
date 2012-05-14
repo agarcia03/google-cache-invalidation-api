@@ -260,8 +260,10 @@ bool ProtocolHandler::CheckServerToken(const string& server_token) {
   }
 
   if (client_token != server_token) {
-    // Bad token - reject whole message.
-    TLOG(logger_, WARNING, "Incoming message has bad token: %s, %s",
+    // Bad token - reject whole message.  However, our channel can send us
+    // messages intended for other clients belonging to the same user, so don't
+    // log too loudly.
+    TLOG(logger_, INFO, "Incoming message has bad token: %s, %s",
          ProtoHelpers::ToString(client_token).c_str(),
          ProtoHelpers::ToString(server_token).c_str());
     statistics_->RecordError(Statistics::ClientErrorType_TOKEN_MISMATCH);
