@@ -17,7 +17,6 @@
 package com.google.ipc.invalidation.ticl.android;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
@@ -27,6 +26,7 @@ import com.google.ipc.invalidation.external.client.android.service.AndroidLogger
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.ListenerBinder;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
+import com.google.ipc.invalidation.external.client.android.service.ServiceBinder.BoundWork;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
@@ -142,9 +142,9 @@ class AndroidClientProxy implements AndroidInvalidationClient {
      * Send event messages to application clients and provides common processing of the response.
      */
     private void sendEvent(final Event event) {
-      binder.runWhenBound(new Receiver<ListenerService>() {
+      binder.runWhenBound(new BoundWork<ListenerService>() {
         @Override
-        public void accept(ListenerService listenerService) {
+        public void run(ListenerService listenerService) {
           logger.fine("Sending %s event to %s", event.getAction(), clientKey);
           service.sendEvent(listenerService, event);
         }

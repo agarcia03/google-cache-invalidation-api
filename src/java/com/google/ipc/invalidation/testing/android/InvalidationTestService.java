@@ -17,7 +17,6 @@
 package com.google.ipc.invalidation.testing.android;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.ListenerBinder;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
@@ -26,6 +25,7 @@ import com.google.ipc.invalidation.external.client.android.service.Request.Actio
 import com.google.ipc.invalidation.external.client.android.service.Request.Parameter;
 import com.google.ipc.invalidation.external.client.android.service.Response;
 import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
+import com.google.ipc.invalidation.external.client.android.service.ServiceBinder.BoundWork;
 import com.google.ipc.invalidation.ticl.android.AbstractInvalidationService;
 import com.google.ipc.invalidation.util.TypedUtil;
 
@@ -139,9 +139,9 @@ public class InvalidationTestService extends AbstractInvalidationService {
         // Bind to the listener associated with the client and send the event
         ListenerBinder binder = new ListenerBinder(getBaseContext(), state.eventIntent,
             InvalidationTestListener.class.getName());
-        binder.runWhenBound(new Receiver<ListenerService>() {
+        binder.runWhenBound(new BoundWork<ListenerService>() {
           @Override
-          public void accept(ListenerService service) {
+          public void run(ListenerService service) {
             InvalidationTestService.this.sendEvent(service, new Event(eventBundle));
           }
         });

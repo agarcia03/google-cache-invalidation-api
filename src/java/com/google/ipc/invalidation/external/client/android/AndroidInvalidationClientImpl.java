@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.external.client.android;
 
-import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
@@ -25,6 +24,7 @@ import com.google.ipc.invalidation.external.client.android.service.InvalidationS
 import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Request.Action;
 import com.google.ipc.invalidation.external.client.android.service.Response;
+import com.google.ipc.invalidation.external.client.android.service.ServiceBinder.BoundWork;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 
@@ -323,9 +323,9 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    * @param request the request to execute.
    */
   private void executeServiceRequest(final Request request) {
-    serviceBinder.runWhenBound(new Receiver<InvalidationService>() {
+    serviceBinder.runWhenBound(new BoundWork<InvalidationService>() {
       @Override
-      public void accept(InvalidationService service) {
+      public void run(InvalidationService service) {
         Bundle outBundle = new Bundle();
         try {
           service.handleRequest(request.getBundle(), outBundle);

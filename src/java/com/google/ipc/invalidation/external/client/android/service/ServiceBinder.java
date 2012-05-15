@@ -17,7 +17,6 @@
 package com.google.ipc.invalidation.external.client.android.service;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 
 import android.content.ComponentName;
@@ -51,7 +50,14 @@ import java.util.Queue;
  *
  */
 public abstract class ServiceBinder<BoundService> {
-
+  /**
+   * Interface for a work unit to be executed when the service is bound.
+   * @param <ServiceType> the bound service interface type
+   */
+  public interface BoundWork<ServiceType> {
+    /** Function called with the bound service once the service is bound. */
+    void run(ServiceType service);
+  }
   /** Logger */
   private static final Logger logger = AndroidLogger.forTag("InvServiceBinder");
 
@@ -65,8 +71,8 @@ public abstract class ServiceBinder<BoundService> {
   private final String componentClassName;
 
   /** Work waiting to be run when the service becomes bound. */
-  private final Queue<Receiver<BoundService>> pendingWork =
-      new LinkedList<Receiver<BoundService>>();
+  private final Queue<BoundWork<BoundService>> pendingWork =
+      new LinkedList<BoundWork<BoundService>>();
 
   /** Used to synchronize. */
   private final Object lock = new Object();
@@ -142,7 +148,7 @@ public abstract class ServiceBinder<BoundService> {
   }
 
   /** Runs {@code receiver} when the service becomes bound. */
-  public void runWhenBound(Receiver<BoundService> receiver) {
+  public void runWhenBound(BoundWork<BoundService> receiver) {
     synchronized (lock) {
       pendingWork.add(receiver);
       handleQueue();
@@ -158,9 +164,9 @@ public abstract class ServiceBinder<BoundService> {
       }
       // We need to release using a runWhenBound to avoid having a release jump ahead of
       // pending work waiting for a bind (i.e., to preserve program order).
-      runWhenBound(new Receiver<BoundService>() {
+      runWhenBound(new BoundWork<BoundService>() {
         @Override
-        public void accept(BoundService ignored) {
+        public void run(BoundService ignored) {
           synchronized (lock) {
             // Do the unbind.
             logger.fine("Unbinding %s from %s", serviceClass, serviceInstance);
@@ -246,9 +252,9 @@ public abstract class ServiceBinder<BoundService> {
     // Service is bound and available. Remove and invoke the head of the queue, then recurse to
     // process the rest. We recurse because the head of the queue may have been a release(), which
     // would have unbound the service, and we would need to reinvoke the binding code.
-    Receiver<BoundService> receiver = pendingWork.remove();
+    BoundWork<BoundService> work = pendingWork.remove();
     queueHandlingInProgress = true;
-    receiver.accept(serviceInstance);
+    work.run(serviceInstance);
     queueHandlingInProgress = false;
     handleQueue();
   }
