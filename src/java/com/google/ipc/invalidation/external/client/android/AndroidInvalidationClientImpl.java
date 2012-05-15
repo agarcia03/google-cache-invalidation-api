@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.external.client.android;
 
+import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
@@ -35,8 +36,6 @@ import android.os.Bundle;
 import android.os.RemoteException;
 
 import java.util.Collection;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -50,14 +49,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  */
 final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
-  /**
-   * Work queue for all accesses to all instances of this class. Used to ensure that we never
-   * attempt to bind a service in a blocking way on the main thread, which can cause deadlock.
-   */
-  // TODO: consider a periodic watchdog event to ensure we have never deadlocked
-  // on this thread (for testing only).
-  private static final ExecutorService STUB_EXECUTOR = Executors.newSingleThreadExecutor();
-
   /** Logger */
   private static final Logger logger = AndroidLogger.forTag("InvClient");
 
@@ -89,7 +80,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
   /**
    * A service binder used to bind to the invalidation service.
    */
-  private final InvalidationBinder serviceBinder = new InvalidationBinder();
+  private final InvalidationBinder serviceBinder;
 
   /**
    * The {@code InvalidationListener} service class that handles events for this client. May be
@@ -130,6 +121,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
     this.account = account;
     this.authType = authType;
     this.listenerClass = listenerClass;
+    this.serviceBinder = new InvalidationBinder(context);
   }
 
   /**
@@ -145,6 +137,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
     this.authType = null;
     this.listenerClass = null;
     this.clientType = -1;
+    this.serviceBinder = new InvalidationBinder(context);
   }
 
   /**
@@ -242,23 +235,16 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
 
   @Override
   public void release() {
-    // It is important to call release on the executor; otherwise, we could release the service
-    // binder before pending work in the executor can run.
-    STUB_EXECUTOR.execute(new Runnable() {
-      @Override
-      public void run() {
-        // Release the binding and remove from the client factory when the last reference is
-        // released.
-        final int refsRemaining = refcnt.decrementAndGet();
-        if (refsRemaining < 0) {
-          wasOverReleasedForTest.set(true);
-          logger.warning("Over-release of client %s", clientKey);
-        } else if (refsRemaining == 0) {
-          AndroidClientFactory.release(clientKey);
-          serviceBinder.unbind(context);
-        }
-      }
-    });
+    // Release the binding and remove from the client factory when the last reference is
+    // released.
+    final int refsRemaining = refcnt.decrementAndGet();
+    if (refsRemaining < 0) {
+      wasOverReleasedForTest.set(true);
+      logger.warning("Over-release of client %s", clientKey);
+    } else if (refsRemaining == 0) {
+      AndroidClientFactory.release(clientKey);
+      serviceBinder.release();
+    }
   }
 
   @Override
@@ -326,7 +312,7 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    */
   
   boolean hasServiceBindingForTest() {
-    return serviceBinder.isBound();
+    return serviceBinder.isBoundForTest();
   }
 
   /**
@@ -337,39 +323,19 @@ final class AndroidInvalidationClientImpl implements AndroidInvalidationClient {
    * @param request the request to execute.
    */
   private void executeServiceRequest(final Request request) {
-    STUB_EXECUTOR.execute(new Runnable() {
+    serviceBinder.runWhenBound(new Receiver<InvalidationService>() {
       @Override
-      public void run() {
+      public void accept(InvalidationService service) {
+        Bundle outBundle = new Bundle();
         try {
-          InvalidationService service = ensureService();
-          Bundle outBundle = new Bundle();
           service.handleRequest(request.getBundle(), outBundle);
-          Response response = new Response(outBundle);
-          response.warnOnFailure();
         } catch (RemoteException exception) {
-          // Ok to throw the exeption because the ExecutorService will create a new thread.
           logger.warning("Remote exeption executing request %s: %s", request,
               exception.getMessage());
-          throw new RuntimeException("Unable to contact invalidation service", exception);
         }
+        Response response = new Response(outBundle);
+        response.warnOnFailure();
       }
     });
-  }
-
-  /**
-   * Ensures that the invalidation service has been started and that the client has a bound service
-   * connection to it.
-   */
-  private InvalidationService ensureService() {
-    if (!serviceBinder.isBound()) {
-      // Start the service if not currently bound. The invalidation service
-      // is responsible for stopping itself when no work remains to be done.
-      Intent serviceIntent = serviceBinder.getIntent(context);
-      if (context.startService(serviceIntent) == null) {
-        logger.severe("Unable to start invalidation service: %s", serviceIntent);
-        throw new IllegalStateException("Unable to start invalidation service");
-      }
-    }
-    return serviceBinder.bind(context);
   }
 }

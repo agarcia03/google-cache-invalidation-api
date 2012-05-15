@@ -697,7 +697,8 @@ public class InvalidationClientImpl extends InternalBase
           IncomingOperationType opType = (regOpType == RegistrationP.OpType.REGISTER) ?
               IncomingOperationType.REGISTRATION : IncomingOperationType.UNREGISTRATION;
           statistics.recordIncomingOperation(opType);
-          logger.info("Register %s, %s", objectIdProto, regOpType);
+          logger.info("Register %s, %s", CommonProtoStrings2.toLazyCompactString(objectIdProto),
+              regOpType);
           objectIdProtos.add(objectIdProto);
           // Inform immediately of success so that the application is informed even if the reply
           // message from the server is lost. When we get a real ack from the server, we do
@@ -745,7 +746,7 @@ public class InvalidationClientImpl extends InternalBase
         // 2. Validate ack handle - it should have a valid invalidation.
         if (!ackHandle.hasInvalidation() ||
             !msgValidator.isValid(ackHandle.getInvalidation())) {
-          logger.warning("Incorrect ack handle: %s", ackHandle);
+          logger.warning("Incorrect ack handle data: %s", acknowledgeHandle);
           statistics.recordError(ClientErrorType.ACKNOWLEDGE_HANDLE_FAILURE);
           return;
         }

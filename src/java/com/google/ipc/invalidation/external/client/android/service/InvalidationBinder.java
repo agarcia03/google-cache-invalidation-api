@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.external.client.android.service;
 
+import android.content.Context;
 import android.os.IBinder;
 
 /**
@@ -46,8 +47,8 @@ public class InvalidationBinder extends ServiceBinder<InvalidationService> {
   /**
    * Constructs a new InvalidationBinder that connects to the invalidation service.
    */
-  public InvalidationBinder() {
-    super(Request.SERVICE_INTENT, InvalidationService.class, serviceClassName);
+  public InvalidationBinder(Context context) {
+    super(context, Request.SERVICE_INTENT, InvalidationService.class, serviceClassName);
   }
 
   @Override

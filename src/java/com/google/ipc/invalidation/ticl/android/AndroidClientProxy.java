@@ -17,6 +17,7 @@
 package com.google.ipc.invalidation.ticl.android;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
@@ -67,7 +68,7 @@ class AndroidClientProxy implements AndroidInvalidationClient {
      * Creates a new listener reverse proxy.
      */
     private AndroidListenerProxy() {
-      this.binder = new ListenerBinder(Event.LISTENER_INTENT, metadata.getListenerClass());
+      this.binder = new ListenerBinder(service, Event.LISTENER_INTENT, metadata.getListenerClass());
     }
 
     @Override
@@ -134,22 +135,20 @@ class AndroidClientProxy implements AndroidInvalidationClient {
      * Releases any resources associated with the proxy listener.
      */
     public void release() {
-      binder.unbind(service);
+      binder.release();
     }
 
     /**
      * Send event messages to application clients and provides common processing of the response.
      */
-    private void sendEvent(Event event) {
-      ListenerService listenerService = binder.bind(service);
-      if (listenerService == null) {
-        // If unable to bind to the client listener service, then log a warning
-        // and exit. It's possible that the application has been uninstalled.
-        logger.warning("Cannot bind using %s to send event:", event);
-        return;
-      }
-      logger.fine("Sending %s event to %s", event.getAction(), clientKey);
-      service.sendEvent(listenerService, event);
+    private void sendEvent(final Event event) {
+      binder.runWhenBound(new Receiver<ListenerService>() {
+        @Override
+        public void accept(ListenerService listenerService) {
+          logger.fine("Sending %s event to %s", event.getAction(), clientKey);
+          service.sendEvent(listenerService, event);
+        }
+      });
     }
   }
 

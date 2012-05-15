@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.external.client.android.service;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 
@@ -29,8 +30,8 @@ public class ListenerBinder extends ServiceBinder<ListenerService> {
    * Constructs a new ListenerBinder that connects to the ListenerService bound by the provided
    * intent. The intent should contain the component or class name of the target listener.
    */
-  public ListenerBinder(Intent listenerIntent, String listenerClassName) {
-    super(listenerIntent, ListenerService.class, listenerClassName);
+  public ListenerBinder(Context context, Intent listenerIntent, String listenerClassName) {
+    super(context, listenerIntent, ListenerService.class, listenerClassName);
   }
 
   @Override

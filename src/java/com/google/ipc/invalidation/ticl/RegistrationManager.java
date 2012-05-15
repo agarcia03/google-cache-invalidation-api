@@ -16,6 +16,7 @@
 
 package com.google.ipc.invalidation.ticl;
 
+import com.google.ipc.invalidation.common.CommonProtoStrings2;
 import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.common.DigestFunction;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
@@ -159,13 +160,14 @@ class RegistrationManager extends InternalBase {
           statistics.recordError(ClientErrorType.REGISTRATION_DISCREPANCY);
           logger.info("Ticl discrepancy detected: registered = %s, requested = %s. " +
               "Removing %s from requested",
-              isRegister, inRequestedMap, objectIdProto);
+              isRegister, inRequestedMap, CommonProtoStrings2.toLazyCompactString(objectIdProto));
           isSuccess = false;
         }
       } else {
         // If the server operation failed, then local processing fails.
         desiredRegistrations.remove(objectIdProto);
-        logger.fine("Removing %s from committed", objectIdProto);
+        logger.fine("Removing %s from committed",
+            CommonProtoStrings2.toLazyCompactString(objectIdProto));
         isSuccess = false;
       }
       successStatus.add(isSuccess);

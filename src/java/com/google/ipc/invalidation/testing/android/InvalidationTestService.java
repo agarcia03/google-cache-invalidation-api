@@ -17,6 +17,7 @@
 package com.google.ipc.invalidation.testing.android;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.ListenerBinder;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
@@ -128,7 +129,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
     }
 
     @Override
-    public void sendEvent(Bundle eventBundle) {
+    public void sendEvent(final Bundle eventBundle) {
       synchronized (LOCK) {
         // Retrive info for that target client
         String clientKey = eventBundle.getString(Parameter.CLIENT);
@@ -136,18 +137,18 @@ public class InvalidationTestService extends AbstractInvalidationService {
         Preconditions.checkNotNull(state, "No state for %s in %s", clientKey, clientMap.keySet());
 
         // Bind to the listener associated with the client and send the event
-        ListenerBinder binder = null;
-        InvalidationTestService theService = InvalidationTestService.this;
-        try {
-          binder = new ListenerBinder(state.eventIntent, InvalidationTestListener.class.getName());
-          ListenerService service = binder.bind(theService);
-          theService.sendEvent(service, new Event(eventBundle));
-        } finally {
-          // Ensure that listener binding is released
-          if (binder != null) {
-            binder.unbind(theService);
+        ListenerBinder binder = new ListenerBinder(getBaseContext(), state.eventIntent,
+            InvalidationTestListener.class.getName());
+        binder.runWhenBound(new Receiver<ListenerService>() {
+          @Override
+          public void accept(ListenerService service) {
+            InvalidationTestService.this.sendEvent(service, new Event(eventBundle));
           }
-        }
+        });
+
+        // Will happen after the runWhenBound invokes the receiver. Could also be done inside
+        // the receiver.
+        binder.release();
       }
     }
 
@@ -238,10 +239,18 @@ public class InvalidationTestService extends AbstractInvalidationService {
     synchronized (LOCK) {
       validateRequest(request, Action.CREATE, Parameter.ACTION, Parameter.CLIENT,
           Parameter.CLIENT_TYPE, Parameter.ACCOUNT, Parameter.AUTH_TYPE, Parameter.INTENT);
-      Log.i(TAG, "Creating client " + request.getClientKey() + ": " + clientMap.keySet());
-      clientMap.put(
-          request.getClientKey(), new ClientState(request.getAccount(), request.getAuthType(),
-              request.getIntent()));
+      Log.i(TAG, "Creating client '" + request.getClientKey() + "': " + clientMap.keySet());
+      if (!TypedUtil.containsKey(clientMap, request.getClientKey())) {
+        // If no client exists with this key, create one.
+        clientMap.put(
+            request.getClientKey(), new ClientState(request.getAccount(), request.getAuthType(),
+                request.getIntent()));
+      } else {
+        // Otherwise, verify that the existing client has the same account / auth type / intent.
+        ClientState existingState = TypedUtil.mapGet(clientMap, request.getClientKey());
+        Preconditions.checkState(request.getAccount().equals(existingState.account));
+        Preconditions.checkState(request.getAuthType().equals(existingState.authType));
+      }
       response.setStatus(Response.Status.SUCCESS);
     }
   }
