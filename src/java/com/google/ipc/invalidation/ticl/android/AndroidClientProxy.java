@@ -272,7 +272,10 @@ class AndroidClientProxy implements AndroidInvalidationClient {
 
   @Override
   public void start() {
-    Preconditions.checkState(!started);
+    if (started) {
+      logger.info("Not starting Ticl since already started");
+      return;
+    }
     resources.start();
     delegate.start();
     started = true;
@@ -280,10 +283,13 @@ class AndroidClientProxy implements AndroidInvalidationClient {
 
   @Override
   public void stop() {
-
     // When a client is stopped, stop the TICL and its resources and remove it from the client
     // manager.   This means that any subsequent requests (like another start) will be executed
     // against a clean TICL instance w/ no preexisting state from before the stop.
+    if (!started) {
+      logger.info("Not stopping Ticl since already stopped");
+      return;
+    }
     stopTicl();
     resources.stop();
     AndroidInvalidationService.getClientManager().remove(clientKey);
