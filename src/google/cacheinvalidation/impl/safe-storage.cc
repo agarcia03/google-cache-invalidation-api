@@ -18,42 +18,6 @@
 
 #include "google/cacheinvalidation/impl/safe-storage.h"
 
-namespace {
-
-// Encapsulates a callback and its argument.  Deletes the inner callback when it
-// is itself deleted, regardless of whether it is ever run.
-template<typename ArgumentType>
-class CallbackWrapper : public Closure {
- public:
-  // Constructs a new CallbackWrapper, which takes ownership of the inner
-  // callback.
-  CallbackWrapper(
-      INVALIDATION_CALLBACK1_TYPE(ArgumentType)* callback, ArgumentType arg) :
-      callback_(callback), arg_(arg) {}
-
-  virtual ~CallbackWrapper() {
-    delete callback_;
-  }
-
-  // Returns whether the inner callback is repeatable.
-  virtual bool IsRepeatable() const {
-    return callback_->IsRepeatable();
-  }
-
-  // Runs the inner callback on the argument.
-  virtual void Run() {
-    callback_->Run(arg_);
-  }
-
- private:
-  // The callback to run.
-  INVALIDATION_CALLBACK1_TYPE(ArgumentType)* callback_;
-  // The argument on which to run it.
-  ArgumentType arg_;
-};
-
-}  // namespace
-
 namespace invalidation {
 
 void SafeStorage::SetSystemResources(SystemResources* resources) {
@@ -68,7 +32,8 @@ void SafeStorage::WriteKey(const string& key, const string& value,
 
 void SafeStorage::WriteCallback(WriteKeyCallback* done, Status status) {
   scheduler_->Schedule(
-      Scheduler::NoDelay(), new CallbackWrapper<Status>(done, status));
+      Scheduler::NoDelay(),
+      /* Owns 'done'. */ NewPermanentCallback(done, status));
 }
 
 void SafeStorage::ReadKey(const string& key, ReadKeyCallback* done) {
@@ -80,7 +45,7 @@ void SafeStorage::ReadCallback(ReadKeyCallback* done,
     StatusStringPair read_result) {
   scheduler_->Schedule(
       Scheduler::NoDelay(),
-      new CallbackWrapper<StatusStringPair>(done, read_result));
+      /* Owns 'done'. */ NewPermanentCallback(done, read_result));
 }
 
 void SafeStorage::DeleteKey(const string& key, DeleteKeyCallback* done) {
@@ -90,7 +55,8 @@ void SafeStorage::DeleteKey(const string& key, DeleteKeyCallback* done) {
 
 void SafeStorage::DeleteCallback(DeleteKeyCallback* done, bool result) {
   scheduler_->Schedule(
-      Scheduler::NoDelay(), new CallbackWrapper<bool>(done, result));
+      Scheduler::NoDelay(),
+      /* Owns 'done'. */ NewPermanentCallback(done, result));
 }
 
 void SafeStorage::ReadAllKeys(ReadAllKeysCallback* key_callback) {
@@ -102,7 +68,7 @@ void SafeStorage::ReadAllCallback(ReadAllKeysCallback* key_callback,
     StatusStringPair result) {
   scheduler_->Schedule(
       Scheduler::NoDelay(),
-      new CallbackWrapper<StatusStringPair>(key_callback, result));
+      /* Owns 'key_callback'. */ NewPermanentCallback(key_callback, result));
 }
 
 }  // namespace invalidation

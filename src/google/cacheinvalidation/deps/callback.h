@@ -32,6 +32,51 @@ bool IsCallbackRepeatable(const T* callback) {
   return callback->IsRepeatable();
 }
 
+// Encapsulates a callback and its argument.  Deletes the inner callback when it
+// is itself deleted, regardless of whether it is ever run.
+template<typename ArgumentType>
+class CallbackWrapper : public Closure {
+ public:
+  // Constructs a new CallbackWrapper, which takes ownership of the inner
+  // callback.
+  CallbackWrapper(
+      INVALIDATION_CALLBACK1_TYPE(ArgumentType)* callback, ArgumentType arg) :
+      callback_(callback), arg_(arg) {}
+
+  virtual ~CallbackWrapper() {
+    delete callback_;
+  }
+
+  // Returns whether the inner callback is repeatable.
+  virtual bool IsRepeatable() const {
+    return callback_->IsRepeatable();
+  }
+
+  // Runs the inner callback on the argument.
+  virtual void Run() {
+    callback_->Run(arg_);
+  }
+
+ private:
+  // The callback to run.
+  INVALIDATION_CALLBACK1_TYPE(ArgumentType)* callback_;
+  // The argument on which to run it.
+  ArgumentType arg_;
+};
+
+// An override of NewPermanentCallback that wraps a callback and its argument,
+// transferring ownership of the inner callback to the new one.  We define this
+// here (in deps/callback.h), along with the class above, because the Google
+// implementation of callbacks is much different from the one used in Chrome.  A
+// Chrome Closure's destructor and Run() method are not virtual, so we can't
+// define custom implementations (as above in CallbackWrapper) to get the
+// semantics and memory management behavior we want.
+template <typename ArgType>
+Closure* NewPermanentCallback(
+    INVALIDATION_CALLBACK1_TYPE(ArgType)* callback, ArgType arg) {
+  return new CallbackWrapper<ArgType>(callback, arg);
+}
+
 }  // namespace invalidation
 
 #endif  // GOOGLE_CACHEINVALIDATION_DEPS_CALLBACK_H_
