@@ -16,8 +16,8 @@
 
 #include <vector>
 
-#include "google/cacheinvalidation/v2/client_test_internal.pb.h"
-#include "google/cacheinvalidation/v2/types.pb.h"
+#include "google/cacheinvalidation/client_test_internal.pb.h"
+#include "google/cacheinvalidation/types.pb.h"
 #include "google/cacheinvalidation/include/invalidation-listener.h"
 #include "google/cacheinvalidation/include/types.h"
 #include "google/cacheinvalidation/deps/gmock.h"

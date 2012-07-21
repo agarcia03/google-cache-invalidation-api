@@ -16,7 +16,7 @@
 
 #include <sstream>
 
-#include "google/cacheinvalidation/v2/client_test_internal.pb.h"
+#include "google/cacheinvalidation/client_test_internal.pb.h"
 #include "google/cacheinvalidation/deps/string_util.h"
 #include "google/cacheinvalidation/impl/proto-helpers.h"
 

@@ -17,9 +17,9 @@
 #ifndef GOOGLE_CACHEINVALIDATION_IMPL_CLIENT_PROTOCOL_NAMESPACE_FIX_H_
 #define GOOGLE_CACHEINVALIDATION_IMPL_CLIENT_PROTOCOL_NAMESPACE_FIX_H_
 
-#include "google/cacheinvalidation/v2/client.pb.h"
-#include "google/cacheinvalidation/v2/client_protocol.pb.h"
-#include "google/cacheinvalidation/v2/types.pb.h"
+#include "google/cacheinvalidation/client.pb.h"
+#include "google/cacheinvalidation/client_protocol.pb.h"
+#include "google/cacheinvalidation/types.pb.h"
 
 namespace invalidation {
 

@@ -20,7 +20,7 @@
 #include <sstream>
 #include <string>
 
-#include "google/cacheinvalidation/v2/client_protocol.pb.h"
+#include "google/cacheinvalidation/client_protocol.pb.h"
 #include "google/cacheinvalidation/deps/logging.h"
 #include "google/cacheinvalidation/deps/stl-namespace.h"
 #include "google/cacheinvalidation/impl/client-protocol-namespace-fix.h"

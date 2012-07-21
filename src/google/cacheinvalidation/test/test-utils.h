@@ -19,8 +19,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_TEST_TEST_UTILS_H_
 #define GOOGLE_CACHEINVALIDATION_TEST_TEST_UTILS_H_
 
-#include "google/cacheinvalidation/v2/client_protocol.pb.h"
-#include "google/cacheinvalidation/v2/types.pb.h"
+#include "google/cacheinvalidation/client_protocol.pb.h"
+#include "google/cacheinvalidation/types.pb.h"
 #include "google/cacheinvalidation/include/types.h"
 #include "google/cacheinvalidation/deps/gmock.h"
 #include "google/cacheinvalidation/deps/string_util.h"

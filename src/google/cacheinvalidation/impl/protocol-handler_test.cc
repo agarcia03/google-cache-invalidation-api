@@ -14,7 +14,7 @@
 
 // Unit tests for the ProtocolHandler class.
 
-#include "google/cacheinvalidation/v2/types.pb.h"
+#include "google/cacheinvalidation/types.pb.h"
 #include "google/cacheinvalidation/include/types.h"
 #include "google/cacheinvalidation/deps/gmock.h"
 #include "google/cacheinvalidation/deps/googletest.h"

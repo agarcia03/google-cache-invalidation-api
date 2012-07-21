@@ -14,7 +14,7 @@
 
 // Unit tests for the RecurringTask class.
 
-#include "google/cacheinvalidation/v2/client_test_internal.pb.h"
+#include "google/cacheinvalidation/client_test_internal.pb.h"
 #include "google/cacheinvalidation/deps/googletest.h"
 #include "google/cacheinvalidation/deps/random.h"
 #include "google/cacheinvalidation/deps/string_util.h"

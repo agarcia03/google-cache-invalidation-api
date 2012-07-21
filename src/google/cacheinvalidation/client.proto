@@ -23,7 +23,7 @@ option optimize_for = LITE_RUNTIME;
 
 package ipc.invalidation;
 
-import "google/cacheinvalidation/v2/client_protocol.proto";
+import "client_protocol.proto";
 
 // An object that is serialized and given to clients for acknowledgement
 // purposes.
