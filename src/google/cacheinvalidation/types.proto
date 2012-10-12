@@ -24,7 +24,8 @@ package ipc.invalidation;
 message ClientType {
   enum Type {
     INTERNAL = 1;
-    TEST = 2; // Uncontrolled client space for use by anyone for testing.
+    TEST = 2;  // Uncontrolled client space for use by anyone for testing.
+    DEMO = 4;  // A demo client type that can be used for testing.
 
     // Numbers below 1000 are reserved for internal use.
     CHROME_SYNC = 1004;
@@ -41,7 +42,8 @@ message ObjectSource {
   //
   enum Type {
     INTERNAL = 1;
-    TEST = 2; // Uncontrolled object space for use by anyone for testing.
+    TEST = 2;  // Uncontrolled object space for use by anyone for testing.
+    DEMO = 4;  // A demo object source that can be used for testing.
 
     // Numbers below 1000 are reserved for internal use.
     CHROME_SYNC = 1004;
