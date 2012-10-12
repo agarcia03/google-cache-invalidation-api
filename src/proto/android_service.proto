@@ -29,9 +29,9 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "AndroidService";
 
 
-import "proto/client.proto";
-import "proto/client_protocol.proto";
-import "proto/java_client.proto";
+import "client.proto";
+import "client_protocol.proto";
+import "java_client.proto";
 
 // Call from application to Ticl.
 

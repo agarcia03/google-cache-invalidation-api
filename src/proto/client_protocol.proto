@@ -29,7 +29,7 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "ClientProtocol";
 
 
-option java_generate_equals_and_hash = true;
+
 
 
 // Here is a high-level overview of the protocol. The protocol is designed in a

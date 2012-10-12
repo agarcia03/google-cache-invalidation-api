@@ -29,8 +29,8 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "MarshalledTicl";
 
 
-import 'proto/client.proto';
-import 'proto/client_protocol.proto';
+import 'client.proto';
+import 'client_protocol.proto';
 
 // State of the batched messages in the ProtocolHandler. Corresponds to
 // ProtocolHandler.Batcher.

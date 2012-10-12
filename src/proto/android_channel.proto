@@ -26,10 +26,10 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "AndroidChannel";
 
 
-option java_generate_equals_and_hash = true;
 
 
-import "proto/client_protocol.proto";
+
+import "client_protocol.proto";
 
 // Defines the valid major versions of the android channel protocol.  The
 // channel version controls the expected envelope syntax and semantics of

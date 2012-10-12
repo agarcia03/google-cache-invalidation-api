@@ -24,11 +24,11 @@ option optimize_for = LITE_RUNTIME;
 
 option java_outer_classname = "AndroidState";
 
-option java_generate_equals_and_hash = true;
+
 
 
 // TODO: Factor out Version and remove this dependency
-import "proto/client_protocol.proto";
+import "client_protocol.proto";
 
 // Base metadata for an Android client instance.  All of these values
 // are required and invariant for the life of the client.

@@ -29,10 +29,10 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "Client";
 
 
-option java_generate_equals_and_hash = true;
 
 
-import "proto/client_protocol.proto";
+
+import "client_protocol.proto";
 
 // An object that is serialized and given to clients for acknowledgement
 // purposes.

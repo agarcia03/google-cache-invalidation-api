@@ -20,8 +20,6 @@ import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.MessageOrBuilder;
-import com.google.protobuf.TextFormat;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientToServerMessage;
@@ -88,19 +86,6 @@ public class CommonProtoStrings2 {
       @Override
       public String toString() {
         return Bytes.toString(bytes);
-      }
-    };
-  }
-
-  /** See spec in implementation notes. */
-  public static Object toLazyVerboseString(final MessageOrBuilder message) {
-    if (message == null) {
-      return null;
-    }
-    return new Object() {
-      @Override
-      public String toString() {
-        return TextFormat.shortDebugString(message);
       }
     };
   }
