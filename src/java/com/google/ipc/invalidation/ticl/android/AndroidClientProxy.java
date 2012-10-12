@@ -31,6 +31,7 @@ import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
+import com.google.ipc.invalidation.ticl.InvalidationClientCore;
 import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
 import com.google.ipc.invalidation.ticl.android.c2dm.C2DMManager;
 import com.google.protos.ipc.invalidation.AndroidState.ClientMetadata;
@@ -365,7 +366,7 @@ class AndroidClientProxy implements AndroidInvalidationClient {
     // We always use C2DM, so set the channel-supports-offline-delivery bit on our config.
     final ClientConfigP.Builder configBuilder;
     if (config == null) {
-      configBuilder = InvalidationClientImpl.createConfig();
+      configBuilder = InvalidationClientCore.createConfig();
     } else {
       configBuilder = ClientConfigP.newBuilder(config);
     }

@@ -17,6 +17,8 @@
 package com.google.ipc.invalidation.ticl;
 
 import com.google.common.base.Preconditions;
+import com.google.ipc.invalidation.util.Marshallable;
+import com.google.protos.ipc.invalidation.Client.RunStateP;
 
 /**
  * An abstraction that keeps track of whether the caller is started or stopped and only allows
@@ -24,17 +26,20 @@ import com.google.common.base.Preconditions;
  *
  *
  */
-public class RunState {
+public class RunState implements Marshallable<RunStateP> {
+  /** Current run state. */
+  private RunStateP.State currentState;
+  private Object lock = new Object();
 
-   /** Whether the instance has been started and/or stopped. */
-  private enum CurrentState {
-    NOT_STARTED,
-    STARTED,
-    STOPPED
+  /** Constructs a new instance in the {@code NOT_STARTED} state. */
+  public RunState() {
+    currentState = RunStateP.State.NOT_STARTED;
   }
 
-  private CurrentState currentState = CurrentState.NOT_STARTED;
-  private Object lock = new Object();
+  /** Constructs a new instance with the state given in {@code runState}. */
+  RunState(RunStateP runState) {
+    this.currentState = runState.getState();
+  }
 
   /**
    * Marks the current state to be STARTED.
@@ -43,9 +48,9 @@ public class RunState {
    */
   public void start() {
     synchronized (lock) {
-      Preconditions.checkState(currentState == CurrentState.NOT_STARTED,
+      Preconditions.checkState(currentState == RunStateP.State.NOT_STARTED,
           "Cannot start: %s", currentState);
-      currentState = CurrentState.STARTED;
+      currentState = RunStateP.State.STARTED;
     }
   }
 
@@ -56,9 +61,9 @@ public class RunState {
    */
   public void stop() {
     synchronized (lock) {
-      Preconditions.checkState(currentState == CurrentState.STARTED,
+      Preconditions.checkState(currentState == RunStateP.State.STARTED,
           "Cannot stop: %s", currentState);
-      currentState = CurrentState.STOPPED;
+      currentState = RunStateP.State.STOPPED;
     }
   }
 
@@ -67,14 +72,24 @@ public class RunState {
    */
   public boolean isStarted() {
     synchronized (lock) {
-      return currentState == CurrentState.STARTED;
+      return currentState == RunStateP.State.STARTED;
     }
   }
 
   /** Returns true iff {@link #start} and {@link #stop} have been called on this object. */
   public boolean isStopped() {
     synchronized (lock) {
-      return currentState == CurrentState.STOPPED;
+      return currentState == RunStateP.State.STOPPED;
     }
+  }
+
+  @Override
+  public RunStateP marshal() {
+    return RunStateP.newBuilder().setState(currentState).build();
+  }
+
+  @Override
+  public String toString() {
+    return "<RunState: " + currentState + ">";
   }
 }

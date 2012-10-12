@@ -30,6 +30,7 @@ import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.ipc.invalidation.ticl.Statistics.ListenerEventType;
 import com.google.ipc.invalidation.util.NamedRunnable;
 
+
 /**
  * {@link InvalidationListener} wrapper that ensures that a delegate listener is called on the
  * proper thread and calls the listener method on the listener thread.
@@ -47,18 +48,22 @@ class CheckingInvalidationListener implements InvalidationListener {
   private final Scheduler listenerScheduler;
 
   /** Statistics objects to track number of sent messages, etc. */
-  private final Statistics statistics;
+  private Statistics statistics;
 
   private final Logger logger;
 
+  CheckingInvalidationListener(InvalidationListener delegate, Scheduler internalScheduler,
+      Scheduler listenerScheduler, Logger logger) {
+    this.delegate = Preconditions.checkNotNull(delegate, "Delegate cannot be null");
+    this.internalScheduler = Preconditions.checkNotNull(internalScheduler,
+        "Internal scheduler cannot be null");
+    this.listenerScheduler = Preconditions.checkNotNull(listenerScheduler,
+        "Listener scheduler cannot be null");
+    this.logger = Preconditions.checkNotNull(logger, "Logger cannot be null");
+  }
 
-  CheckingInvalidationListener(InvalidationListener delegate, Statistics statistics,
-      Scheduler internalScheduler, Scheduler listenerScheduler, Logger logger) {
-    this.delegate = Preconditions.checkNotNull(delegate);
-    this.internalScheduler = Preconditions.checkNotNull(internalScheduler);
-    this.listenerScheduler = Preconditions.checkNotNull(listenerScheduler);
-    this.logger = Preconditions.checkNotNull(logger);
-    this.statistics = Preconditions.checkNotNull(statistics);
+  void setStatistics(Statistics statistics) {
+    this.statistics = Preconditions.checkNotNull(statistics, "Statistics cannot be null");
   }
 
   @Override

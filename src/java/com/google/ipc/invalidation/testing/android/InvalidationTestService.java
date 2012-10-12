@@ -17,6 +17,8 @@
 package com.google.ipc.invalidation.testing.android;
 
 import com.google.common.base.Preconditions;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Event;
 import com.google.ipc.invalidation.external.client.android.service.ListenerBinder;
 import com.google.ipc.invalidation.external.client.android.service.ListenerService;
@@ -24,7 +26,6 @@ import com.google.ipc.invalidation.external.client.android.service.Request;
 import com.google.ipc.invalidation.external.client.android.service.Request.Action;
 import com.google.ipc.invalidation.external.client.android.service.Request.Parameter;
 import com.google.ipc.invalidation.external.client.android.service.Response;
-import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
 import com.google.ipc.invalidation.external.client.android.service.ServiceBinder.BoundWork;
 import com.google.ipc.invalidation.ticl.android.AbstractInvalidationService;
 import com.google.ipc.invalidation.util.TypedUtil;
@@ -33,7 +34,6 @@ import android.accounts.Account;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
 
 import junit.framework.Assert;
 
@@ -73,8 +73,8 @@ public class InvalidationTestService extends AbstractInvalidationService {
    */
   public static final Intent TEST_INTENT = new Intent("com.google.ipc.invalidation.TEST");
 
-  /** Logging tag */
-  private static final String TAG = "InvalidationTestService";
+  /** Logger */
+  private static final Logger logger = AndroidLogger.forTag("InvTestService");
 
   /** Map of currently active clients from key to {@link ClientState} */
   private static Map<String, ClientState> clientMap = new HashMap<String, ClientState>();
@@ -110,7 +110,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
     @Override
     public Bundle[] getRequests() {
       synchronized (LOCK) {
-        Log.d(TAG, "Reading actions from " + actions + ":" + actions.size());
+        logger.fine("Reading actions from %s:%d", actions, actions.size());
         Bundle[] value = new Bundle[actions.size()];
         actions.toArray(value);
         actions.clear();
@@ -155,7 +155,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
     @Override
     public void reset() {
       synchronized (LOCK) {
-        Log.i(TAG, "Resetting test service");
+        logger.info("Resetting test service");
         captureActions = false;
         captureEvents = false;
         clientMap.clear();
@@ -168,7 +168,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   @Override
   public void onCreate() {
     synchronized (LOCK) {
-      Log.i(TAG, "onCreate");
+      logger.info("onCreate");
       super.onCreate();
     }
   }
@@ -176,7 +176,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   @Override
   public void onDestroy() {
     synchronized (LOCK) {
-      Log.i(TAG, "onDestroy");
+      logger.info("onDestroy");
       super.onDestroy();
     }
   }
@@ -184,7 +184,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   @Override
   public void onStart(Intent intent, int startId) {
     synchronized (LOCK) {
-      Log.i(TAG, "onStart");
+      logger.info("onStart");
       super.onStart(intent, startId);
     }
   }
@@ -192,7 +192,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   @Override
   public IBinder onBind(Intent intent) {
     synchronized (LOCK) {
-      Log.i(TAG, "onBind");
+      logger.info("onBind");
 
       // For InvalidationService binding, delegate to the superclass
       if (Request.SERVICE_INTENT.getAction().equals(intent.getAction())) {
@@ -207,7 +207,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   @Override
   public boolean onUnbind(Intent intent) {
     synchronized (LOCK) {
-      Log.i(TAG, "onUnbind");
+      logger.info("onUnbind");
       return super.onUnbind(intent);
     }
   }
@@ -235,11 +235,11 @@ public class InvalidationTestService extends AbstractInvalidationService {
 
 
   @Override
-  protected void create(Request request, Builder response) {
+  protected void create(Request request, Response.Builder response) {
     synchronized (LOCK) {
       validateRequest(request, Action.CREATE, Parameter.ACTION, Parameter.CLIENT,
           Parameter.CLIENT_TYPE, Parameter.ACCOUNT, Parameter.AUTH_TYPE, Parameter.INTENT);
-      Log.i(TAG, "Creating client '" + request.getClientKey() + "': " + clientMap.keySet());
+      logger.info("Creating client %s:%s", request.getClientKey(), clientMap.keySet());
       if (!TypedUtil.containsKey(clientMap, request.getClientKey())) {
         // If no client exists with this key, create one.
         clientMap.put(
@@ -256,25 +256,25 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void resume(Request request, Builder response) {
+  protected void resume(Request request, Response.Builder response) {
     synchronized (LOCK) {
       validateRequest(
           request, Action.RESUME, Parameter.ACTION, Parameter.CLIENT);
       ClientState state = clientMap.get(request.getClientKey());
       if (state != null) {
-        Log.i(TAG, "Resuming client " + request.getClientKey() + ":" + clientMap.keySet());
+        logger.info("Resuming client %s:%s", request.getClientKey(), clientMap.keySet());
         response.setStatus(Response.Status.SUCCESS);
         response.setAccount(state.account);
         response.setAuthType(state.authType);
       } else {
-        Log.w(TAG, "Cannot resume client " + request.getClientKey() + ":" + clientMap.keySet());
+        logger.warning("Cannot resume client %s:%s", request.getClientKey(), clientMap.keySet());
         response.setStatus(Response.Status.INVALID_CLIENT);
       }
     }
   }
 
   @Override
-  protected void register(Request request, Builder response) {
+  protected void register(Request request, Response.Builder response) {
     synchronized (LOCK) {
       // Ensure that one (and only one) of the variant object id forms is used
       String objectParam =
@@ -290,7 +290,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void unregister(Request request, Builder response) {
+  protected void unregister(Request request, Response.Builder response) {
     synchronized (LOCK) {
       // Ensure that one (and only one) of the variant object id forms is used
       String objectParam =
@@ -308,7 +308,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void start(Request request, Builder response) {
+  protected void start(Request request, Response.Builder response) {
     synchronized (LOCK) {
       validateRequest(
           request, Action.START, Parameter.ACTION, Parameter.CLIENT);
@@ -321,7 +321,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void stop(Request request, Builder response) {
+  protected void stop(Request request, Response.Builder response) {
     synchronized (LOCK) {
       validateRequest(request, Action.STOP, Parameter.ACTION, Parameter.CLIENT);
       if (!validateClient(request)) {
@@ -333,7 +333,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void acknowledge(Request request, Builder response) {
+  protected void acknowledge(Request request, Response.Builder response) {
     synchronized (LOCK) {
       validateRequest(request, Action.ACKNOWLEDGE, Parameter.ACTION, Parameter.CLIENT,
           Parameter.ACK_TOKEN);
@@ -346,7 +346,7 @@ public class InvalidationTestService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void destroy(Request request, Builder response) {
+  protected void destroy(Request request, Response.Builder response) {
     synchronized (LOCK) {
       validateRequest(request, Action.DESTROY, Parameter.ACTION, Parameter.CLIENT);
       if (!validateClient(request)) {
@@ -363,8 +363,8 @@ public class InvalidationTestService extends AbstractInvalidationService {
    */
   private boolean validateClient(Request request) {
     if (!clientMap.containsKey(request.getClientKey())) {
-      Log.w(TAG,
-          "Client " + request.getClientKey() + " is not an active client: " + clientMap.keySet());
+      logger.warning("Client %s is not an active client: %s",
+                     request.getClientKey(), clientMap.keySet());
       return false;
     }
     return true;

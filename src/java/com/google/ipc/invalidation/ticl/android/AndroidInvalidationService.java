@@ -22,21 +22,19 @@ import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.AndroidInvalidationClient;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Request;
-import com.google.ipc.invalidation.external.client.android.service.Response.Builder;
+import com.google.ipc.invalidation.external.client.android.service.Response;
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
-import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
+import com.google.ipc.invalidation.ticl.InvalidationClientCore;
 import com.google.ipc.invalidation.ticl.PersistenceUtils;
 import com.google.ipc.invalidation.ticl.android.c2dm.C2DMessaging;
-import com.google.ipc.invalidation.ticl.android.c2dm.WakeLockManager;
 import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protos.ipc.invalidation.Client.PersistentTiclState;
 
 import android.accounts.Account;
 import android.content.Context;
 import android.content.Intent;
-import android.os.AsyncTask;
 import android.os.IBinder;
 
 import java.util.Map;
@@ -297,7 +295,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   // The following protected methods are called holding "lock" by AbstractInvalidationService.
 
   @Override
-  protected void create(Request request, Builder response) {
+  protected void create(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     int clientType = request.getClientType();
     Account account = request.getAccount();
@@ -308,7 +306,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void resume(Request request, Builder response) {
+  protected void resume(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     AndroidClientProxy client = clientManager.get(clientKey);
     if (setResponseStatus(client, request, response)) {
@@ -318,7 +316,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void start(Request request, Builder response) {
+  protected void start(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     if (setResponseStatus(client, request, response)) {
@@ -327,7 +325,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void stop(Request request, Builder response) {
+  protected void stop(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     if (setResponseStatus(client, request, response)) {
@@ -336,7 +334,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void register(Request request, Builder response) {
+  protected void register(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     if (setResponseStatus(client, request, response)) {
@@ -346,7 +344,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void unregister(Request request, Builder response) {
+  protected void unregister(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     if (setResponseStatus(client, request, response)) {
@@ -356,7 +354,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void acknowledge(Request request, Builder response) {
+  protected void acknowledge(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     AckHandle ackHandle = request.getAckHandle();
     AndroidInvalidationClient client = clientManager.get(clientKey);
@@ -366,7 +364,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   }
 
   @Override
-  protected void destroy(Request request, Builder response) {
+  protected void destroy(Request request, Response.Builder response) {
     String clientKey = request.getClientKey();
     AndroidInvalidationClient client = clientManager.get(clientKey);
     if (setResponseStatus(client, request, response)) {
@@ -380,7 +378,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
    * @return whether {@code client} was non-{@code null}.   *
    */
   private boolean setResponseStatus(AndroidInvalidationClient client, Request request,
-      Builder response) {
+      Response.Builder response) {
     if (client == null) {
       response.setError("Client does not exist: " + request);
       response.setStatus(Status.INVALID_CLIENT);
@@ -421,25 +419,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       logger.fine("Deliver to %s message %s", clientKey, message);
       proxy.getChannel().receiveMessage(message);
     } else {
-      logger.fine("Retrieve mailbox for %s", clientKey);
-      // Process mailbox messages on a background thread since they will do outbound HTTP for the
-      // mailbox retrieval which is not allowed on the main service thread.
-      final AndroidClientProxy finalProxy = proxy;
-      final Context applicationContext = getApplicationContext();
-      WakeLockManager.getInstance(applicationContext).
-          acquire(AndroidInvalidationService.class.getName());
-      new AsyncTask<Void, Void, Void>() {
-          @Override
-          protected Void doInBackground(Void... params) {
-            try {
-              finalProxy.getChannel().retrieveMailbox();
-            } finally {
-              WakeLockManager.getInstance(applicationContext).
-                release(AndroidInvalidationService.class.getName());
-            }
-            return null;
-          }
-      }.execute();
+      logger.severe("Got mailbox intent: %s", intent);
     }
   }
 
@@ -477,15 +457,14 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
     }
 
     // Rewrite the last message sent time.
-    PersistentTiclState newState = PersistentTiclState.newBuilder()
-        .setClientToken(clientState.getClientToken())
+    PersistentTiclState newState = PersistentTiclState.newBuilder(clientState)
         .setLastMessageSendTimeMs(0).build();
 
     // Serialize the new state.
     byte[] newClientState = PersistenceUtils.serializeState(newState, digestFn);
 
     // Write it out.
-    storageForClient.getPropertiesUnsafe().put(InvalidationClientImpl.CLIENT_TOKEN_KEY,
+    storageForClient.getPropertiesUnsafe().put(InvalidationClientCore.CLIENT_TOKEN_KEY,
         newClientState);
     storageForClient.storeUnsafe();
   }
@@ -547,7 +526,7 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
       // Retrieve the serialized state.
       final Map<String, byte[]> properties = storageForClient.getPropertiesUnsafe();
       byte[] clientStateBytes = TypedUtil.mapGet(properties,
-          InvalidationClientImpl.CLIENT_TOKEN_KEY);
+          InvalidationClientCore.CLIENT_TOKEN_KEY);
       if (clientStateBytes == null) {
         logger.warning("No client state found in storage for %s: %s", clientKey,
             properties.keySet());
@@ -568,5 +547,12 @@ public class AndroidInvalidationService extends AbstractInvalidationService {
   /** Whether the service is registered with C2DM, for tests. */
   boolean isRegisteredWithC2dmForTest() {
     return isRegisteredWithC2dm;
+  }
+
+  /**
+   * Returns whether the client with {@code clientKey} is loaded in the client manager.
+   */
+  public static boolean isLoadedForTest(String clientKey) {
+    return (getClientManager() != null) && getClientManager().isLoadedForTest(clientKey);
   }
 }

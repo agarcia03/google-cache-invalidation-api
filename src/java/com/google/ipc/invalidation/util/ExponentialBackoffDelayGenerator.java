@@ -31,10 +31,10 @@ import java.util.Random;
 public class ExponentialBackoffDelayGenerator {
 
   /** Initial allowed delay time. */
-  private int initialMaxDelay;
+  private final int initialMaxDelay;
 
   /** Maximum allowed delay time as a factor of {@code initialMaxDelay} */
-  private int maxExponentialFactor;
+  private final int maxExponentialFactor;
 
   /** Next delay time to use. */
   private int currentMaxDelay;
@@ -56,6 +56,20 @@ public class ExponentialBackoffDelayGenerator {
     this.initialMaxDelay = initialMaxDelay;
     Preconditions.checkArgument(initialMaxDelay > 0, "initial delay must be positive");
     reset();
+  }
+
+  /**
+   * A constructor to restore a generator from saved state. Creates a generator with the given
+   * initial delay and the maximum delay (in terms of a factor of the initial delay).
+   *
+   * @param currentMaxDelay saved current max delay
+   * @param inRetryMode saved in-retry-mode value
+   */
+  protected ExponentialBackoffDelayGenerator(Random random, int initialMaxDelay,
+      int maxExponentialFactor, int currentMaxDelay, boolean inRetryMode) {
+    this(random, initialMaxDelay, maxExponentialFactor);
+    this.currentMaxDelay = currentMaxDelay;
+    this.inRetryMode = inRetryMode;
   }
 
   /** Resets the exponential backoff generator to start delays at the initial delay. */
@@ -83,5 +97,13 @@ public class ExponentialBackoffDelayGenerator {
     }
     inRetryMode = true;
     return delay;
+  }
+
+  protected int getCurrentMaxDelay() {
+    return currentMaxDelay;
+  }
+
+  protected boolean getInRetryMode() {
+    return inRetryMode;
   }
 }

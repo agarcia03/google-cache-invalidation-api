@@ -26,7 +26,7 @@ public class AndroidC2DMConstants {
    * The default account name associated with delivered C2DM messages.  Alternate sender IDs
    * may be used when sharing C2DM within an application.
    */
-  public static final  String SENDER_ID = "ipc.invalidation@gmail.com";
+  public static final String SENDER_ID = "ipc.invalidation@gmail.com";
 
   /**
    * The prefix that is added to data items when C2DM messages are generated.  This prefix
@@ -38,19 +38,11 @@ public class AndroidC2DMConstants {
   public static final String CLIENT_KEY_PARAM = "tid";
 
   /**
-   * Name of C2DM parameter containing message content.  If not set, data is retrieved via
-   * the mailbox frontend
-   * */
+   * Name of C2DM parameter containing message content.  If not set, data is not present. (We drop
+   * it if it is too big.)
+   */
   public static final String CONTENT_PARAM = "content";
 
   /** Name of the C2DM parameter containing an opaque token to be echoed on HTTP requests. */
   public static final String ECHO_PARAM = "echo-token";
-
-  /**
-   * Returns the mailbox key to use for a client with C2DM registration id {@code c2dmRegId}
-   * and client key {@code clientKey}.
-   */
-  public static String getMailboxKey(String c2dmRegId, String clientKey) {
-    return clientKey + "@" + c2dmRegId;
-  }
 }

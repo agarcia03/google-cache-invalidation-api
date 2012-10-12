@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.ticl;
 
 import static com.google.ipc.invalidation.external.client.SystemResources.Scheduler.NO_DELAY;
 
+import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.SystemResources.Storage;
@@ -40,7 +41,7 @@ public class SafeStorage implements Storage {
   private Scheduler scheduler;
 
   SafeStorage(Storage delegate) {
-    this.delegate = delegate;
+    this.delegate = Preconditions.checkNotNull(delegate);
   }
 
   @Override

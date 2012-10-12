@@ -16,8 +16,6 @@
 
 package com.google.ipc.invalidation.ticl;
 
-import static com.google.ipc.invalidation.external.client.SystemResources.Scheduler.NO_DELAY;
-
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.CommonInvalidationConstants2;
 import com.google.ipc.invalidation.common.CommonProtoStrings2;
@@ -27,16 +25,15 @@ import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
-import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
+import com.google.ipc.invalidation.ticl.InvalidationClientCore.BatchingTask;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
 import com.google.ipc.invalidation.ticl.Statistics.ReceivedMessageType;
 import com.google.ipc.invalidation.ticl.Statistics.SentMessageType;
 import com.google.ipc.invalidation.util.InternalBase;
-import com.google.ipc.invalidation.util.NamedRunnable;
+import com.google.ipc.invalidation.util.Marshallable;
 import com.google.ipc.invalidation.util.Smearer;
 import com.google.ipc.invalidation.util.TextBuilder;
-import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
@@ -47,7 +44,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ClientVersion;
 import com.google.protos.ipc.invalidation.ClientProtocol.ConfigChangeMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.ErrorMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InfoMessage;
-import com.google.protos.ipc.invalidation.ClientProtocol.InfoRequestMessage.InfoType;
+import com.google.protos.ipc.invalidation.ClientProtocol.InfoRequestMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InitializeMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.InitializeMessage.DigestSerializationType;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationMessage;
@@ -57,13 +54,17 @@ import com.google.protos.ipc.invalidation.ClientProtocol.PropertyRecord;
 import com.google.protos.ipc.invalidation.ClientProtocol.ProtocolHandlerConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
-import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
+import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP.OpType;
+import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatusMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSubtree;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSyncMessage;
+import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSyncRequestMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.TokenControlMessage;
+import com.google.protos.ipc.invalidation.MarshalledTicl.BatcherState;
+import com.google.protos.ipc.invalidation.MarshalledTicl.ProtocolHandlerState;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -78,26 +79,230 @@ import java.util.Set;
  * calls appropriate functions on the {@code ProtocolListener} to handle various types of message
  * content.  Also buffers message data from the client and constructs and sends messages to the
  * server.
+ * <p>
+ * This class implements {@link Marshallable}, so its state can be written to a protocol buffer,
+ * and instances can be restored from such protocol buffers. Additionally, the nested class
+ * {@link Batcher} also implements {@code Marshallable} for the same reason.
+ * <p>
+ * Note that while we talk about "marshalling," in this context we mean marshalling to protocol
+ * buffers, not raw bytes.
  *
  */
-class ProtocolHandler {
+class ProtocolHandler implements Marshallable<ProtocolHandlerState> {
+  /** Class that batches messages to the server. */
+  private static class Batcher implements Marshallable<BatcherState> {
+    /** Statistics to be updated when messages are created. */
+    private final Statistics statistics;
 
-  /**
-   * The task that is scheduled to send batched messages to the server (when
-   * needed).
-   **/
-  private class BatchingTask extends RecurringTask {
-    BatchingTask(Smearer smearer, int batchingDelayMs) {
-      super("Batching", internalScheduler, logger, smearer, null,
-          batchingDelayMs, NO_DELAY);
+    /** Resources used for logging and thread assertions. */
+    private final SystemResources resources;
+
+    /** Set of pending registrations stored as a map for overriding later operations. */
+    private final Map<ProtoWrapper<ObjectIdP>, RegistrationP.OpType> pendingRegistrations =
+        new HashMap<ProtoWrapper<ObjectIdP>, RegistrationP.OpType>();
+
+    /** Set of pending invalidation acks. */
+    private final Set<ProtoWrapper<InvalidationP>> pendingAckedInvalidations =
+        new HashSet<ProtoWrapper<InvalidationP>>();
+
+    /** Set of pending registration sub trees for registration sync. */
+    private final Set<ProtoWrapper<RegistrationSubtree>> pendingRegSubtrees =
+        new HashSet<ProtoWrapper<RegistrationSubtree>>();
+
+    /** Pending initialization message to send to the server, if any. */
+    private InitializeMessage pendingInitializeMessage = null;
+
+    /** Pending info message to send to the server, if any. */
+    private InfoMessage pendingInfoMessage = null;
+
+    /** Creates a batcher. */
+    Batcher(SystemResources resources, Statistics statistics) {
+      this.resources = resources;
+      this.statistics = statistics;
+    }
+
+    /** Creates a batcher from {@code marshalledState}. */
+    Batcher(SystemResources resources, Statistics statistics, BatcherState marshalledState) {
+      this(resources, statistics);
+      for (ObjectIdP registration : marshalledState.getRegistrationList()) {
+        pendingRegistrations.put(ProtoWrapper.of(registration), RegistrationP.OpType.REGISTER);
+      }
+      for (ObjectIdP unregistration : marshalledState.getUnregistrationList()) {
+        pendingRegistrations.put(ProtoWrapper.of(unregistration), RegistrationP.OpType.UNREGISTER);
+      }
+      for (InvalidationP ack : marshalledState.getAcknowledgementList()) {
+        pendingAckedInvalidations.add(ProtoWrapper.of(ack));
+      }
+      for (RegistrationSubtree subtree : marshalledState.getRegistrationSubtreeList()) {
+        pendingRegSubtrees.add(ProtoWrapper.of(subtree));
+      }
+      if (marshalledState.hasInitializeMessage()) {
+        pendingInitializeMessage = marshalledState.getInitializeMessage();
+      }
+      if (marshalledState.hasInfoMessage()) {
+        pendingInfoMessage = marshalledState.getInfoMessage();
+      }
+    }
+
+    /** Sets the initialize message to be sent. */
+    void setInitializeMessage(InitializeMessage msg) {
+      pendingInitializeMessage = msg;
+    }
+
+    /** Sets the info message to be sent. */
+    void setInfoMessage(InfoMessage msg) {
+      pendingInfoMessage = msg;
+    }
+
+    /** Adds a registration on {@code oid} of {@code opType} to the registrations to be sent. */
+    void addRegistration(ObjectIdP oid, RegistrationP.OpType opType) {
+      pendingRegistrations.put(ProtoWrapper.of(oid), opType);
+    }
+
+    /** Adds {@code ack} to the set of acknowledgements to be sent. */
+    void addAck(InvalidationP ack) {
+      pendingAckedInvalidations.add(ProtoWrapper.of(ack));
+    }
+
+    /** Adds {@code subtree} to the set of registration subtrees to be sent. */
+    void addRegSubtree(RegistrationSubtree subtree) {
+      pendingRegSubtrees.add(ProtoWrapper.of(subtree));
+    }
+
+    /**
+     * Returns a builder for a {@link ClientToServerMessage} to be sent to the server. Crucially,
+     * the builder does <b>NOT</b> include the message header.
+     * @param hasClientToken whether the client currently holds a token
+     */
+    ClientToServerMessage.Builder toBuilder(boolean hasClientToken) {
+      ClientToServerMessage.Builder builder = ClientToServerMessage.newBuilder();
+      if (pendingInitializeMessage != null) {
+        statistics.recordSentMessage(SentMessageType.INITIALIZE);
+        builder.setInitializeMessage(pendingInitializeMessage);
+        pendingInitializeMessage = null;
+      }
+
+      // Note: Even if an initialize message is being sent, we can send additional
+      // messages such as regisration messages, etc to the server. But if there is no token
+      // and an initialize message is not being sent, we cannot send any other message.
+
+      if (!hasClientToken && !builder.hasInitializeMessage()) {
+        // Cannot send any message
+        resources.getLogger().warning(
+            "Cannot send message since no token and no initialize msg: %s", builder);
+        statistics.recordError(ClientErrorType.TOKEN_MISSING_FAILURE);
+        return null;
+      }
+
+      // Check for pending batched operations and add to message builder if needed.
+
+      // Add reg, acks, reg subtrees - clear them after adding.
+      if (!pendingAckedInvalidations.isEmpty()) {
+        builder.setInvalidationAckMessage(createInvalidationAckMessage());
+        statistics.recordSentMessage(SentMessageType.INVALIDATION_ACK);
+      }
+
+      // Check regs.
+      if (!pendingRegistrations.isEmpty()) {
+        builder.setRegistrationMessage(createRegistrationMessage());
+        statistics.recordSentMessage(SentMessageType.REGISTRATION);
+      }
+
+      // Check reg substrees.
+      if (!pendingRegSubtrees.isEmpty()) {
+        for (ProtoWrapper<RegistrationSubtree> subtree : pendingRegSubtrees) {
+          builder.setRegistrationSyncMessage(RegistrationSyncMessage.newBuilder()
+              .addSubtree(subtree.getProto()));
+        }
+        pendingRegSubtrees.clear();
+        statistics.recordSentMessage(SentMessageType.REGISTRATION_SYNC);
+      }
+
+      // Check if an info message has to be sent.
+      if (pendingInfoMessage != null) {
+        statistics.recordSentMessage(SentMessageType.INFO);
+        builder.setInfoMessage(pendingInfoMessage);
+        pendingInfoMessage = null;
+      }
+      return builder;
+    }
+
+    /**
+     * Creates a registration message based on registrations from {@code pendingRegistrations}
+     * and returns it.
+     * <p>
+     * REQUIRES: pendingRegistrations.size() > 0
+     */
+    private RegistrationMessage createRegistrationMessage() {
+      Preconditions.checkState(!pendingRegistrations.isEmpty());
+      RegistrationMessage.Builder regMessage = RegistrationMessage.newBuilder();
+
+      // Run through the pendingRegistrations map.
+      for (Map.Entry<ProtoWrapper<ObjectIdP>, RegistrationP.OpType> entry :
+           pendingRegistrations.entrySet()) {
+        RegistrationP reg = CommonProtos2.newRegistrationP(entry.getKey().getProto(),
+            entry.getValue() == RegistrationP.OpType.REGISTER);
+        regMessage.addRegistration(reg);
+      }
+      pendingRegistrations.clear();
+      return regMessage.build();
+    }
+
+    /**
+     * Creates an invalidation ack message based on acks from {@code pendingAckedInvalidations} and
+     * returns it.
+     * <p>
+     * REQUIRES: pendingAckedInvalidations.size() > 0
+     */
+    private InvalidationMessage createInvalidationAckMessage() {
+      Preconditions.checkState(!pendingAckedInvalidations.isEmpty());
+      InvalidationMessage.Builder ackMessage = InvalidationMessage.newBuilder();
+      for (ProtoWrapper<InvalidationP> wrapper : pendingAckedInvalidations) {
+        ackMessage.addInvalidation(wrapper.getProto());
+      }
+      pendingAckedInvalidations.clear();
+      return ackMessage.build();
     }
 
     @Override
-    public boolean runTask() {
-      // Send message to server - the batching information is picked up in sendMessageToServer.
-      // Go through a throttler to ensure that we obey rate limits in sending messages.
-      throttle.fire();
-      return false;  // Don't reschedule.
+    public BatcherState marshal() {
+      BatcherState.Builder builder = BatcherState.newBuilder();
+
+      // Marshall (un)registrations.
+      for (Map.Entry<ProtoWrapper<ObjectIdP>, RegistrationP.OpType> entry :
+          pendingRegistrations.entrySet()) {
+        OpType opType = entry.getValue();
+        ObjectIdP oid = entry.getKey().getProto();
+        switch (opType) {
+          case REGISTER:
+            builder.addRegistration(oid);
+            break;
+          case UNREGISTER:
+            builder.addUnregistration(oid);
+            break;
+          default:
+            throw new IllegalArgumentException(opType.toString());
+        }
+      }
+
+      // Marshall acks.
+      for (ProtoWrapper<InvalidationP> ack : pendingAckedInvalidations) {
+        builder.addAcknowledgement(ack.getProto());
+      }
+
+      // Marshall registration subtrees.
+      for (ProtoWrapper<RegistrationSubtree> subtree : pendingRegSubtrees) {
+        builder.addRegistrationSubtree(subtree.getProto());
+      }
+
+      // Marshall initialize and info messages if present.
+      if (pendingInitializeMessage != null) {
+        builder.setInitializeMessage(pendingInitializeMessage);
+      }
+      if (pendingInfoMessage != null) {
+        builder.setInfoMessage(pendingInfoMessage);
+      }
+      return builder.build();
     }
   }
 
@@ -128,66 +333,56 @@ class ProtocolHandler {
   }
 
   /**
-   * Listener for protocol events. The protocol client calls these methods when a message is
-   * received from the server. It guarantees that the call will be made on the internal thread that
-   * the SystemResources provides. When the protocol listener is called, the token has been checked
-   * and message validation has been completed (using the {@link TiclMessageValidator2}).
-   * That is, all of the methods below can assume that the nonce is null and the server token is
-   * valid.
+   * Representation of a message receiver for the server. Such a message is guaranteed to be
+   * valid (i.e. checked by {@link TiclMessageValidator2}, but the session token is <b>not</b>
+   * checked.
+   */
+  static class ParsedMessage {
+    /*
+     * Each of these fields corresponds directly to a field in the ServerToClientMessage protobuf.
+     * It is non-null iff the correspondig hasYYY method in the protobuf would return true.
+     */
+    final ServerMessageHeader header;
+    final TokenControlMessage tokenControlMessage;
+    final InvalidationMessage invalidationMessage;
+    final RegistrationStatusMessage registrationStatusMessage;
+    final RegistrationSyncRequestMessage registrationSyncRequestMessage;
+    final ConfigChangeMessage configChangeMessage;
+    final InfoRequestMessage infoRequestMessage;
+    final ErrorMessage errorMessage;
+
+    /** Constructs an instance from a {@code rawMessage}. */
+    ParsedMessage(ServerToClientMessage rawMessage) {
+      // For each field, assign it to the corresponding protobuf field if present, else null.
+      ServerHeader messageHeader = rawMessage.getHeader();
+      header = new ServerMessageHeader(messageHeader.getClientToken(),
+          messageHeader.hasRegistrationSummary() ? messageHeader.getRegistrationSummary() : null);
+      tokenControlMessage = rawMessage.hasTokenControlMessage() ?
+          rawMessage.getTokenControlMessage() : null;
+      invalidationMessage = rawMessage.hasInvalidationMessage() ?
+          rawMessage.getInvalidationMessage() : null;
+      registrationStatusMessage = rawMessage.hasRegistrationStatusMessage() ?
+          rawMessage.getRegistrationStatusMessage() : null;
+      registrationSyncRequestMessage = rawMessage.hasRegistrationSyncRequestMessage() ?
+          rawMessage.getRegistrationSyncRequestMessage() : null;
+      configChangeMessage = rawMessage.hasConfigChangeMessage() ?
+          rawMessage.getConfigChangeMessage() : null;
+      infoRequestMessage = rawMessage.hasInfoRequestMessage() ?
+          rawMessage.getInfoRequestMessage() : null;
+      errorMessage = rawMessage.hasErrorMessage() ? rawMessage.getErrorMessage() : null;
+    }
+  }
+
+  /**
+   * Listener for protocol events. The handler guarantees that the call will be made on the internal
+   * thread that the SystemResources provides.
    */
   interface ProtocolListener {
-
-    /**
-     * Handles an incoming message from the server. This method may be called in addition
-     * to the handle* methods below - so the listener code should be prepared for it.
-     *
-     * @param header server message header
-     */
-    void handleIncomingHeader(ServerMessageHeader header);
-
-    /**
-     * Handles a token change event from the server
-     *
-     * @param header server message header
-     * @param newToken a new token for the client. If {@code null}, it means destroy the token.
-     */
-    void handleTokenChanged(ServerMessageHeader header, ByteString newToken);
-
-    /**
-     * Handles {@code invalidations} from the server
-     * @param header server message header
-     */
-    void handleInvalidations(ServerMessageHeader header, Collection<InvalidationP> invalidations);
-
-    /**
-     * Handles registration updates from the server
-     * @param header server message header
-     * @param regStatus registration updates
-     */
-    void handleRegistrationStatus(ServerMessageHeader header, List<RegistrationStatus> regStatus);
-
-    /**
-     * Handles a registration sync request from the server
-     * @param header server message header
-     */
-    void handleRegistrationSyncRequest(ServerMessageHeader header);
-
-    /**
-     * Handles an info message from the server
-     * @param header server message header
-     * @param infoTypes types of info requested
-     */
-    void handleInfoMessage(ServerMessageHeader header, Collection<InfoType> infoTypes);
-
-    /**
-     * Handles an error message from the server
-     * @param code error reason
-     * @param description human-readable description of the error
-     */
-    void handleErrorMessage(ServerMessageHeader header, ErrorMessage.Code code, String description);
-
     /** Records that a message was sent to the server at the current time. */
     void handleMessageSent();
+
+    /** Handles a change in network connectivity. */
+    void handleNetworkStatusChange(boolean isOnline);
 
     /** Returns a summary of the current desired registrations. */
     RegistrationSummary getRegistrationSummary();
@@ -208,14 +403,14 @@ class ProtocolHandler {
   /** Network channel for sending and receiving messages to and from the server. */
   private final NetworkChannel network;
 
-  /** A throttler to prevent the client from sending too many messages in a given interval. */
-  private final Throttle throttle;
-
   /** The protocol listener. */
   private final ProtocolListener listener;
 
   /** Checks that messages (inbound and outbound) conform to basic validity constraints. */
   private final TiclMessageValidator2 msgValidator;
+
+  /** Batches messages to the server. */
+  private final Batcher batcher;
 
   /** A debug message id that is added to every message to the server. */
   private int messageId = 1;
@@ -232,29 +427,9 @@ class ProtocolHandler {
    */
   private long nextMessageSendTimeMs = 0;
 
-  /** Set of pending registrations stored as a map for overriding later operations. */
-  private final Map<ProtoWrapper<ObjectIdP>, RegistrationP.OpType> pendingRegistrations =
-      new HashMap<ProtoWrapper<ObjectIdP>, RegistrationP.OpType>();
-
-  /** Set of pending invalidation acks. */
-  private final Set<ProtoWrapper<InvalidationP>> pendingAckedInvalidations =
-      new HashSet<ProtoWrapper<InvalidationP>>();
-
-  /** Set of pending registration sub trees for registration sync. */
-  private final Set<ProtoWrapper<RegistrationSubtree>> pendingRegSubtrees =
-      new HashSet<ProtoWrapper<RegistrationSubtree>>();
-
-  /** Pending initialization message to send to the server, if any. */
-  private InitializeMessage pendingInitializeMessage = null;
-
-  /** Pending info message to send to the server, if any. */
-  private InfoMessage pendingInfoMessage = null;
-
   /** Statistics objects to track number of sent messages, etc. */
   private final Statistics statistics;
 
-  /** Task to send all batched messages to the server. */
-  private final RecurringTask batchingTask;
   /**
    * Creates an instance.
    *
@@ -267,61 +442,37 @@ class ProtocolHandler {
    */
   ProtocolHandler(ProtocolHandlerConfigP config, final SystemResources resources,
       Smearer smearer, Statistics statistics, String applicationName, ProtocolListener listener,
-      TiclMessageValidator2 msgValidator) {
+      TiclMessageValidator2 msgValidator, ProtocolHandlerState marshalledState) {
     this.logger = resources.getLogger();
     this.statistics = statistics;
     this.internalScheduler = resources.getInternalScheduler();
     this.network = resources.getNetwork();
     this.listener = listener;
     this.msgValidator = msgValidator;
-    this.throttle = new Throttle(config.getRateLimitList(), internalScheduler,
-        new NamedRunnable("ProtocolHandler.throttle") {
-      @Override
-      public void run() {
-        sendMessageToServer();
-      }
-    });
-
-    this.batchingTask = new BatchingTask(smearer, config.getBatchingDelayMs());
-
     this.clientVersion = CommonProtos2.newClientVersion(resources.getPlatform(), "Java",
         applicationName);
-
-    // Install ourselves as a receiver for server messages.
-    network.setMessageReceiver(new Callback<byte[]>() {
-      @Override
-      public void accept(final byte[] incomingMessage) {
-        internalScheduler.schedule(NO_DELAY, new NamedRunnable("ProtocolHandler.handleMessage") {
-          @Override
-          public void run() {
-            handleIncomingMessage(incomingMessage);
-          }
-        });
-      }
-    });
-    network.addNetworkStatusReceiver(new Callback<Boolean>() {
-      @Override
-      public void accept(Boolean isOnline) {
-        // Do nothing for now.
-      }
-    });
+    if (marshalledState == null) {
+      // If there is no marshalled state, construct a clean batcher.
+      this.batcher = new Batcher(resources, statistics);
+    } else {
+      // Otherwise, restore the batcher from the marshalled state.
+      this.batcher = new Batcher(resources, statistics, marshalledState.getBatcherState());
+      this.messageId = marshalledState.getMessageId();
+      this.lastKnownServerTimeMs = marshalledState.getLastKnownServerTimeMs();
+      this.nextMessageSendTimeMs = marshalledState.getNextMessageSendTimeMs();
+    }
     logger.info("Created protocol handler for application %s, platform %s", applicationName,
         resources.getPlatform());
   }
 
   /** Returns a default config for the protocol handler. */
   static ProtocolHandlerConfigP.Builder createConfig() {
-    // Allow at most 1 message every 1000 msec.
-    int window0Ms = 1000;
-    int numMessagesPerWindow0 = 1;
-
-    // Allow at most 6 messages every minute.
-    int window1Ms = 60 * 1000;
-    int numMessagesPerWindow1 = 6;
+    // Allow at most 3 messages every 5 seconds.
+    int windowMs = 5 * 1000;
+    int numMessagesPerWindow = 3;
 
     return ProtocolHandlerConfigP.newBuilder()
-        .addRateLimit(CommonProtos2.newRateLimitP(window0Ms, numMessagesPerWindow0))
-        .addRateLimit(CommonProtos2.newRateLimitP(window1Ms, numMessagesPerWindow1));
+        .addRateLimit(CommonProtos2.newRateLimitP(windowMs, numMessagesPerWindow));
   }
 
   /** Returns a configuration object with parameters set for unit tests. */
@@ -339,8 +490,17 @@ class ProtocolHandler {
     return nextMessageSendTimeMs;
   }
 
-  /** Handles a message from the server. */
-  private void handleIncomingMessage(byte[] incomingMessage) {
+  /**
+   * Handles a message from the server. If the message can be processed (i.e., is valid, is
+   * of the right version, and is not a silence message), returns a {@link ParsedMessage}
+   * representing it. Otherwise, returns {@code null}.
+   * <p>
+   * This class intercepts and processes silence messages. In this case, it will discard any other
+   * data in the message.
+   * <p>
+   * Note that this method does <b>not</b> check the session token of any message.
+   */
+  ParsedMessage handleIncomingMessage(byte[] incomingMessage) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     ServerToClientMessage message;
     try {
@@ -348,7 +508,7 @@ class ProtocolHandler {
     } catch (InvalidProtocolBufferException exception) {
       logger.warning("Incoming message is unparseable: %s",
           CommonProtoStrings2.toLazyCompactString(incomingMessage));
-      return;
+      return null;
     }
 
     // Validate the message. If this passes, we can blindly assume valid messages from here on.
@@ -356,22 +516,15 @@ class ProtocolHandler {
     if (!msgValidator.isValid(message)) {
       statistics.recordError(ClientErrorType.INCOMING_MESSAGE_FAILURE);
       logger.severe("Received invalid message: %s", message);
-      return;
+      return null;
     }
 
-    statistics.recordReceivedMessage(ReceivedMessageType.TOTAL);
-
-    // Construct a representation of the message header.
-    ServerHeader messageHeader = message.getHeader();
-    ServerMessageHeader header = new ServerMessageHeader(messageHeader.getClientToken(),
-        messageHeader.hasRegistrationSummary() ? messageHeader.getRegistrationSummary() : null);
-
     // Check the version of the message.
-    if (messageHeader.getProtocolVersion().getVersion().getMajorVersion() !=
+    if (message.getHeader().getProtocolVersion().getVersion().getMajorVersion() !=
         CommonInvalidationConstants2.PROTOCOL_MAJOR_VERSION) {
       statistics.recordError(ClientErrorType.PROTOCOL_VERSION_FAILURE);
       logger.severe("Dropping message with incompatible version: %s", message);
-      return;
+      return null;
     }
 
     // Check if it is a ConfigChangeMessage which indicates that messages should no longer be
@@ -383,88 +536,11 @@ class ProtocolHandler {
         nextMessageSendTimeMs =
             internalScheduler.getCurrentTimeMs() + configChangeMsg.getNextMessageDelayMs();
       }
-      return;  // Ignore all other messages in the envelope.
+      return null;  // Ignore all other messages in the envelope.
     }
 
-    // Check token if possible.
-    if (!checkServerToken(messageHeader.getClientToken())) {
-      return;
-    }
-
-    lastKnownServerTimeMs = Math.max(lastKnownServerTimeMs, messageHeader.getServerTimeMs());
-
-    // Invoke callbacks as appropriate.
-    if (message.hasTokenControlMessage()) {
-      TokenControlMessage tokenMsg = message.getTokenControlMessage();
-      statistics.recordReceivedMessage(ReceivedMessageType.TOKEN_CONTROL);
-      listener.handleTokenChanged(header, tokenMsg.hasNewToken() ? tokenMsg.getNewToken() : null);
-    }
-
-    // We explicitly check to see if we have a valid token after we pass the token control message
-    // to the listener. This is because we can't determine whether we have a valid token until
-    // after the upcall:
-    // 1) The listener might have acquired a token.
-    // 2) The listener might have lost its token.
-    // Note that checking for the presence of a TokenControlMessage is *not* sufficient: it might
-    // be a token-assign with the wrong nonce or a token-destroy message, for example.
-    if (listener.getClientToken() == null) {
-      logger.warning("Ignoring incoming message because no client token: %s", message);
-      return;
-    }
-
-    // Handle the messages received from the server by calling the appropriate listener method.
-
-    // In the beginning inform the listener about the header (the caller is already prepared
-    // to handle the fact that the same header is given to it multiple times).
-    listener.handleIncomingHeader(header);
-
-    if (message.hasInvalidationMessage()) {
-      statistics.recordReceivedMessage(ReceivedMessageType.INVALIDATION);
-      listener.handleInvalidations(header, message.getInvalidationMessage().getInvalidationList());
-    }
-    if (message.hasRegistrationStatusMessage()) {
-      statistics.recordReceivedMessage(ReceivedMessageType.REGISTRATION_STATUS);
-      listener.handleRegistrationStatus(header,
-          message.getRegistrationStatusMessage().getRegistrationStatusList());
-    }
-    if (message.hasRegistrationSyncRequestMessage()) {
-      statistics.recordReceivedMessage(ReceivedMessageType.REGISTRATION_SYNC_REQUEST);
-      listener.handleRegistrationSyncRequest(header);
-    }
-    if (message.hasInfoRequestMessage()) {
-      statistics.recordReceivedMessage(ReceivedMessageType.INFO_REQUEST);
-      listener.handleInfoMessage(header, message.getInfoRequestMessage().getInfoTypeList());
-    }
-    if (message.hasErrorMessage()) {
-      statistics.recordReceivedMessage(ReceivedMessageType.ERROR);
-      listener.handleErrorMessage(header, message.getErrorMessage().getCode(),
-          message.getErrorMessage().getDescription());
-    }
-  }
-
-  /**
-   * Verifies that the {@code serverToken} matches the token currently held by the
-   * client (if any).
-   */
-  private boolean checkServerToken(ByteString serverToken) {
-    Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    ByteString clientToken = listener.getClientToken();
-    if (clientToken == null) {
-      // No token. Return true so that we'll attempt to deliver a token control message (if any)
-      // to the listener in handleIncomingMessage.
-      return true;
-    }
-
-    if (!TypedUtil.<ByteString>equals(serverToken, clientToken)) {
-      // Bad token - reject whole message.  However, our channel can send us messages intended for
-      // other clients belonging to the same user, so don't log too loudly.
-      logger.info("Incoming message has bad token: %s, %s",
-          CommonProtoStrings2.toLazyCompactString(serverToken),
-          CommonProtoStrings2.toLazyCompactString(clientToken));
-      statistics.recordError(ClientErrorType.TOKEN_MISMATCH);
-      return false;
-    }
-    return true;
+    lastKnownServerTimeMs = Math.max(lastKnownServerTimeMs, message.getHeader().getServerTimeMs());
+    return new ParsedMessage(message);
   }
 
   /**
@@ -475,15 +551,15 @@ class ProtocolHandler {
    * @param debugString information to identify the caller
    */
   void sendInitializeMessage(ApplicationClientIdP applicationClientId, ByteString nonce,
-      String debugString) {
+      BatchingTask batchingTask, String debugString) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
     // Simply store the message in pendingInitializeMessage and send it when the batching task runs.
-    pendingInitializeMessage = CommonProtos2.newInitializeMessage(
+    InitializeMessage initializeMsg = CommonProtos2.newInitializeMessage(
         applicationClientId.getClientType(), applicationClientId, nonce,
         DigestSerializationType.BYTE_BASED);
-    logger.info("Batching initialize message for client: %s, %s", debugString,
-        pendingInitializeMessage);
+    batcher.setInitializeMessage(initializeMsg);
+    logger.info("Batching initialize message for client: %s, %s", debugString, initializeMsg);
     batchingTask.ensureScheduled(debugString);
   }
 
@@ -496,7 +572,8 @@ class ProtocolHandler {
    *        server's registration summary
    */
   void sendInfoMessage(List<SimplePair<String, Integer>> performanceCounters,
-      ClientConfigP clientConfig, boolean requestServerRegistrationSummary) {
+      ClientConfigP clientConfig, boolean requestServerRegistrationSummary,
+      BatchingTask batchingTask) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     InfoMessage.Builder infoMessage = InfoMessage.newBuilder()
         .setClientVersion(clientVersion);
@@ -517,7 +594,7 @@ class ProtocolHandler {
     infoMessage.setServerRegistrationSummaryRequested(requestServerRegistrationSummary);
 
     // Simply store the message in pendingInfoMessage and send it when the batching task runs.
-    pendingInfoMessage = infoMessage.build();
+    batcher.setInfoMessage(infoMessage.build());
     batchingTask.ensureScheduled("Send-info");
   }
 
@@ -527,20 +604,21 @@ class ProtocolHandler {
    * @param objectIds object ids on which to (un)register
    * @param regOpType whether to register or unregister
    */
-  void sendRegistrations(Collection<ObjectIdP> objectIds, RegistrationP.OpType regOpType) {
+  void sendRegistrations(Collection<ObjectIdP> objectIds, RegistrationP.OpType regOpType,
+      BatchingTask batchingTask) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     for (ObjectIdP objectId : objectIds) {
-      pendingRegistrations.put(ProtoWrapper.of(objectId), regOpType);
+      batcher.addRegistration(objectId, regOpType);
     }
     batchingTask.ensureScheduled("Send-registrations");
   }
 
   /** Sends an acknowledgement for {@code invalidation} to the server. */
-  void sendInvalidationAck(InvalidationP invalidation) {
+  void sendInvalidationAck(InvalidationP invalidation, BatchingTask batchingTask) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
     // We could do squelching - we don't since it is unlikely to be too beneficial here.
     logger.fine("Sending ack for invalidation %s", invalidation);
-    pendingAckedInvalidations.add(ProtoWrapper.of(invalidation));
+    batcher.addAck(invalidation);
     batchingTask.ensureScheduled("Send-Ack");
   }
 
@@ -549,134 +627,48 @@ class ProtocolHandler {
    *
    * @param regSubtree subtree to send
    */
-  void sendRegistrationSyncSubtree(RegistrationSubtree regSubtree) {
+  void sendRegistrationSyncSubtree(RegistrationSubtree regSubtree, BatchingTask batchingTask) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    pendingRegSubtrees.add(ProtoWrapper.of(regSubtree));
+    batcher.addRegSubtree(regSubtree);
     logger.info("Adding subtree: %s", regSubtree);
     batchingTask.ensureScheduled("Send-reg-sync");
- }
+  }
 
   /** Sends pending data to the server (e.g., registrations, acks, registration sync messages). */
-  private void sendMessageToServer() {
+  void sendMessageToServer() {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-
     if (nextMessageSendTimeMs > internalScheduler.getCurrentTimeMs()) {
       logger.warning("In quiet period: not sending message to server: %s > %s",
           nextMessageSendTimeMs, internalScheduler.getCurrentTimeMs());
       return;
     }
 
-    // Check if an initialize message needs to be sent.
-    ClientToServerMessage.Builder builder = ClientToServerMessage.newBuilder();
-    if (pendingInitializeMessage != null) {
-      statistics.recordSentMessage(SentMessageType.INITIALIZE);
-      builder.setInitializeMessage(pendingInitializeMessage);
-      pendingInitializeMessage = null;
-    }
-
-    // Note: Even if an initialize message is being sent, we can send additional
-    // messages such as regisration messages, etc to the server. But if there is no token
-    // and an initialize message is not being sent, we cannot send any other message.
-
-    if ((listener.getClientToken() == null) && !builder.hasInitializeMessage()) {
-      // Cannot send any message
-      logger.warning("Cannot send message since no token and no initialize msg: %s", builder);
-      statistics.recordError(ClientErrorType.TOKEN_MISSING_FAILURE);
+    // Create the message from the batcher.
+    ClientToServerMessage.Builder msgBuilder =
+        batcher.toBuilder(listener.getClientToken() != null);
+    if (msgBuilder == null) {
+      // Happens when we don't have a token and are not sending an initialize message.
       return;
     }
-
-    ClientHeader.Builder outgoingHeader = createClientHeader();
-    builder.setHeader(outgoingHeader);
-
-    // Check for pending batched operations and add to message builder if needed.
-
-    // Add reg, acks, reg subtrees - clear them after adding.
-    if (!pendingAckedInvalidations.isEmpty()) {
-      builder.setInvalidationAckMessage(createInvalidationAckMessage());
-      statistics.recordSentMessage(SentMessageType.INVALIDATION_ACK);
-    }
-
-    // Check regs.
-    if (!pendingRegistrations.isEmpty()) {
-      builder.setRegistrationMessage(createRegistrationMessage());
-      statistics.recordSentMessage(SentMessageType.REGISTRATION);
-    }
-
-    // Check reg substrees.
-    if (!pendingRegSubtrees.isEmpty()) {
-      for (ProtoWrapper<RegistrationSubtree> subtree : pendingRegSubtrees) {
-        builder.setRegistrationSyncMessage(RegistrationSyncMessage.newBuilder()
-            .addSubtree(subtree.getProto()));
-      }
-      pendingRegSubtrees.clear();
-      statistics.recordSentMessage(SentMessageType.REGISTRATION_SYNC);
-    }
-
-    // Check if an info message has to be sent.
-    if (pendingInfoMessage != null) {
-      statistics.recordSentMessage(SentMessageType.INFO);
-      builder.setInfoMessage(pendingInfoMessage);
-      pendingInfoMessage = null;
-    }
+    msgBuilder.setHeader(createClientHeader());
+    ++messageId;
 
     // Validate the message and send it.
-    messageId++;
-    ClientToServerMessage message = builder.build();
+    ClientToServerMessage message = msgBuilder.build();
     if (!msgValidator.isValid(message)) {
       logger.severe("Tried to send invalid message: %s", message);
       statistics.recordError(ClientErrorType.OUTGOING_MESSAGE_FAILURE);
       return;
     }
 
-    logger.fine("Sending message to server: %s", message);
     statistics.recordSentMessage(SentMessageType.TOTAL);
     network.sendMessage(message.toByteArray());
 
-    // Record that the message was sent. Schedule it as a separate event to avoid invoking
-    // a callback on the Ticl inline.
-    internalScheduler.schedule(NO_DELAY, new Runnable() {
-      @Override
-      public void run() {
-        listener.handleMessageSent();
-      }
-    });
-  }
-
-  /**
-   * Creates a registration message based on registrations from {@code pendingRegistrations}
-   * and returns it.
-   * <p>
-   * REQUIRES: pendingRegistrations.size() > 0
-   */
-  private RegistrationMessage createRegistrationMessage() {
-    Preconditions.checkState(!pendingRegistrations.isEmpty());
-    RegistrationMessage.Builder regMessage = RegistrationMessage.newBuilder();
-
-    // Run through the pendingRegistrations map.
-    for (Map.Entry<ProtoWrapper<ObjectIdP>, RegistrationP.OpType> entry :
-         pendingRegistrations.entrySet()) {
-      RegistrationP reg = CommonProtos2.newRegistrationP(entry.getKey().getProto(),
-          entry.getValue() == RegistrationP.OpType.REGISTER);
-      regMessage.addRegistration(reg);
-    }
-    pendingRegistrations.clear();
-    return regMessage.build();
-  }
-
-  /**
-   * Creates an invalidation ack message based on acks from {@code pendingAckedInvalidations} and
-   * returns it.
-   * <p>
-   * REQUIRES: pendingAckedInvalidations.size() > 0
-   */
-  private InvalidationMessage createInvalidationAckMessage() {
-    Preconditions.checkState(!pendingAckedInvalidations.isEmpty());
-    InvalidationMessage.Builder ackMessage = InvalidationMessage.newBuilder();
-    for (ProtoWrapper<InvalidationP> wrapper : pendingAckedInvalidations) {
-      ackMessage.addInvalidation(wrapper.getProto());
-    }
-    pendingAckedInvalidations.clear();
-    return ackMessage.build();
+    // Record that the message was sent. We're invoking the listener directly, rather than
+    // scheduling a new work unit to do it. It would be safer to do a schedule, but that's hard to
+    // do in Android, we wrote this listener (it's InvalidationClientCore, so we know what it does),
+    // and it's the last line of this function.
+    listener.handleMessageSent();
   }
 
   /** Returns the header to include on a message to the server. */
@@ -695,5 +687,15 @@ class ProtocolHandler {
       builder.setClientToken(clientToken);
     }
     return builder;
+  }
+
+  @Override
+  public ProtocolHandlerState marshal() {
+    ProtocolHandlerState.Builder builder = ProtocolHandlerState.newBuilder();
+    builder.setLastKnownServerTimeMs(lastKnownServerTimeMs);
+    builder.setMessageId(messageId);
+    builder.setNextMessageSendTimeMs(nextMessageSendTimeMs);
+    builder.setBatcherState(batcher.marshal());
+    return builder.build();
   }
 }

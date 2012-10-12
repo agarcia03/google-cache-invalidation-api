@@ -38,4 +38,8 @@ public abstract class NamedRunnable implements Runnable {
   public String toString() {
     return name + ':' + super.toString();
   }
+
+  public String getName() {
+    return name;
+  }
 }

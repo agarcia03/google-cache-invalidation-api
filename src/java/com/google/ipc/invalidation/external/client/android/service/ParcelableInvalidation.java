@@ -34,10 +34,12 @@ class ParcelableInvalidation implements Parcelable {
    */
   public static final Parcelable.Creator<ParcelableInvalidation> CREATOR =
       new Parcelable.Creator<ParcelableInvalidation>() {
+        @Override
         public ParcelableInvalidation createFromParcel(Parcel in) {
           return new ParcelableInvalidation(in);
         }
 
+        @Override
         public ParcelableInvalidation[] newArray(int size) {
           return new ParcelableInvalidation[size];
         }

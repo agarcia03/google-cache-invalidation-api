@@ -20,8 +20,8 @@ import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
 
 /**
- * Extension of {@link SystemResources.NetworkChannel} that adds a method to get the
- * network endpoint id.
+ * Extension of {@link com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel}
+ * that adds a method to get the network endpoint id.
  *
  */
 public interface TestableNetworkChannel extends SystemResources.NetworkChannel {

@@ -17,6 +17,10 @@
 package com.google.ipc.invalidation.common;
 
 import com.google.common.base.Preconditions;
+import com.google.ipc.invalidation.common.ProtoValidator.Accessor;
+
+import com.google.ipc.invalidation.common.ProtoValidator.Descriptor;
+
 import com.google.protobuf.MessageLite;
 
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
@@ -57,28 +61,6 @@ import java.util.Set;
 
 /** Class providing access to fields of protocol buffers in a generic way without using Java reflection. */
 public class ClientProtocolAccessor {
-  /** Descriptor for fields. */
-  public static class Descriptor {
-    private final String name;
-
-    public Descriptor(String name) {
-      this.name = name;
-    }
-    /** Returns the name of the described field. */
-    public String getName() {
-      return name;
-    }
-    @Override
-    public String toString() {
-      return "Descriptor for field " + name;
-    }
-  }
-  /** Accessor for fields. */
-  public interface Accessor {
-    public boolean hasField(MessageLite message, Descriptor field);
-    public Object getField(MessageLite message, Descriptor field);
-    public Collection<String> getAllFieldNames();
-  }
   /** Class to access fields in {@link ApplicationClientIdP} protos. */
   public static class ApplicationClientIdPAccessor implements Accessor {
     private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
@@ -143,7 +125,8 @@ public class ClientProtocolAccessor {
         "is_transient",
         "initial_persistent_heartbeat_delay_ms",
         "protocol_handler_config",
-        "channel_supports_offline_delivery"
+        "channel_supports_offline_delivery",
+        "offline_heartbeat_threshold_ms"
       ));
     
     public static final Descriptor VERSION = new Descriptor("version");
@@ -157,6 +140,7 @@ public class ClientProtocolAccessor {
     public static final Descriptor INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS = new Descriptor("initial_persistent_heartbeat_delay_ms");
     public static final Descriptor PROTOCOL_HANDLER_CONFIG = new Descriptor("protocol_handler_config");
     public static final Descriptor CHANNEL_SUPPORTS_OFFLINE_DELIVERY = new Descriptor("channel_supports_offline_delivery");
+    public static final Descriptor OFFLINE_HEARTBEAT_THRESHOLD_MS = new Descriptor("offline_heartbeat_threshold_ms");
     
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
@@ -197,6 +181,9 @@ public class ClientProtocolAccessor {
       }
       if (field == CHANNEL_SUPPORTS_OFFLINE_DELIVERY) {
         return message.hasChannelSupportsOfflineDelivery();
+      }
+      if (field == OFFLINE_HEARTBEAT_THRESHOLD_MS) {
+        return message.hasOfflineHeartbeatThresholdMs();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -240,6 +227,9 @@ public class ClientProtocolAccessor {
       }
       if (field == CHANNEL_SUPPORTS_OFFLINE_DELIVERY) {
         return message.getChannelSupportsOfflineDelivery();
+      }
+      if (field == OFFLINE_HEARTBEAT_THRESHOLD_MS) {
+        return message.getOfflineHeartbeatThresholdMs();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -804,13 +794,15 @@ public class ClientProtocolAccessor {
         "object_id",
         "is_known_version",
         "version",
-        "payload"
+        "payload",
+        "bridge_arrival_time_ms"
       ));
     
     public static final Descriptor OBJECT_ID = new Descriptor("object_id");
     public static final Descriptor IS_KNOWN_VERSION = new Descriptor("is_known_version");
     public static final Descriptor VERSION = new Descriptor("version");
     public static final Descriptor PAYLOAD = new Descriptor("payload");
+    public static final Descriptor BRIDGE_ARRIVAL_TIME_MS = new Descriptor("bridge_arrival_time_ms");
     
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
@@ -830,6 +822,9 @@ public class ClientProtocolAccessor {
       }
       if (field == PAYLOAD) {
         return message.hasPayload();
+      }
+      if (field == BRIDGE_ARRIVAL_TIME_MS) {
+        return message.hasBridgeArrivalTimeMs();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -852,6 +847,9 @@ public class ClientProtocolAccessor {
       }
       if (field == PAYLOAD) {
         return message.getPayload();
+      }
+      if (field == BRIDGE_ARRIVAL_TIME_MS) {
+        return message.getBridgeArrivalTimeMs();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }

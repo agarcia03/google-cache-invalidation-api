@@ -17,6 +17,7 @@ package com.google.ipc.invalidation.util;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.ByteString.ByteIterator;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -209,11 +210,11 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
 
   @Override
   public int compareTo(Bytes other) {
-    return compareTo(bytes, other.bytes);
+    return compare(bytes, other.bytes);
   }
 
   /** Same specs as Bytes.compareTo except for the byte[] type. */
-  public static int compareTo(byte[] first, byte[] second) {
+  public static int compare(byte[] first, byte[] second) {
     int minLength = Math.min(first.length, second.length);
     for (int i = 0; i < minLength; i++) {
       if (first[i] != second[i]) {
@@ -227,6 +228,42 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
     //   returned the correct value above
     // * If they are not of equal length, the one with the longer length is greater.
     return first.length - second.length;
+  }
+
+  /** Compares lexicographic order of {@code first} and {@code second}. */
+  public static int compare(ByteString first, ByteString second) {
+    Preconditions.checkNotNull(first);
+    Preconditions.checkNotNull(second);
+
+    ByteIterator firstIterator = first.iterator();
+    ByteIterator secondIterator = second.iterator();
+    while (firstIterator.hasNext()) {
+      if (!secondIterator.hasNext()) {
+        // 'first' is longer than 'second' (logically, think of 'second' as padded with special
+        // 'blank' symbols that are smaller than any other symbol per the usual lexicographic
+        // ordering convention.)
+        return +1;
+      }
+      // Compare byte values.
+      byte firstByte = firstIterator.nextByte();
+      byte secondByte = secondIterator.nextByte();
+      if (firstByte != secondByte) {
+        return (firstByte & 0xff) - (secondByte & 0xff);
+      }
+    }
+    // If 'second' has remaining bytes, it is longer than 'first' and we return -1. Otherwise, it
+    // implies that both iterators have been consumed and no differences discovered in which case
+    // we return 0.
+    return secondIterator.hasNext() ? -1 : 0;
+  }
+
+  /**
+   * Renders the bytes as a string in standard bigtable ascii / octal mix
+   * compatible with bt and returns it. Borrowed from Bigtable's
+   * Util.keyToString().
+   */
+  public static String toString(ByteString bytes) {
+    return toString(bytes.toByteArray());
   }
 
   /**

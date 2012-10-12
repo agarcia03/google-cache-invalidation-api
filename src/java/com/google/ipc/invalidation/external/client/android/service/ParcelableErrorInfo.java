@@ -33,10 +33,12 @@ class ParcelableErrorInfo implements Parcelable {
    */
   public static final Parcelable.Creator<ParcelableErrorInfo> CREATOR =
       new Parcelable.Creator<ParcelableErrorInfo>() {
+        @Override
         public ParcelableErrorInfo createFromParcel(Parcel in) {
           return new ParcelableErrorInfo(in);
         }
 
+        @Override
         public ParcelableErrorInfo[] newArray(int size) {
           return new ParcelableErrorInfo[size];
         }
@@ -71,7 +73,7 @@ class ParcelableErrorInfo implements Parcelable {
     // 1. int errorReason
     // 2. boolean [] { isTransient }
     // 3. String error message
-    // TODO: Add support for object marshaling when needed
+    // TODO:
     parcel.writeInt(errorInfo.getErrorReason());
     parcel.writeBooleanArray(new boolean[]{errorInfo.isTransient()});
     parcel.writeString(errorInfo.getErrorMessage());

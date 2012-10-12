@@ -110,7 +110,8 @@ public interface SystemResources {
 
     /**
      * Deletes the key, value pair corresponding to {@code key}. If the deletion succeeds, calls
-     * {@code done} with true; else calls it with false.
+     * {@code done} with true; else calls it with false. A deletion of a key that does not exist
+     * is considered to have succeeded.
      */
     void deleteKey(String key, Callback<Boolean> done);
 

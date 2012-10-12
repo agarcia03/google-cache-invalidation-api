@@ -18,10 +18,11 @@ package com.google.ipc.invalidation.ticl.android.c2dm;
 
 
 import com.google.common.base.Preconditions;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 
 import android.app.Service;
 import android.content.Intent;
-import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,8 +36,8 @@ import org.json.JSONObject;
  */
 public class C2DMObserver {
 
-  /** Logging tag */
-  private static final String TAG = "C2DMObserver";
+  /** Logger */
+  private static final Logger logger = AndroidLogger.forTag("C2DMObserver");
 
   /** JSON key name for the observer class name string value */
   private static final String KEY_CLASS = "class";
@@ -78,9 +79,9 @@ public class C2DMObserver {
           json.has(KEY_HANDLE_WAKE_LOCK) && json.getBoolean(KEY_HANDLE_WAKE_LOCK);
       return new C2DMObserver(clazz, filterKey, filterValue, handleWakeLock);
     } catch (JSONException e) {
-      Log.e(TAG, "Unable to parse observer. Source: " + json);
+      logger.severe("Unable to parse observer. Source: %s", json);
     } catch (ClassNotFoundException e) {
-      Log.e(TAG, "Unable to parse observer. Class not found. Source: " + json);
+      logger.severe("Unable to parse observer. Class not found. Source: %s", json);
     }
     return null;
   }
@@ -99,7 +100,7 @@ public class C2DMObserver {
       boolean handleWakeLock = intent.getBooleanExtra(C2DMessaging.EXTRA_HANDLE_WAKELOCK, false);
       return new C2DMObserver(clazz, filterKey, filterValue, handleWakeLock);
     } catch (ClassNotFoundException e) {
-      Log.e(TAG, "Unable to register observer class " + canonicalClassString);
+      logger.severe("Unable to register observer class %s", canonicalClassString);
       return null;
     }
   }
@@ -129,7 +130,7 @@ public class C2DMObserver {
       json.put(KEY_HANDLE_WAKE_LOCK, handleWakeLock);
       return json;
     } catch (JSONException e) {
-      Log.e(TAG, "Unable to create JSON object from observer " + toString());
+      logger.severe("Unable to create JSON object from observer %s", toString());
       return null;
     }
   }

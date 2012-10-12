@@ -16,14 +16,12 @@
 
 package com.google.ipc.invalidation.common;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ApplicationClientIdPAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientConfigPAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientHeaderAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientToServerMessageAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ClientVersionAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ConfigChangeMessageAccessor;
-import com.google.ipc.invalidation.common.ClientProtocolAccessor.Descriptor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.ErrorMessageAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.InfoMessageAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.InfoRequestMessageAccessor;
@@ -46,7 +44,6 @@ import com.google.ipc.invalidation.common.ClientProtocolAccessor.StatusPAccessor
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.TokenControlMessageAccessor;
 import com.google.ipc.invalidation.common.ClientProtocolAccessor.VersionAccessor;
 import com.google.ipc.invalidation.util.BaseLogger;
-import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protobuf.MessageLite;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientHeader;
@@ -61,12 +58,6 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ServerHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.Version;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
 
 
 /**
@@ -80,152 +71,14 @@ import java.util.Set;
  * which checks constraints across fields.
  *
  */
-public class TiclMessageValidator2 {
-
+public class TiclMessageValidator2 extends ProtoValidator {
   public TiclMessageValidator2(BaseLogger logger) {
-    this.logger = logger;
-  }
-
-  /** Describes how to validate a message. */
-  private static class MessageInfo {
-    /** Protocol buffer descriptor for the message. */
-    private final ClientProtocolAccessor.Accessor messageAccessor;
-
-    /** Information about required and optional fields in this message. */
-    private final Set<FieldInfo> fieldInfo = new HashSet<FieldInfo>();
-
-    /**
-     * Constructs a message info.
-     *
-     * @param messageAccessor descriptor for the protocol buffer
-     * @param fields information about the fields
-     */
-    MessageInfo(ClientProtocolAccessor.Accessor messageAccessor, FieldInfo... fields) {
-      // Track which fields in the message descriptor have not yet been covered by a FieldInfo.
-      // We'll use this to verify that we get a FieldInfo for every field.
-      Set<String> unusedDescriptors = new HashSet<String>();
-      unusedDescriptors.addAll(messageAccessor.getAllFieldNames());
-
-      this.messageAccessor = messageAccessor;
-      for (FieldInfo info : fields) {
-        // Lookup the field given the name in the FieldInfo.
-        boolean removed = TypedUtil.remove(unusedDescriptors, info.getFieldDescriptor().getName());
-        Preconditions.checkState(removed, "Bad field: %s", info.getFieldDescriptor().getName());
-
-        // Add the field info to the number -> info map.
-        fieldInfo.add(info);
-      }
-      Preconditions.checkState(unusedDescriptors.isEmpty(), "Not all fields specified in %s: %s",
-          messageAccessor, unusedDescriptors);
-    }
-
-    /** Returns the stored field information. */
-    Collection<FieldInfo> getAllFields() {
-      return fieldInfo;
-    }
-
-    /**
-     * Function called after the presence/absence of all fields in this message and its child
-     * messages have been verified. Should be overriden to enforce additional semantic constraints
-     * beyond field presence/absence if needed.
-     */
-    boolean postValidate(MessageLite message) {
-      return true;
-    }
-  }
-
-  /** Describes a field in a message. */
-  private static class FieldInfo {
-    /**
-     * Whether the field is required or optional. A repeated field where at least one value
-     * must be set should use {@code REQUIRED}.
-     */
-    enum Presence {
-      REQUIRED,
-      OPTIONAL
-    }
-
-    /** Name of the field in the containing message. */
-    private final ClientProtocolAccessor.Descriptor fieldDescriptor;
-
-    /** Whether the field is required or optional. */
-    private final Presence presence;
-
-    /** If not {@code null}, message info describing how to validate the field. */
-    private final MessageInfo messageInfo;
-
-    /**
-     * Constructs an instance.
-     *
-     * @param fieldDescriptor identifier for the field
-     * @param presence required/optional
-     * @param messageInfo if not {@code null}, describes how to validate the field
-     */
-    FieldInfo(ClientProtocolAccessor.Descriptor fieldDescriptor, Presence presence,
-        MessageInfo messageInfo) {
-      this.fieldDescriptor = fieldDescriptor;
-      this.presence = presence;
-      this.messageInfo = messageInfo;
-    }
-
-    /** Returns the name of the field. */
-    ClientProtocolAccessor.Descriptor getFieldDescriptor() {
-      return fieldDescriptor;
-    }
-
-    /** Returns the presence information for the field. */
-    Presence getPresence() {
-      return presence;
-    }
-
-    /** Returns the validation information for the field. */
-    MessageInfo getMessageInfo() {
-      return messageInfo;
-    }
-
-    /** Returns whether the field needs additional validation. */
-    boolean requiresAdditionalValidation() {
-      return messageInfo != null;
-    }
-
-    /**
-     * Returns a new instance describing a required field with name {@code fieldName} and validation
-     * specified by {@code messageInfo}.
-     */
-    static FieldInfo newRequired(Descriptor fieldDescriptor, MessageInfo messageInfo) {
-      return new FieldInfo(fieldDescriptor, Presence.REQUIRED,
-          Preconditions.checkNotNull(messageInfo));
-    }
-
-    /**
-     * Returns a new instance describing a required field with name {@code fieldName} and no
-     * additional validation.
-     */
-    static FieldInfo newRequired(Descriptor fieldDescriptor) {
-      return new FieldInfo(fieldDescriptor, Presence.REQUIRED, null);
-    }
-
-    /**
-     * Returns a new instance describing an optional field with name {@code fieldName} and
-     * validation specified by {@code messageInfo}.
-     */
-    static FieldInfo newOptional(Descriptor fieldDescriptor, MessageInfo messageInfo) {
-      return new FieldInfo(fieldDescriptor, Presence.OPTIONAL,
-          Preconditions.checkNotNull(messageInfo));
-    }
-
-    /**
-     * Returns a new instance describing an optional field with name {@code fieldName} and no
-     * additional validation.
-     */
-    static FieldInfo newOptional(Descriptor fieldDescriptor) {
-      return new FieldInfo(fieldDescriptor, Presence.OPTIONAL, null);
-    }
+    super(logger);
   }
 
   /** Describes how to validate common mesages. */
   
-  class CommonMsgInfos {
+  public class CommonMsgInfos {
 
     /** Validation for composite (major/minor) versions. */
     final MessageInfo VERSION = new MessageInfo(ClientProtocolAccessor.VERSION_ACCESSOR,
@@ -270,7 +123,8 @@ public class TiclMessageValidator2 {
         FieldInfo.newRequired(InvalidationPAccessor.OBJECT_ID, OID),
         FieldInfo.newRequired(InvalidationPAccessor.IS_KNOWN_VERSION),
         FieldInfo.newRequired(InvalidationPAccessor.VERSION),
-        FieldInfo.newOptional(InvalidationPAccessor.PAYLOAD)) {
+        FieldInfo.newOptional(InvalidationPAccessor.PAYLOAD),
+        FieldInfo.newOptional(InvalidationPAccessor.BRIDGE_ARRIVAL_TIME_MS)) {
       @Override
       public boolean postValidate(MessageLite message) {
         // Must have non-negative version.
@@ -337,7 +191,8 @@ public class TiclMessageValidator2 {
         FieldInfo.newOptional(ClientConfigPAccessor.INITIAL_PERSISTENT_HEARTBEAT_DELAY_MS),
         FieldInfo.newOptional(ClientConfigPAccessor.CHANNEL_SUPPORTS_OFFLINE_DELIVERY),
         FieldInfo.newRequired(ClientConfigPAccessor.PROTOCOL_HANDLER_CONFIG,
-            PROTOCOL_HANDLER_CONFIG)
+            PROTOCOL_HANDLER_CONFIG),
+        FieldInfo.newOptional(ClientConfigPAccessor.OFFLINE_HEARTBEAT_THRESHOLD_MS)
         );
 
     private CommonMsgInfos() {
@@ -575,9 +430,6 @@ public class TiclMessageValidator2 {
         FieldInfo.newOptional(ServerToClientMessageAccessor.ERROR_MESSAGE, ERROR));
   }
 
-  /** Logger for errors */
-  private final BaseLogger logger;
-
   /** Common validation information */
   
   final CommonMsgInfos commonMsgInfos = new CommonMsgInfos();
@@ -602,86 +454,5 @@ public class TiclMessageValidator2 {
   /** Returns whether {@code invalidation} is valid. */
   public boolean isValid(InvalidationP invalidation) {
     return checkMessage(invalidation, commonMsgInfos.INVALIDATION);
-  }
-
-  /**
-   * Returns whether {@code message} is valid.
-   * @param messageInfo specification of validity for {@code message}
-   */
-  
-  boolean checkMessage(MessageLite message, MessageInfo messageInfo) {
-    for (FieldInfo fieldInfo : messageInfo.getAllFields()) {
-      Descriptor fieldDescriptor = fieldInfo.getFieldDescriptor();
-      boolean isFieldPresent =
-          messageInfo.messageAccessor.hasField(message, fieldDescriptor);
-
-      // If the field must be present but isn't, fail.
-      if ((fieldInfo.getPresence() == FieldInfo.Presence.REQUIRED) && !(isFieldPresent)) {
-        logger.warning("Required field not set: %s", fieldInfo.getFieldDescriptor().getName());
-        return false;
-      }
-
-      // If the field is present and requires its own validation, validate it.
-      if (isFieldPresent && fieldInfo.requiresAdditionalValidation()) {
-        for (MessageLite subMessage : TiclMessageValidator2.<MessageLite>getFieldIterable(
-            message, messageInfo.messageAccessor, fieldDescriptor)) {
-          if (!checkMessage(subMessage, fieldInfo.getMessageInfo())) {
-            return false;
-          }
-        }
-      }
-    }
-
-    // Once we've validated all fields, post-validate this message.
-    if (!messageInfo.postValidate(message)) {
-      logger.info("Failed post-validation of message (%s): %s",
-          message.getClass().getSimpleName(), message);
-      return false;
-    }
-    return true;
-  }
-
-  /**
-   * Returns an {@link Iterable} over the instance(s) of {@code field} in {@code message}. This
-   * provides a uniform way to handle both singleton and repeated fields in protocol buffers, which
-   * are accessed using different calls in the protocol buffer API.
-   */
-  @SuppressWarnings("unchecked")
-  
-  static <FieldType> Iterable<FieldType> getFieldIterable(final MessageLite message,
-      final ClientProtocolAccessor.Accessor messageAccessor,
-      final ClientProtocolAccessor.Descriptor fieldDescriptor) {
-    final Object obj = messageAccessor.getField(message, fieldDescriptor);
-    if (obj instanceof List) {
-      return (List<FieldType>) obj;
-    } else {
-      // Otherwise, just use a singleton iterator.
-      return new Iterable<FieldType>() {
-        @Override
-        public Iterator<FieldType> iterator() {
-          return new Iterator<FieldType>() {
-            boolean done;
-            @Override
-            public boolean hasNext() {
-              return !done;
-            }
-
-            @Override
-            public FieldType next() {
-              if (done) {
-                throw new NoSuchElementException();
-              }
-              done = true;
-              return (FieldType) obj;
-            }
-
-            @Override
-            public void remove() {
-              throw new UnsupportedOperationException("Not allowed");
-            }
-          };
-        }
-      };
-    }
   }
 }

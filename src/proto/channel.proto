@@ -27,6 +27,8 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "Channel";
 
 
+option java_generate_equals_and_hash = true;
+
 
 import "proto/channel_common.proto";
 

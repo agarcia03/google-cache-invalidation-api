@@ -132,13 +132,16 @@ public class CommonProtos2 {
   }
 
   public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
-    ByteString payload) {
+      ByteString payload, Long bridgeArrivalTimeMs) {
     InvalidationP.Builder builder = InvalidationP.newBuilder()
         .setObjectId(oid)
         .setIsKnownVersion(true)
         .setVersion(version);
     if (payload != null) {
       builder.setPayload(payload);
+    }
+    if (bridgeArrivalTimeMs != null) {
+      builder.setBridgeArrivalTimeMs(bridgeArrivalTimeMs);
     }
     return builder.build();
   }
@@ -287,12 +290,11 @@ public class CommonProtos2 {
         .build();
   }
 
-  public static ServerToClientMessage newServerToClientMessage(ServerHeader scHeader,
+  public static ServerToClientMessage.Builder newServerToClientMessage(ServerHeader scHeader,
       TokenControlMessage tokenControlMessage) {
     return ServerToClientMessage.newBuilder()
         .setHeader(scHeader)
-        .setTokenControlMessage(tokenControlMessage)
-        .build();
+        .setTokenControlMessage(tokenControlMessage);
   }
 
   public static ServerToClientMessage newServerToClientMessage(ServerHeader scHeader,
@@ -362,7 +364,7 @@ public class CommonProtos2 {
     // The protocol version field was set in the INITIAL channel implementation but subsequent
     // versions only set the channel version.
     if (channelVersion == null) {
-      // TODO:  Remove once unversioned clients are no longer supported
+      // TODO:
       endpointBuilder.setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION);
     } else {
       endpointBuilder.setChannelVersion(channelVersion);

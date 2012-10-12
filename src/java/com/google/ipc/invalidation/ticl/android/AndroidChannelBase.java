@@ -18,24 +18,15 @@ package com.google.ipc.invalidation.ticl.android;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessage;
-import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessageBatch;
 
-import android.net.http.AndroidHttpClient;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.BasicResponseHandler;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.util.List;
 
 
 /**
@@ -46,7 +37,7 @@ import java.util.List;
 
 public abstract class AndroidChannelBase {
   /** Http client to use when making requests to . */
-  private HttpClient httpClient;
+  HttpClient httpClient;
 
   /** Authentication type for  frontends. */
   private final String authType;
@@ -94,7 +85,7 @@ public abstract class AndroidChannelBase {
     try {
       String response = httpClient.execute(httpPost, new BasicResponseHandler());
     } catch (ClientProtocolException exception) {
-      // TODO: Distinguish between key HTTP error codes and handle more specifically
+      // TODO:
       // where appropriate.
       getLogger().warning("Error from server on request: %s", exception);
     } catch (IOException exception) {
@@ -102,96 +93,6 @@ public abstract class AndroidChannelBase {
     } catch (RuntimeException exception) {
       getLogger().warning("Runtime exception writing request: %s", exception);
     }
-  }
-
-  /** Retrieves any pending messages from  in the mailbox for the client. */
-  
-  public void retrieveMailbox() {
-    // It's highly unlikely that we'll start receiving events before we have an auth token, but
-    // if that is the case then we cannot retrieve mailbox contents.   The events should be
-    // redelivered later.
-    if (getAuthToken() == null) {
-      getLogger().warning("Unable to retrieve mailbox. No auth token");
-      return;
-    }
-
-    // Make a request to retrieve the mailbox contents.
-    AddressedAndroidMessageBatch messageBatch = makeMailboxRequest();
-    if (messageBatch == null) {
-      // Logging already done in makeMailboxRequest.
-      return;
-    }
-    List<AddressedAndroidMessage> msgList = messageBatch.getAddressedMessageList();
-    getLogger().fine("Mailbox contains %s msgs", msgList.size());
-    for (AddressedAndroidMessage message : msgList) {
-      tryDeliverMessage(message);
-    }
-  }
-
-  /**
-   * Makes a POST request to the mailbox URL for this client. Returns the response as byte array,
-   * or {@code null} if there was no response.
-   */
-  private AddressedAndroidMessageBatch makeMailboxRequest() {
-    // Create URL that targets the mailbox retrieval service with the target mailbox id
-    StringBuilder target = new StringBuilder();
-    target.append(channelUrl);
-    target.append(AndroidHttpConstants.MAILBOX_URL);
-    target.append(getWebEncodedEndpointId());
-
-    // Add query parameter indicating the service to authenticate against
-    target.append('?');
-    target.append(AndroidHttpConstants.SERVICE_PARAMETER);
-    target.append('=');
-    target.append(authType);
-
-    HttpPost httpPost = new HttpPost(target.toString());
-    setPostHeaders(httpPost);
-    try {
-      return httpClient.execute(httpPost, new ResponseHandler<AddressedAndroidMessageBatch>() {
-        @Override
-        public AddressedAndroidMessageBatch handleResponse(HttpResponse response)
-            throws ClientProtocolException, IOException {
-          if (response.getStatusLine().getStatusCode() == HttpURLConnection.HTTP_NO_CONTENT) {
-            // No content in response.
-            return null;
-          }
-          HttpEntity responseEntity = response.getEntity();
-          if (responseEntity == null) {
-            // There should have been content, but there wasn't.
-            getLogger().warning("Missing response content");
-            return null;
-          }
-          long contentLength = responseEntity.getContentLength();
-          if ((contentLength < 0) || (contentLength > Integer.MAX_VALUE)) {
-            getLogger().warning("Invalid mailbox Content-Length value: %s", contentLength);
-            return null;
-          }
-          // If data present, read the mailbox data into a local byte array and return it.
-          // A mailbox may be empty because a prior retrieval pulled down all messages available
-          // (including the one that initiated the current C2DM message).
-          if (contentLength == 0) {
-            // We check separately from contentLength < 0 since 0 is a valid content-length, and
-            // we don't want the log message to be confusing.
-            return null;
-          }
-          // Parse and return the message batch. This function is allowed to throw an IOException,
-          // so we don't need a try/catch.
-          return AddressedAndroidMessageBatch.parseFrom(responseEntity.getContent());
-        }
-      });
-    } catch (ClientProtocolException exception) {
-      // TODO: Distinguish between key HTTP error codes and handle more specifically
-      // where appropriate.
-      getLogger().warning("Error from server on mailbox retrieval: %s", exception);
-    } catch (InvalidProtocolBufferException exception) {
-      getLogger().warning("Error parsing mailbox contents: %s", exception);
-    } catch (IOException exception) {
-      getLogger().warning("Error retrieving mailbox: %s", exception);
-    } catch (RuntimeException exception) {
-      getLogger().warning("Runtime exception retrieving mailbox: %s", exception);
-    }
-    return null;
   }
 
   /** Sets the Authorization and echo headers on {@code httpPost}. */
@@ -213,12 +114,13 @@ public abstract class AndroidChannelBase {
     }
   }
 
+  /** Returns the token that will be sent in the header of all HTTP requests. */
+  String getEchoTokenForTest() {
+    return this.echoToken;
+  }
+
   /** Sets the HTTP client to {@code client}. */
   void setHttpClientForTest(HttpClient client) {
-    if (this.httpClient instanceof AndroidHttpClient) {
-      // Release the previous client if any.
-      ((AndroidHttpClient) this.httpClient).close();
-    }
     this.httpClient = Preconditions.checkNotNull(client);
   }
 

@@ -107,7 +107,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   /** The authentication token that can be used in channel requests to the server */
   private String authToken;
 
-  // TODO:  Add code to track time of last network activity (in either direction)
+  // TODO:
   // so inactive clients can be detected and periodically flushed from memory.
 
   /**
@@ -119,7 +119,6 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   /**
    * Testing only flag that disables interactions with the AcccountManager for mock tests.
    */
-  // TODO: Temporary: remove as part of 4971241
    static boolean disableAccountManager = false;
 
   /**
@@ -240,7 +239,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
               try {
                 Bundle result = future.getResult();
                 if (result.containsKey(AccountManager.KEY_INTENT)) {
-                  // TODO: Handle case where there are no authentication credentials
+                  // TODO:
                   // associated with the client account
                   logger.severe("Token acquisition requires user login");
                   callback.success(); // No further retries.
@@ -248,7 +247,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
                 setAuthToken(result.getString(AccountManager.KEY_AUTHTOKEN));
               } catch (OperationCanceledException exception) {
                 logger.warning("Auth cancelled", exception);
-                // TODO: Send error to client
+                // TODO:
               } catch (AuthenticatorException exception) {
                 logger.warning("Auth error acquiring token", exception);
                 callback.failure();
@@ -276,7 +275,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
       if (pendingMessages != null) {
         checkReady();
       } else {
-        // TODO: Trigger heartbeat or other action to notify server of new endpoint id
+        // TODO:
       }
     }
   }
@@ -403,7 +402,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
 
     // Prefetch the auth sub token.  Since this might require an HTTP round trip, we do this
     // as soon as the resources are available.
-    // TODO: Find a better place to fetch the auth token; this method
+    // TODO:
     // doesn't sound like one that should be doing work.
     retryUntilSuccessWithBackoff(resources.getInternalScheduler(),
         new ExponentialBackoffDelayGenerator(
@@ -433,5 +432,14 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
 
   ExecutorService getExecutorServiceForTest() {
     return scheduler;
+  }
+
+  @Override
+  void setHttpClientForTest(HttpClient client) {
+    if (this.httpClient instanceof AndroidHttpClient) {
+      // Release the previous client if any.
+      ((AndroidHttpClient) this.httpClient).close();
+    }
+    super.setHttpClientForTest(client);
   }
 }

@@ -16,6 +16,8 @@
 
 package com.google.ipc.invalidation.ticl.android.c2dm;
 
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.ticl.android.AndroidC2DMConstants;
 
 import android.app.AlarmManager;
@@ -29,7 +31,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.ServiceInfo;
 import android.os.AsyncTask;
-import android.util.Log;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -47,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class C2DMManager extends IntentService {
 
-  private static final String TAG = "C2DM";
+  private static final Logger logger = AndroidLogger.forTag("C2DM");
 
   /** Maximum amount of time to wait for manager initialization to complete */
   private static final long MAX_INIT_SECONDS = 30;
@@ -222,7 +223,7 @@ public class C2DMManager extends IntentService {
 
       @Override
       protected void onPostExecute(Void unused) {
-        Log.d(TAG, "Initialized");
+        logger.fine("Initialized");
         initLatch.countDown();
       }
     }.execute();
@@ -238,7 +239,7 @@ public class C2DMManager extends IntentService {
     try {
       // OK to block here (if needed) because IntentService guarantees that onHandleIntent will
       // only be called on a background thread.
-      Log.d(TAG, "Handle intent = " + intent);
+      logger.fine("Handle intent = %s", intent);
       waitForInitialization();
       if (intent.getAction().equals(REGISTRATION_CALLBACK_INTENT)) {
         handleRegistration(intent);
@@ -251,7 +252,7 @@ public class C2DMManager extends IntentService {
       } else if (intent.getAction().equals(C2DMessaging.ACTION_UNREGISTER)) {
         unregisterObserver(intent);
       } else {
-        Log.w(TAG, "Receieved unknown action: " + intent.getAction());
+        logger.warning("Receieved unknown action: %s", intent.getAction());
       }
     } finally {
       // Release the power lock, so device can get back to sleep.
@@ -280,16 +281,16 @@ public class C2DMManager extends IntentService {
       if (initLatch.await(MAX_INIT_SECONDS, TimeUnit.SECONDS)) {
         return;
       }
-      Log.w(TAG, "Initialization timeout");
+      logger.warning("Initialization timeout");
 
     } catch (InterruptedException e) {
       // Unexpected, so to ensure a consistent state wait for initialization to complete and
       // then interrupt so higher level code can handle the interrupt.
-      Log.d(TAG, "Latch wait interrupted");
+      logger.fine("Latch wait interrupted");
       interrupted = true;
     } finally {
       if (interrupted) {
-        Log.w(TAG, "Initialization interrupted");
+        logger.warning("Initialization interrupted");
         Thread.currentThread().interrupt();
       }
     }
@@ -315,7 +316,7 @@ public class C2DMManager extends IntentService {
       }
     }
     if (!matched) {
-      Log.i(TAG, "No receivers matched intent: " + intent);
+      logger.info("No receivers matched intent: %s", intent);
     }
   }
 
@@ -373,7 +374,8 @@ public class C2DMManager extends IntentService {
     try {
       C2DMSettings.setApplicationVersion(context, getCurrentApplicationVersion(this));
     } catch (NameNotFoundException e) {
-      Log.e(TAG, "Unable to find our own package name when storing application version.", e);
+      logger.severe("Unable to find our own package name when storing application version: %s",
+          e.getMessage());
     }
     for (C2DMObserver observer : observers) {
       onRegisteredSingleObserver(registrationId, observer);
@@ -454,12 +456,12 @@ public class C2DMManager extends IntentService {
     if (C2DMSettings.hasC2DMRegistrationId(context)) {
       onRegisteredSingleObserver(C2DMSettings.getC2DMRegistrationId(context), observer);
       if (!isApplicationVersionCurrent() && !isRegistrationInProcess()) {
-        Log.d(TAG, "Registering to C2DM since application version is not current.");
+        logger.fine("Registering to C2DM since application version is not current.");
         register();
       }
     } else {
       if (!isRegistrationInProcess()) {
-        Log.d(TAG, "Registering to C2DM since we have no C2DM registration.");
+        logger.fine("Registering to C2DM since we have no C2DM registration.");
         register();
       }
     }
@@ -497,11 +499,8 @@ public class C2DMManager extends IntentService {
     String registrationId = intent.getStringExtra(EXTRA_REGISTRATION_ID);
     String error = intent.getStringExtra(EXTRA_ERROR);
     String removed = intent.getStringExtra(EXTRA_UNREGISTERED);
-    if (Log.isLoggable(TAG, Log.DEBUG)) {
-      Log.d(TAG,
-          "dmControl: registrationId = " + registrationId + ", error = " + error + ", removed = "
-              + removed);
-    }
+    logger.fine("Got registration message: registrationId = %s, error = %s, removed = %s",
+                registrationId, error, removed);
     if (removed != null) {
       onUnregistered();
     } else if (error != null) {
@@ -516,7 +515,7 @@ public class C2DMManager extends IntentService {
    * was transient.
    */
   private void handleRegistrationBackoffOnError(String error) {
-    Log.e(TAG, "Registration error " + error);
+    logger.severe("Registration error %s", error);
     onRegistrationError(error);
     if (C2DMessaging.ERR_SERVICE_NOT_AVAILABLE.equals(error)) {
       long backoffTimeMs = C2DMSettings.getBackoff(context);
@@ -529,7 +528,7 @@ public class C2DMManager extends IntentService {
    * When C2DM registration fails, we call this method to schedule a retry in the future.
    */
   private void createAlarm(long backoffTimeMs) {
-    Log.d(TAG, "Scheduling registration retry, backoff = " + backoffTimeMs);
+    logger.fine("Scheduling registration retry, backoff = %d", backoffTimeMs);
     Intent retryIntent = new Intent(C2DM_RETRY);
     PendingIntent retryPIntent = PendingIntent.getBroadcast(context, 0, retryIntent, 0);
     AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
@@ -607,7 +606,8 @@ public class C2DMManager extends IntentService {
       }
       return currentApplicationVersion.equals(C2DMSettings.getApplicationVersion(context));
     } catch (NameNotFoundException e) {
-      Log.e(TAG, "Unable to find our own package name when reading application version.", e);
+      logger.fine("Unable to find our own package name when reading application version: %s",
+                     e.getMessage());
       return false;
     }
   }
@@ -635,15 +635,15 @@ public class C2DMManager extends IntentService {
       if (serviceInfo.metaData != null) {
         String manifestSenderId = serviceInfo.metaData.getString(SENDER_ID_METADATA_FIELD);
         if (manifestSenderId != null) {
-          Log.d(TAG, "Using manifest-specified sender-id: " + manifestSenderId);
+          logger.fine("Using manifest-specified sender-id: %s", manifestSenderId);
           senderId = manifestSenderId;
         } else {
-          Log.e(TAG, "No meta-data element with the name " + SENDER_ID_METADATA_FIELD +
-              " found on the service declaration");
+          logger.severe("No meta-data element with the name %s found on the service declaration",
+                        SENDER_ID_METADATA_FIELD);
         }
       }
     } catch (NameNotFoundException exception) {
-      Log.i(TAG, "Could not find C2DMManager service info in manifest");
+      logger.info("Could not find C2DMManager service info in manifest");
     }
     return senderId;
   }

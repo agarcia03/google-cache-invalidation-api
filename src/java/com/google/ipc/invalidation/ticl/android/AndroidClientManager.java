@@ -20,7 +20,7 @@ import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidClientException;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.external.client.android.service.Response.Status;
-import com.google.ipc.invalidation.ticl.InvalidationClientImpl;
+import com.google.ipc.invalidation.ticl.InvalidationClientCore;
 import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 
@@ -47,7 +47,7 @@ class AndroidClientManager {
    * The client configuration used creating new invalidation client instances.   This is normally
    * a constant but may be varied for testing.
    */
-  private static ClientConfigP clientConfig = InvalidationClientImpl.createConfig().build();
+  private static ClientConfigP clientConfig = InvalidationClientCore.createConfig().build();
 
   /** The invalidation service associated with this manager */
   private final AndroidInvalidationService service;

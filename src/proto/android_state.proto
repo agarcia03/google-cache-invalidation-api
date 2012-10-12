@@ -24,6 +24,8 @@ option optimize_for = LITE_RUNTIME;
 
 option java_outer_classname = "AndroidState";
 
+option java_generate_equals_and_hash = true;
+
 
 // TODO: Factor out Version and remove this dependency
 import "proto/client_protocol.proto";

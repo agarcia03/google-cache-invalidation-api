@@ -36,7 +36,7 @@ import java.util.Queue;
  * {@link #asInterface} method.
  * <p>
  * This class has two main methods: {@link #runWhenBound} and {@link #release()}.
- * {@code runWhenBound} submits a {@link Receiver} to be invoked once the service is bound,
+ * {@code runWhenBound} submits a {@code receiver} to be invoked once the service is bound,
  * initiating a bind if necessary. {@code release} releases the binding if one exists.
  * <p>
  * Interestingly, invocations of receivers passed to {@code runWhenBound} and calls to
@@ -155,7 +155,7 @@ public abstract class ServiceBinder<BoundService> {
     }
   }
 
-  /** Unbind the service associated with the binder. No-op if not bound. */
+  /** Unbinds the service associated with the binder. No-op if not bound. */
   public void release() {
     synchronized (lock) {
       if (!hasCalledBind) {

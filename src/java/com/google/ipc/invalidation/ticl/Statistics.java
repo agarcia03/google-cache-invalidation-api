@@ -16,12 +16,18 @@
 
 package com.google.ipc.invalidation.ticl;
 
+import com.google.ipc.invalidation.common.CommonProtos2;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.types.SimplePair;
 import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.Marshallable;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
+import com.google.protos.ipc.invalidation.ClientProtocol.PropertyRecord;
+import com.google.protos.ipc.invalidation.MarshalledTicl.StatisticsState;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +36,7 @@ import java.util.Map;
  * Statistics for the Ticl, e.g., number of registration calls, number of token mismatches, etc.
  *
  */
-public class Statistics extends InternalBase {
+public class Statistics extends InternalBase implements Marshallable<StatisticsState> {
 
   // Implementation: To classify the statistics a bit better, we have a few enums to track different
   // types of statistics, e.g., sent message types, errors, etc. For each statistic type, we create
@@ -242,5 +248,72 @@ public class Statistics extends InternalBase {
     List<SimplePair<String, Integer>> nonZeroValues = new ArrayList<SimplePair<String, Integer>>();
     getNonZeroStatistics(nonZeroValues);
     builder.appendFormat("Client Statistics: %s\n", nonZeroValues);
+  }
+
+  @Override
+  public StatisticsState marshal() {
+    // Get all the non-zero counters, convert them to proto PropertyRecord messages, and return
+    // a StatisticsState containing the records.
+    StatisticsState.Builder builder = StatisticsState.newBuilder();
+    List<SimplePair<String, Integer>> counters = new ArrayList<SimplePair<String, Integer>>();
+    getNonZeroStatistics(counters);
+    for (SimplePair<String, Integer> counter : counters) {
+      builder.addCounter(CommonProtos2.newPropertyRecord(counter.getFirst(), counter.getSecond()));
+    }
+    return builder.build();
+  }
+
+  /**
+   * Given the serialized {@code performanceCounters} of the client statistics, returns a Statistics
+   * object with the performance counter values from {@code performanceCounters}.
+   */
+  
+  public static Statistics deserializeStatistics(Logger logger,
+      Collection<PropertyRecord> performanceCounters) {
+    Statistics statistics = new Statistics();
+
+    // For each counter, parse out the counter name and value.
+    for (PropertyRecord performanceCounter : performanceCounters) {
+      String counterName = performanceCounter.getName();
+      String[] parts = counterName.split("\\.");
+      if (parts.length != 2) {
+        logger.warning("Perf counter name must of form: class.value, skipping: %s", counterName);
+        continue;
+      }
+      String className = parts[0];
+      String fieldName = parts[1];
+      int counterValue = performanceCounter.getValue();
+
+      // Call the relevant method in a loop (i.e., depending on the type of the class).
+      if (TypedUtil.<String>equals(className, "SentMessageType")) {
+        SentMessageType sentMessageType = SentMessageType.valueOf(fieldName);
+        for (int i = 0; i < counterValue; i++) {
+          statistics.recordSentMessage(sentMessageType);
+        }
+      } else if (TypedUtil.<String>equals(className, "IncomingOperationType")) {
+        IncomingOperationType incomingOperationType = IncomingOperationType.valueOf(fieldName);
+        for (int i = 0; i < counterValue; i++) {
+          statistics.recordIncomingOperation(incomingOperationType);
+        }
+      } else if (TypedUtil.<String>equals(className, "ReceivedMessageType")) {
+        ReceivedMessageType receivedMessageType = ReceivedMessageType.valueOf(fieldName);
+        for (int i = 0; i < counterValue; i++) {
+          statistics.recordReceivedMessage(receivedMessageType);
+        }
+      } else if (TypedUtil.<String>equals(className, "ListenerEventType")) {
+        ListenerEventType listenerEventType = ListenerEventType.valueOf(fieldName);
+        for (int i = 0; i < counterValue; i++) {
+          statistics.recordListenerEvent(listenerEventType);
+        }
+      } else if (TypedUtil.<String>equals(className, "ClientErrorType")) {
+        ClientErrorType clientErrorType = ClientErrorType.valueOf(fieldName);
+        for (int i = 0; i < counterValue; i++) {
+          statistics.recordError(clientErrorType);
+        }
+      } else {
+        logger.warning("Skipping unknown enum class name %s", className);
+      }
+    }
+    return statistics;
   }
 }

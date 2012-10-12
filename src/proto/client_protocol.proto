@@ -29,6 +29,7 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "ClientProtocol";
 
 
+option java_generate_equals_and_hash = true;
 
 
 // Here is a high-level overview of the protocol. The protocol is designed in a
@@ -168,7 +169,7 @@ message ApplicationClientIdP {
 
 // Invalidation for a given object/version.
 message InvalidationP {
-  // The id of the object being invalidted.
+  // The id of the object being invalidated.
   optional ObjectIdP object_id = 1;
 
   // Whether the invalidation is for a known version of the object as assigned
@@ -178,7 +179,7 @@ message InvalidationP {
 
   // Version being invalidated (see comment on is_known_version). If the
   // is_known_version is false, the version corresponds to an internal "system
-  // version" for *that* ojbect. An object's system version has no meaning to
+  // version" for *that* object. An object's system version has no meaning to
   // the application other than the fact that these system versions are also
   // monotonically increasing and the client must ack such an invalidation with
   // this system version (and an ack for a later system version acknowledges an
@@ -187,6 +188,14 @@ message InvalidationP {
 
   // Optional payload associated with this invalidation.
   optional bytes payload = 4;
+
+  // The time when the bridge created this invalidation, in milliseconds.
+  // This is expressed as ms since 00:00:00 UTC, 1 January 1970
+  // (i.e., the UNIX epoch). If the client associated with this is offline,
+  // this will be cleared in the registrar.  This field should be ignored when
+  // comparing two InvalidationP's to see if they represent the same
+  // invalidation.
+  optional int64 bridge_arrival_time_ms = 5;
 }
 
 // Specifies the intention to change a registration on a specific object.  To
@@ -401,6 +410,8 @@ message ServerHeader {
   optional string message_id = 5;
 }
 
+// If ServerToClientMessage is modified, you need to change the type
+// TestServerToClientMessageWithExtraFields in the same way to match.
 message ServerToClientMessage {
   optional ServerHeader header = 1;
 
@@ -514,8 +525,7 @@ message ClientConfigP {
 
   // Whether the client is transient, that is, does not write its session
   // token to durable storage.
-  // TODO: need to expose to the clients.
-  // For android the default is false. But for mtrx the default is true.
+  // TODO(xiaolan): (BUG 5627144) need to expose to the clients.
   optional bool is_transient = 8 [default = false];
 
   // Initial delay for a heartbeat after restarting from persistent state. We
@@ -542,6 +552,11 @@ message ClientConfigP {
   // clients, which will destroy and recreate the Ticl when transitioning
   // between foreground and background states.
   optional bool channel_supports_offline_delivery = 11 [default = false];
+
+  // If the client loses network connectivity, it will send a heartbeat after it
+  // comes online, unless it had already sent a message more recently than this
+  // threshold.
+  optional int32 offline_heartbeat_threshold_ms = 12 [default = 60000];
 }
 
 // A message asking the client to change its configuration parameters

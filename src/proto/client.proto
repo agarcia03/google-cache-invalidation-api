@@ -29,6 +29,8 @@ option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "Client";
 
 
+option java_generate_equals_and_hash = true;
+
 
 import "proto/client_protocol.proto";
 
@@ -57,4 +59,21 @@ message PersistentStateBlob {
 
   // Implementation-specific message authentication code for the Ticl state.
   optional bytes authentication_code = 2;
+}
+
+// State of a Ticl RunState.
+message RunStateP {
+  enum State {
+    NOT_STARTED = 1;
+    STARTED = 2;
+    STOPPED = 3;
+  }
+  optional State state = 1;
+}
+
+// Fields in this message correspond directly to fields in
+// ExponentialBackoffDelayGenerator.
+message ExponentialBackoffState {
+  optional int32 current_max_delay = 1;
+  optional bool in_retry_mode = 2;
 }

@@ -21,8 +21,10 @@ import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.Marshallable;
 import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.ipc.invalidation.util.Smearer;
+import com.google.protos.ipc.invalidation.MarshalledTicl.RecurringTaskState;
 
 
 /**
@@ -72,7 +74,8 @@ import com.google.ipc.invalidation.util.Smearer;
  *</pre>
  *
  */
-abstract class RecurringTask extends InternalBase {
+public abstract class RecurringTask extends InternalBase
+    implements Marshallable<RecurringTaskState> {
 
   /** Name of the task (for debugging purposes mostly). */
   private final String name;
@@ -96,10 +99,10 @@ abstract class RecurringTask extends InternalBase {
   private final Smearer smearer;
 
   /** A delay generator for exponential backoff. */
-  private final ExponentialBackoffDelayGenerator delayGenerator;
+  private final TiclExponentialBackoffDelayGenerator delayGenerator;
 
   /** The runnable that is scheduled for the task. */
-  private final Runnable runnable;
+  private final NamedRunnable runnable;
 
   /** If the task has been currently scheduled. */
   private boolean isScheduled;
@@ -114,21 +117,38 @@ abstract class RecurringTask extends InternalBase {
    * {@code delayGenerator.getNextDelay()} depending on whether the {@code delayGenerator} is null
    * or not.
    */
-  RecurringTask(final String name, final Scheduler scheduler, Logger logger, Smearer smearer,
-      final ExponentialBackoffDelayGenerator delayGenerator,
+  
+  public RecurringTask(String name, Scheduler scheduler, Logger logger, Smearer smearer,
+      TiclExponentialBackoffDelayGenerator delayGenerator,
       final int initialDelayMs, final int timeoutDelayMs) {
     this.delayGenerator = delayGenerator;
-    this.name = name;
-    this.logger = logger;
-    this.scheduler = scheduler;
-    this.smearer = smearer;
+    this.name = Preconditions.checkNotNull(name);
+    this.logger = Preconditions.checkNotNull(logger);
+    this.scheduler = Preconditions.checkNotNull(scheduler);
+    this.smearer = Preconditions.checkNotNull(smearer);
     this.initialDelayMs = initialDelayMs;
     this.isScheduled = false;
     this.timeoutDelayMs = timeoutDelayMs;
 
     // Create a runnable that runs the task. If the task asks for a retry, reschedule it after
     // at a timeout delay. Otherwise, resets the delayGenerator.
-    this.runnable = new NamedRunnable(name) {
+    this.runnable = createRunnable();
+  }
+
+  /**
+   * Creates a recurring task from {@code marshalledState}. Other parameters are as in the
+   * constructor above.
+   */
+  RecurringTask(String name, Scheduler scheduler, Logger logger, Smearer smearer,
+      TiclExponentialBackoffDelayGenerator delayGenerator,
+      RecurringTaskState marshalledState) {
+    this(name, scheduler, logger, smearer, delayGenerator, marshalledState.getInitialDelayMs(),
+        marshalledState.getTimeoutDelayMs());
+    this.isScheduled = marshalledState.getScheduled();
+  }
+
+  private NamedRunnable createRunnable() {
+    return new NamedRunnable(name) {
       @Override
       public void run() {
         Preconditions.checkState(scheduler.isRunningOnThread(), "Not on scheduler thread");
@@ -169,7 +189,8 @@ abstract class RecurringTask extends InternalBase {
    * <p>
    * REQUIRES: Must be called from the scheduler thread.
    */
-  void ensureScheduled(String debugReason) {
+  
+  public void ensureScheduled(String debugReason) {
     ensureScheduled(false, debugReason);
   }
 
@@ -208,5 +229,22 @@ abstract class RecurringTask extends InternalBase {
         scheduler.getCurrentTimeMs());
     scheduler.schedule(delayMs, runnable);
     isScheduled = true;
+  }
+
+  /** For use only in the Android scheduler. */
+  public NamedRunnable getRunnable() {
+    return runnable;
+  }
+
+  @Override
+  public RecurringTaskState marshal() {
+    RecurringTaskState.Builder builder = RecurringTaskState.newBuilder()
+        .setInitialDelayMs(initialDelayMs)
+        .setScheduled(isScheduled)
+        .setTimeoutDelayMs(timeoutDelayMs);
+    if (delayGenerator != null) {
+      builder.setBackoffState(delayGenerator.marshal());
+    }
+    return builder.build();
   }
 }

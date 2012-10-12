@@ -17,10 +17,11 @@
 package com.google.ipc.invalidation.ticl.android.c2dm;
 
 
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -34,7 +35,7 @@ import java.util.Set;
  */
 public class C2DMSettings {
 
-  private static final String TAG = "C2DMSettings";
+  private static final Logger logger = AndroidLogger.forTag("C2DMSettings");
 
   
   static final String PREFERENCE_PACKAGE = "com.google.android.c2dm.manager";
@@ -179,7 +180,7 @@ public class C2DMSettings {
         }
       }
     } catch (JSONException e) {
-      Log.e(TAG, "Unable to parse observers. Source: " + jsonString);
+      logger.severe("Unable to parse observers. Source: %s", jsonString);
       observers.clear(); // No partial result
     }
     return observers;
@@ -233,7 +234,7 @@ public class C2DMSettings {
     editor.putString(field, value);
     editor.commit();
     if (value == null) {
-      Log.d(TAG, "Cleared field " + field);
+      logger.fine("Cleared field %s", field);
     }
   }
 

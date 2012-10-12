@@ -23,6 +23,7 @@ import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.ticl.Statistics.ClientErrorType;
 import com.google.ipc.invalidation.ticl.TestableInvalidationClient.RegistrationManagerState;
 import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.Marshallable;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
@@ -30,6 +31,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSubtree;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
+import com.google.protos.ipc.invalidation.MarshalledTicl.RegistrationManagerStateP;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,7 +44,7 @@ import java.util.List;
  * thread-safe manner.
  *
  */
-class RegistrationManager extends InternalBase {
+class RegistrationManager extends InternalBase implements Marshallable<RegistrationManagerStateP> {
 
   /** Prefix used to request all registrations. */
   static final byte[] EMPTY_PREFIX = new byte[]{};
@@ -58,15 +60,22 @@ class RegistrationManager extends InternalBase {
 
   private final Logger logger;
 
-  RegistrationManager(Logger logger, Statistics statistics, DigestFunction digestFunction) {
+  public RegistrationManager(Logger logger, Statistics statistics, DigestFunction digestFn,
+      RegistrationManagerStateP registrationManagerState) {
     this.logger = logger;
     this.statistics = statistics;
-    this.desiredRegistrations = new SimpleRegistrationStore(digestFunction);
+    this.desiredRegistrations = new SimpleRegistrationStore(digestFn);
 
-    // Initialize the server summary with a 0 size and the digest corresponding
-    // to it.  Using defaultInstance would wrong since the server digest will
-    // not match unnecessarily and result in an info message being sent.
-    this.lastKnownServerSummary = ProtoWrapper.of(getRegistrationSummary());
+    if (registrationManagerState == null) {
+      // Initialize the server summary with a 0 size and the digest corresponding
+      // to it.  Using defaultInstance would wrong since the server digest will
+      // not match unnecessarily and result in an info message being sent.
+      this.lastKnownServerSummary = ProtoWrapper.of(getRegistrationSummary());
+    } else {
+      this.lastKnownServerSummary =
+        ProtoWrapper.of(registrationManagerState.getLastKnownServerSummary());
+      desiredRegistrations.add(registrationManagerState.getRegistrationsList());
+    }
   }
 
   /**
@@ -209,5 +218,13 @@ class RegistrationManager extends InternalBase {
   public void toCompactString(TextBuilder builder) {
     builder.appendFormat("Last known digest: %s, Requested regs: %s", lastKnownServerSummary,
         desiredRegistrations);
+  }
+
+  @Override
+  public RegistrationManagerStateP marshal() {
+    RegistrationManagerStateP.Builder builder = RegistrationManagerStateP.newBuilder();
+    builder.setLastKnownServerSummary(lastKnownServerSummary.getProto());
+    builder.addAllRegistrations(desiredRegistrations.getElements(EMPTY_PREFIX, 0));
+    return builder.build();
   }
 }

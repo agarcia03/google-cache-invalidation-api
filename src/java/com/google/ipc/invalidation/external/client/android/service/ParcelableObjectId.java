@@ -33,10 +33,12 @@ class ParcelableObjectId implements Parcelable {
    */
   public static final Parcelable.Creator<ParcelableObjectId> CREATOR =
       new Parcelable.Creator<ParcelableObjectId>() {
+        @Override
         public ParcelableObjectId createFromParcel(Parcel in) {
           return new ParcelableObjectId(in);
         }
 
+        @Override
         public ParcelableObjectId[] newArray(int size) {
           return new ParcelableObjectId[size];
         }

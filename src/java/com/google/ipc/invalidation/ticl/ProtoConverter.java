@@ -24,6 +24,10 @@ import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
 /**
  * Utilities to convert between protobufs and externally-exposed types in the Ticl.
  *
@@ -52,12 +56,38 @@ public class ProtoConverter {
   }
 
   /**
+   * Returns a list of {@link ObjectIdP} by converting each element of {@code objectIds} to
+   * an {@code ObjectIdP}.
+   */
+  public static List<ObjectIdP> convertToObjectIdProtoList(Collection<ObjectId> objectIds) {
+    List<ObjectIdP> objectIdPs = new ArrayList<ObjectIdP>(objectIds.size());
+    for (ObjectId objectId : objectIds) {
+      objectIdPs.add(ProtoConverter.convertToObjectIdProto(objectId));
+    }
+    return objectIdPs;
+  }
+
+  /**
+   * Returns a list of {@link ObjectId} by converting each element of {@code oidPs} to
+   * an {@code ObjectId}.
+   */
+  public static List<ObjectId> convertToObjectIdList(List<ObjectIdP> oidPs) {
+    List<ObjectId> objects = new ArrayList<ObjectId>(oidPs.size());
+    for (ObjectIdP oidP : oidPs) {
+      objects.add(ObjectId.newInstance(oidP.getSource(), oidP.getName().toByteArray()));
+    }
+    return objects;
+  }
+
+  /**
    * Converts an invalidation protocol buffer {@code invalidation} to the
    * corresponding external object and returns it
    */
   public static Invalidation convertFromInvalidationProto(InvalidationP invalidation) {
     Preconditions.checkNotNull(invalidation);
     ObjectId objectId = convertFromObjectIdProto(invalidation.getObjectId());
+
+    // No bridge arrival time in invalidation.
     return Invalidation.newInstance(objectId, invalidation.getVersion(),
         invalidation.hasPayload() ? invalidation.getPayload().toByteArray() : null);
   }
@@ -70,7 +100,8 @@ public class ProtoConverter {
     Preconditions.checkNotNull(invalidation);
     ObjectIdP objectId = convertToObjectIdProto(invalidation.getObjectId());
     return CommonProtos2.newInvalidationP(objectId, invalidation.getVersion(),
-        invalidation.getPayload() == null ? null : ByteString.copyFrom(invalidation.getPayload()));
+        invalidation.getPayload() == null ? null : ByteString.copyFrom(invalidation.getPayload()),
+        null);
   }
 
   private ProtoConverter() { // To prevent instantiation.

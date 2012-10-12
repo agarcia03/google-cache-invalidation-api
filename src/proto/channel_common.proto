@@ -25,6 +25,8 @@ option optimize_for = LITE_RUNTIME;
 
 option java_outer_classname = "ChannelCommon";
 
+option java_generate_equals_and_hash = true;
+
 
 message ChannelMessageEncoding {
     // What kind of encoding is used for network_message

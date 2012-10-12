@@ -55,16 +55,16 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
 
   @Override
   public void onUnregistered(Context context) {
-    logger.info("C2DM Registraiton revoked");
+    logger.info("C2DM Registration revoked");
 
-    // If the c2dm registration ID is revoked, also notify the invalidation service
+    // If the c2dm registration ID is revoked, also notify the invalidation service.
     Intent serviceIntent = AndroidInvalidationService.createRegistrationIntent(context, null);
     context.startService(serviceIntent);
   }
 
   @Override
   public void onRegistrationError(Context context, String errorId) {
-    // Send any registration error to the invalidation service
+    // Send any registration error to the invalidation service.
     Intent serviceIntent = AndroidInvalidationService.createErrorIntent(context, errorId);
     context.startService(serviceIntent);
   }
@@ -91,7 +91,8 @@ public class AndroidC2DMReceiver extends BaseC2DMReceiver {
         return;
       }
     } else {
-      serviceIntent = AndroidInvalidationService.createMailboxIntent(this, clientKey, echoToken);
+      logger.severe("Received mailbox intent: %s", intent);
+      return;
     }
     context.startService(serviceIntent);
   }

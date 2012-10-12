@@ -60,6 +60,7 @@ message ObjectSource {
 
     // Numbers below 1000 are reserved for internal use.
     CHROME_SYNC = 1004;
+    CHROME_COMPONENTS = 1025;
   }
   optional Type type = 1;
 }

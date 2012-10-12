@@ -31,12 +31,13 @@ import com.google.ipc.invalidation.util.TypedUtil;
 import java.util.HashMap;
 import java.util.Map;
 
+
 /**
  * Map-based in-memory implementation of {@link Storage}.
  *
  */
 public class MemoryStorageImpl extends InternalBase implements Storage {
-  private SystemResources systemResources;
+  private Scheduler scheduler;
   private Map<String, byte[]> ticlPersistentState = new HashMap<String, byte[]>();
 
   @Override
@@ -47,7 +48,7 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
     // Schedule the write even if the resources are started since the
     // scheduler will prevent it from running in case the resources have been
     // stopped.
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+    scheduler.schedule(Scheduler.NO_DELAY,
         new NamedRunnable("MemoryStorage.writeKey") {
       @Override
       public void run() {
@@ -63,12 +64,12 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
 
   @Override
   public void setSystemResources(SystemResources resources) {
-    this.systemResources = resources;
+    this.scheduler = resources.getInternalScheduler();
   }
 
   @Override
   public void readKey(final String key, final Callback<SimplePair<Status, byte[]>> done) {
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+    scheduler.schedule(Scheduler.NO_DELAY,
         new NamedRunnable("MemoryStorage.readKey") {
       @Override
       public void run() {
@@ -87,7 +88,7 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
 
   @Override
   public void deleteKey(final String key, final Callback<Boolean> done) {
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+    scheduler.schedule(Scheduler.NO_DELAY,
         new NamedRunnable("MemoryStorage.deleteKey") {
       @Override
       public void run() {
@@ -99,7 +100,7 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
 
   @Override
   public void readAllKeys(final Callback<SimplePair<Status, String>> done) {
-    systemResources.getInternalScheduler().schedule(Scheduler.NO_DELAY,
+    scheduler.schedule(Scheduler.NO_DELAY,
         new NamedRunnable("MemoryStorage.readAllKeys") {
       @Override
       public void run() {
@@ -118,6 +119,21 @@ public class MemoryStorageImpl extends InternalBase implements Storage {
    */
   void writeForTest(final String key, final byte[] value) {
     ticlPersistentState.put(key, value);
+  }
+
+  /**
+   * Sets the scheduler, for tests. The Android tests use this to supply a scheduler that executes
+   * no-delay items in-line.
+   */
+  public void setSchedulerForTest(Scheduler newScheduler) {
+    scheduler = newScheduler;
+  }
+
+  /**
+   * Same as read except without any callbacks and is NOT done on the internal thread.
+   */
+  public byte[] readForTest(final String key) {
+    return ticlPersistentState.get(key);
   }
 
   @Override
