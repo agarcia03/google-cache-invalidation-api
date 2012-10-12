@@ -60,8 +60,8 @@ message EndpointId {
 
   // The version of this message.
   // Obsolete:  no longer set after the INITIAL version of the channel
-  // TODO: Remove with placeholder comment once unversioned
-  // clients are no longer supported
+  // TODO: Remove with placeholder comment once
+  // unversioned clients are no longer supported
   optional ProtocolVersion protocol_version = 1;
 
   // The "registration_id" returned when the client registers with c2dm.  This
