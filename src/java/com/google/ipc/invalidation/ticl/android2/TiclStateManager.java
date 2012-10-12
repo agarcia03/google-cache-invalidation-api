@@ -20,6 +20,8 @@ import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.ObjectIdDigestUtils.Sha1DigestFunction;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.ticl.ProtoWrapper;
+import com.google.ipc.invalidation.util.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState;
@@ -125,16 +127,27 @@ public class TiclStateManager {
     if (state == null) {
       return TiclExistenceResult.DOES_NOT_EXIST;
     }
-    Metadata metaData = state.getMetadata();
-    if (metaData.getClientConfig().equals(config)
-        && (metaData.getClientType() == clientType)
-        && Arrays.equals(metaData.getClientName().toByteArray(), clientName)) {
+    Metadata metadata = state.getMetadata();
+    if (configEqual(metadata.getClientConfig(), config)
+        && (metadata.getClientType() == clientType)
+        && Arrays.equals(metadata.getClientName().toByteArray(), clientName)) {
       return TiclExistenceResult.MATCH;
     } else {
-      logger.warning("Ticl parameter mismatch: %s vs %s, %s, %s", metaData, clientType, clientName,
-          config);
+      logger.warning("Ticl parameter mismatch (existing/requested): clientType=%s/%s," +
+          "clientName=%s/%s, config=%s/%s, Config=%s/%s", metadata.getClientType(), clientType,
+          Bytes.toString(metadata.getClientName()), Bytes.toString(clientName),
+          Bytes.toString(metadata.getClientConfig().toByteString()),
+          Bytes.toString(config.toByteString()));
       return TiclExistenceResult.NO_MATCH;
     }
+  }
+
+  /**
+   * Determines whether two client configs are equal (required since generated lite protos do not
+   * implement value equals method).
+   */
+  private static boolean configEqual(ClientConfigP x, ClientConfigP y) {
+    return ProtoWrapper.of(x).equals(ProtoWrapper.of(y));
   }
 
   /**
