@@ -2,7 +2,7 @@
   <!--  Copyright 2011 Google Inc. All Rights Reserved. -->
   <!--  Test application for Android Client API and implementation. -->
   <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-      package="com.google.ipc.invalidation.ticl2.android2.tests"
+      package="com.google.ipc.invalidation.ticl.android2.tests"
       android:versionName="2.3.0">
     <!--Unit test runner application -->
     <application>
@@ -11,5 +11,5 @@
 
     <instrumentation
         android:name="android.test.InstrumentationTestRunner"
-        android:targetPackage="com.google.ipc.invalidation.ticl2.android2"/>
+        android:targetPackage="com.google.ipc.invalidation.ticl.android2"/>
   </manifest>

@@ -41,42 +41,42 @@
       <!-- **************************** BEGIN BOILERPLATE -->
       <!-- Ticl manager service. -->
       <service android:exported="false"
-          android:name="com.google.ipc.invalidation.ticl2.android2.TiclService"/>
+          android:name="com.google.ipc.invalidation.ticl.android2.TiclService"/>
 
       <!-- Ticl listener. -->
       <service android:exported="false"
-          android:name="com.google.ipc.invalidation.ticl2.android2.AndroidInvalidationListenerStub"/>
+          android:name="com.google.ipc.invalidation.ticl.android2.AndroidInvalidationListenerStub"/>
 
       <!-- Ticl sender. -->
       <service android:exported="false"
-          android:name="com.google.ipc.invalidation.ticl2.android2.channel.AndroidMessageSenderService"/>
+          android:name="com.google.ipc.invalidation.ticl.android2.channel.AndroidMessageSenderService"/>
 
       <!-- Receiver for scheduler alarms. Must be exported for the AlarmManager to call it. -->
       <receiver android:exported="true"
-          android:name="com.google.ipc.invalidation.ticl2.android2.AndroidInternalScheduler$AlarmReceiver"/>
+          android:name="com.google.ipc.invalidation.ticl.android2.AndroidInternalScheduler$AlarmReceiver"/>
 
       <!-- GCM Broadcast Receiver -->
       <receiver android:exported="true"
-          android:name="com.google.ipc.invalidation.external.client2.contrib.MultiplexingGcmListener$GCMReceiver"
+          android:name="com.google.ipc.invalidation.external.client.contrib.MultiplexingGcmListener$GCMReceiver"
           android:permission="com.google.android.c2dm.permission.SEND">
         <intent-filter>
           <action android:name="com.google.android.c2dm.intent.RECEIVE" />
           <action android:name="com.google.android.c2dm.intent.REGISTRATION" />
-          <category android:name="com.google.ipc.invalidation.ticl2.android2" />
+          <category android:name="com.google.ipc.invalidation.ticl.android2" />
         </intent-filter>
       </receiver>
 
       <!-- Normally, Clank would instantiate the multiplexer service for us. -->
       <!-- GCM multiplexer -->
       <service android:exported="true"
-          android:name="com.google.ipc.invalidation.external.client2.contrib.MultiplexingGcmListener"/>
+          android:name="com.google.ipc.invalidation.external.client.contrib.MultiplexingGcmListener"/>
 
-      <!-- Tango multiplexed GCM receiver -->
+      <!--  multiplexed GCM receiver -->
       <service android:exported="false"
-          android:name="com.google.ipc.invalidation.ticl2.android2.channel.AndroidMessageReceiverService"
+          android:name="com.google.ipc.invalidation.ticl.android2.channel.AndroidMessageReceiverService"
           android:enabled="true"/>
       <receiver android:exported="false"
-          android:name="com.google.ipc.invalidation.ticl2.android2.channel.AndroidMessageReceiverService$Receiver">
+          android:name="com.google.ipc.invalidation.ticl.android2.channel.AndroidMessageReceiverService$Receiver">
         <intent-filter>
           <action android:name="com.google.ipc.invalidation.gcmmplex.EVENT" />
         </intent-filter>
