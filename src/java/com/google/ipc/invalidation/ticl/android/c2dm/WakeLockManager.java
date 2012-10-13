@@ -197,7 +197,7 @@ public class WakeLockManager {
 
   /** Logs a debug message that {@code action} has occurred for {@code key}. */
   private static void log(Object key, String action) {
-    // TODO:
+    // TODO: revert to using  logging.
     Log.d(TAG, "WakeLock " + action + " for key: {" + key + "}");
   }
 }

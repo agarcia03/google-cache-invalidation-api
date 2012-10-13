@@ -525,7 +525,7 @@ message ClientConfigP {
 
   // Whether the client is transient, that is, does not write its session
   // token to durable storage.
-  // TODO(xiaolan): (BUG 5627144) need to expose to the clients.
+  // TODO: need to expose to the clients.
   optional bool is_transient = 8 [default = false];
 
   // Initial delay for a heartbeat after restarting from persistent state. We

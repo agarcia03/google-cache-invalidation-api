@@ -81,7 +81,7 @@ public class TiclService extends IntentService {
 
   @Override
   protected void onHandleIntent(Intent intent) {
-    // TODO:
+    // TODO: We may want to use wakelocks to prevent the phone from sleeping
     // before we have finished handling the Intent.
     if (intent == null) {
       return;
@@ -129,7 +129,7 @@ public class TiclService extends IntentService {
     resources.getLogger().fine("Handle client downcall: %s", downcall);
 
     // Restore the appropriate Ticl.
-    // TODO:
+    // TODO: what if this is the "wrong" Ticl?
     AndroidInvalidationClientImpl ticl = loadExistingTicl();
     if (ticl == null) {
       resources.getLogger().warning("Dropping client downcall since no Ticl: %s", downcall);
@@ -190,7 +190,7 @@ public class TiclService extends IntentService {
     if (downcall.hasServerMessage()) {
       // We deliver the message regardless of whether the Ticl existed, since we'll want to
       // rewrite persistent state in the case where it did not.
-      // TODO:
+      // TODO: what if this is the "wrong" Ticl?
       AndroidInvalidationClientImpl ticl = TiclStateManager.restoreTicl(this, resources);
       handleServerMessage((ticl != null), downcall.getServerMessage().getData().toByteArray());
       if (ticl != null) {
@@ -198,7 +198,7 @@ public class TiclService extends IntentService {
       }
     } else if (downcall.hasNetworkStatus()) {
       // Network status changes only make sense for Ticls that do exist.
-      // TODO:
+      // TODO: what if this is the "wrong" Ticl?
       AndroidInvalidationClientImpl ticl = TiclStateManager.restoreTicl(this, resources);
       if (ticl != null) {
         resources.getNetworkStatusReceiver().accept(downcall.getNetworkStatus().getIsOnline());

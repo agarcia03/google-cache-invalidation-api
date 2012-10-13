@@ -73,7 +73,7 @@ class ParcelableErrorInfo implements Parcelable {
     // 1. int errorReason
     // 2. boolean [] { isTransient }
     // 3. String error message
-    // TODO:
+    // TODO: Add support for object marshaling when needed
     parcel.writeInt(errorInfo.getErrorReason());
     parcel.writeBooleanArray(new boolean[]{errorInfo.isTransient()});
     parcel.writeString(errorInfo.getErrorMessage());

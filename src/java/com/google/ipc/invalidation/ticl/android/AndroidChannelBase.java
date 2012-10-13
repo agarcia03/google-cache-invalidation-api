@@ -85,7 +85,7 @@ public abstract class AndroidChannelBase {
     try {
       String response = httpClient.execute(httpPost, new BasicResponseHandler());
     } catch (ClientProtocolException exception) {
-      // TODO:
+      // TODO: Distinguish between key HTTP error codes and handle more specifically
       // where appropriate.
       getLogger().warning("Error from server on request: %s", exception);
     } catch (IOException exception) {

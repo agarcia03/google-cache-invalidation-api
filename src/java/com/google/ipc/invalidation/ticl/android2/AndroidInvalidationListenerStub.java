@@ -83,7 +83,7 @@ public class AndroidInvalidationListenerStub extends IntentService {
    */
   @Override
   protected void onHandleIntent(Intent intent) {
-    // TODO:
+    // TODO: use wakelocks
 
     // Create an instance of the application listener class to handle the upcall.
     InvalidationListener listener;

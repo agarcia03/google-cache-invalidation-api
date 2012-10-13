@@ -364,7 +364,7 @@ public class CommonProtos2 {
     // The protocol version field was set in the INITIAL channel implementation but subsequent
     // versions only set the channel version.
     if (channelVersion == null) {
-      // TODO:
+      // TODO:  Remove once unversioned clients are no longer supported
       endpointBuilder.setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION);
     } else {
       endpointBuilder.setChannelVersion(channelVersion);

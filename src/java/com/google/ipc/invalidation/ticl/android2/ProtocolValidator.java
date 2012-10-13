@@ -61,7 +61,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.Version;
  *
  */
 public final class ProtocolValidator extends ProtoValidator {
-  // TODO:
+  // TODO: rename to AndroidIntentProtocolValidator.
 
   /** Validation for composite (major/minor) versions. */
   static final MessageInfo VERSION = new MessageInfo(ClientProtocolAccessor.VERSION_ACCESSOR,
@@ -171,7 +171,7 @@ public final class ProtocolValidator extends ProtoValidator {
         FieldInfo.newRequired(ListenerUpcallAccessor.ErrorUpcallAccessor.ERROR_MESSAGE),
         FieldInfo.newRequired(ListenerUpcallAccessor.ErrorUpcallAccessor.IS_TRANSIENT));
 
-    // TODO:
+    // TODO: validate INVALIDATE_UNKNOWN and INVALIDATION sub-messages.
     static final MessageInfo INVALIDATE = new MessageInfo(
         ListenerUpcallAccessor.INVALIDATE_UPCALL_ACCESSOR,
         FieldInfo.newRequired(ListenerUpcallAccessor.InvalidateUpcallAccessor.ACK_HANDLE),

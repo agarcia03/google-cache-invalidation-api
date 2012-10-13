@@ -405,7 +405,7 @@ public abstract class InvalidationClientCore extends InternalBase
   private ByteString nonce = null;
 
   /** Whether we should send registrations to the server or not. */
-  // TODO:
+  // TODO: Make the server summary in the registration manager nullable
   // and replace this variable with a test for whether it's null or not.
   private boolean shouldSendRegistrations;
 

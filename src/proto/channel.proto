@@ -16,6 +16,7 @@
 //
 // Specification of the messages between registrar and gateway.
 //
+// TODO: Merge channel.proto and channel_server.proto
 // to one file and rename it to registrar_gateway.proto
 
 syntax = "proto2";
@@ -45,6 +46,7 @@ message NetworkEndpointId {
 
 // Message sent from the client to the server and vice-versa via the
 // delivery service.
+// TODO: rename AddressedMessage to
 // RegistrarGatewayMessage in a separate CL.
 message AddressedMessage {
   // The encoding type for the network_message field.

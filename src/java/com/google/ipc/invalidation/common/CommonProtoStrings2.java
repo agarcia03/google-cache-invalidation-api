@@ -242,7 +242,7 @@ public class CommonProtoStrings2 {
   // the compact representation in the given builder. Each method has the following spec:
   // Adds a compact representation for {@code <parameter-name>} to {@code builder} and
   // returns {@code builder}.
-  // TODO:
+  // TODO: Look into building indirection tables for the collections to avoid
   // code duplication.
   //
 
