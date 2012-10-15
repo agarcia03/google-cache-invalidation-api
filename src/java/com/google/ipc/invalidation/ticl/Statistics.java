@@ -24,7 +24,7 @@ import com.google.ipc.invalidation.util.Marshallable;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protos.ipc.invalidation.ClientProtocol.PropertyRecord;
-import com.google.protos.ipc.invalidation.MarshalledTicl.StatisticsState;
+import com.google.protos.ipc.invalidation.JavaClient.StatisticsState;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -236,7 +236,7 @@ public class Statistics extends InternalBase implements Marshallable<StatisticsS
     map.put(key, TypedUtil.mapGet(map, key) + 1);
   }
 
-  /** Initialzes all values for {@code keys} in {@code map} to be 0. */
+  /** Initializes all values for {@code keys} in {@code map} to be 0. */
   private static <Key> void initializeMap(Map<Key, Integer> map, Key[] keys) {
     for (Key key : keys) {
       map.put(key, 0);

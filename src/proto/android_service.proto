@@ -47,7 +47,7 @@ message ClientDowncall {
   }
 
   // Serial number to prevent intent reordering.
-  // TODO: use
+  // TODO: use.
   optional int64 serial = 1;
   optional Version version = 2;
 
@@ -155,19 +155,21 @@ message AndroidNetworkSendRequest {
 
 // Protocol buffer used to store state for a persisted Ticl.
 message AndroidTiclState {
-  // TODO: rename
-  message PersistedState {
-    message Metadata {
-      // All fields are required.
-      optional int32 client_type = 1;  //  client type code.
-      optional bytes client_name = 2;  //  application client id.
-      optional int64 ticl_id = 3;      // Ticl uniquifier.
-      optional ClientConfigP client_config = 4;  //  client config.
-    }
-    optional Version version = 1;
-    optional InvalidationClientState ticl_state = 2;  // Marshalled Ticl.
-    optional Metadata metadata = 3;  // Extra state needed to construct a Ticl.
+  message Metadata {
+    // All fields are required.
+    optional int32 client_type = 1;  //  client type code.
+    optional bytes client_name = 2;  //  application client id.
+    optional int64 ticl_id = 3;      // Ticl uniquifier.
+    optional ClientConfigP client_config = 4;  //  client config.
   }
-  optional PersistedState state = 1;
-  optional bytes digest = 2;  // State digest.
+  optional Version version = 1;
+  optional InvalidationClientState ticl_state = 2;  // Marshalled Ticl.
+  optional Metadata metadata = 3;  // Extra state needed to construct a Ticl.
+}
+
+// An AndroidTiclState state plus a digest; this is the protocol buffer actually
+// stored persistently by the service.
+message AndroidTiclStateWithDigest {
+  optional AndroidTiclState state = 1;
+  optional bytes digest = 2;  // Digest of "state."
 }

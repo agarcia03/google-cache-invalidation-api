@@ -26,8 +26,8 @@ import com.google.protobuf.MessageLite;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidNetworkSendRequest;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidSchedulerEvent;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState.PersistedState;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState.PersistedState.Metadata;
+import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState.Metadata;
+import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclStateWithDigest;
 import com.google.protos.ipc.invalidation.AndroidService.ClientDowncall;
 import com.google.protos.ipc.invalidation.AndroidService.ClientDowncall.RegistrationDowncall;
 import com.google.protos.ipc.invalidation.AndroidService.ClientDowncall.AckDowncall;
@@ -162,130 +162,6 @@ public class AndroidServiceAccessor {
   
   /** Class to access fields in {@link AndroidTiclState} protos. */
   public static class AndroidTiclStateAccessor implements Accessor {
-    /** Class to access fields in {@link PersistedState} protos. */
-    public static class PersistedStateAccessor implements Accessor {
-      /** Class to access fields in {@link Metadata} protos. */
-      public static class MetadataAccessor implements Accessor {
-        private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
-          Arrays.<String>asList(
-            "client_type",
-            "client_name",
-            "ticl_id",
-            "client_config"
-          ));
-        
-        public static final Descriptor CLIENT_TYPE = new Descriptor("client_type");
-        public static final Descriptor CLIENT_NAME = new Descriptor("client_name");
-        public static final Descriptor TICL_ID = new Descriptor("ticl_id");
-        public static final Descriptor CLIENT_CONFIG = new Descriptor("client_config");
-        
-        /** Returns whether {@code field} is present in {@code message}. */
-        @Override
-        @SuppressWarnings("unchecked")
-        public boolean hasField(MessageLite rawMessage, Descriptor field) {
-          Preconditions.checkNotNull(rawMessage);
-          Preconditions.checkNotNull(field);
-          Metadata message = (Metadata) rawMessage;
-          if (field == CLIENT_TYPE) {
-            return message.hasClientType();
-          }
-          if (field == CLIENT_NAME) {
-            return message.hasClientName();
-          }
-          if (field == TICL_ID) {
-            return message.hasTiclId();
-          }
-          if (field == CLIENT_CONFIG) {
-            return message.hasClientConfig();
-          }
-          throw new IllegalArgumentException("Bad descriptor: " + field);
-        }
-        
-        /** Returns the {@code field} from {@code message}. */
-        @Override
-        @SuppressWarnings("unchecked")
-        public Object getField(MessageLite rawMessage, Descriptor field) {
-          Preconditions.checkNotNull(rawMessage);
-          Preconditions.checkNotNull(field);
-          Metadata message = (Metadata) rawMessage;
-          if (field == CLIENT_TYPE) {
-            return message.getClientType();
-          }
-          if (field == CLIENT_NAME) {
-            return message.getClientName();
-          }
-          if (field == TICL_ID) {
-            return message.getTiclId();
-          }
-          if (field == CLIENT_CONFIG) {
-            return message.getClientConfig();
-          }
-          throw new IllegalArgumentException("Bad descriptor: " + field);
-        }
-        
-        @Override
-        public Set<String> getAllFieldNames() {
-          return ALL_FIELD_NAMES;
-        }
-      }
-      public static final MetadataAccessor METADATA_ACCESSOR = new MetadataAccessor();
-      
-      private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
-        Arrays.<String>asList(
-          "version",
-          "ticl_state",
-          "metadata"
-        ));
-      
-      public static final Descriptor VERSION = new Descriptor("version");
-      public static final Descriptor TICL_STATE = new Descriptor("ticl_state");
-      public static final Descriptor METADATA = new Descriptor("metadata");
-      
-      /** Returns whether {@code field} is present in {@code message}. */
-      @Override
-      @SuppressWarnings("unchecked")
-      public boolean hasField(MessageLite rawMessage, Descriptor field) {
-        Preconditions.checkNotNull(rawMessage);
-        Preconditions.checkNotNull(field);
-        PersistedState message = (PersistedState) rawMessage;
-        if (field == VERSION) {
-          return message.hasVersion();
-        }
-        if (field == TICL_STATE) {
-          return message.hasTiclState();
-        }
-        if (field == METADATA) {
-          return message.hasMetadata();
-        }
-        throw new IllegalArgumentException("Bad descriptor: " + field);
-      }
-      
-      /** Returns the {@code field} from {@code message}. */
-      @Override
-      @SuppressWarnings("unchecked")
-      public Object getField(MessageLite rawMessage, Descriptor field) {
-        Preconditions.checkNotNull(rawMessage);
-        Preconditions.checkNotNull(field);
-        PersistedState message = (PersistedState) rawMessage;
-        if (field == VERSION) {
-          return message.getVersion();
-        }
-        if (field == TICL_STATE) {
-          return message.getTiclState();
-        }
-        if (field == METADATA) {
-          return message.getMetadata();
-        }
-        throw new IllegalArgumentException("Bad descriptor: " + field);
-      }
-      
-      @Override
-      public Set<String> getAllFieldNames() {
-        return ALL_FIELD_NAMES;
-      }
-    }
-    public static final PersistedStateAccessor PERSISTED_STATE_ACCESSOR = new PersistedStateAccessor();
-    
     /** Class to access fields in {@link Metadata} protos. */
     public static class MetadataAccessor implements Accessor {
       private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
@@ -354,6 +230,64 @@ public class AndroidServiceAccessor {
     
     private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
       Arrays.<String>asList(
+        "version",
+        "ticl_state",
+        "metadata"
+      ));
+    
+    public static final Descriptor VERSION = new Descriptor("version");
+    public static final Descriptor TICL_STATE = new Descriptor("ticl_state");
+    public static final Descriptor METADATA = new Descriptor("metadata");
+    
+    /** Returns whether {@code field} is present in {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean hasField(MessageLite rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      AndroidTiclState message = (AndroidTiclState) rawMessage;
+      if (field == VERSION) {
+        return message.hasVersion();
+      }
+      if (field == TICL_STATE) {
+        return message.hasTiclState();
+      }
+      if (field == METADATA) {
+        return message.hasMetadata();
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    /** Returns the {@code field} from {@code message}. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public Object getField(MessageLite rawMessage, Descriptor field) {
+      Preconditions.checkNotNull(rawMessage);
+      Preconditions.checkNotNull(field);
+      AndroidTiclState message = (AndroidTiclState) rawMessage;
+      if (field == VERSION) {
+        return message.getVersion();
+      }
+      if (field == TICL_STATE) {
+        return message.getTiclState();
+      }
+      if (field == METADATA) {
+        return message.getMetadata();
+      }
+      throw new IllegalArgumentException("Bad descriptor: " + field);
+    }
+    
+    @Override
+    public Set<String> getAllFieldNames() {
+      return ALL_FIELD_NAMES;
+    }
+  }
+  public static final AndroidTiclStateAccessor ANDROID_TICL_STATE_ACCESSOR = new AndroidTiclStateAccessor();
+  
+  /** Class to access fields in {@link AndroidTiclStateWithDigest} protos. */
+  public static class AndroidTiclStateWithDigestAccessor implements Accessor {
+    private static final Set<String> ALL_FIELD_NAMES = new HashSet<String>(
+      Arrays.<String>asList(
         "state",
         "digest"
       ));
@@ -367,7 +301,7 @@ public class AndroidServiceAccessor {
     public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
-      AndroidTiclState message = (AndroidTiclState) rawMessage;
+      AndroidTiclStateWithDigest message = (AndroidTiclStateWithDigest) rawMessage;
       if (field == STATE) {
         return message.hasState();
       }
@@ -383,7 +317,7 @@ public class AndroidServiceAccessor {
     public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
-      AndroidTiclState message = (AndroidTiclState) rawMessage;
+      AndroidTiclStateWithDigest message = (AndroidTiclStateWithDigest) rawMessage;
       if (field == STATE) {
         return message.getState();
       }
@@ -398,7 +332,7 @@ public class AndroidServiceAccessor {
       return ALL_FIELD_NAMES;
     }
   }
-  public static final AndroidTiclStateAccessor ANDROID_TICL_STATE_ACCESSOR = new AndroidTiclStateAccessor();
+  public static final AndroidTiclStateWithDigestAccessor ANDROID_TICL_STATE_WITH_DIGEST_ACCESSOR = new AndroidTiclStateWithDigestAccessor();
   
   /** Class to access fields in {@link ClientDowncall} protos. */
   public static class ClientDowncallAccessor implements Accessor {

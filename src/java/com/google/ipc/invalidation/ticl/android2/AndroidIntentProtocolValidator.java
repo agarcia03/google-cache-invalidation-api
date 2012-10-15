@@ -21,15 +21,15 @@ import com.google.ipc.invalidation.common.ProtoValidator;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.AndroidNetworkSendRequestAccessor;
 import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.AndroidTiclStateAccessor;
-import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.AndroidTiclStateAccessor.PersistedStateAccessor;
-import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.AndroidTiclStateAccessor.PersistedStateAccessor.MetadataAccessor;
+import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.AndroidTiclStateAccessor.MetadataAccessor;
+import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.AndroidTiclStateWithDigestAccessor;
 import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.ClientDowncallAccessor;
 import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.InternalDowncallAccessor;
 import com.google.ipc.invalidation.ticl.android2.AndroidServiceAccessor.ListenerUpcallAccessor;
 import com.google.protobuf.MessageLite;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidNetworkSendRequest;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidSchedulerEvent;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState;
+import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclStateWithDigest;
 import com.google.protos.ipc.invalidation.AndroidService.ClientDowncall;
 import com.google.protos.ipc.invalidation.AndroidService.InternalDowncall;
 import com.google.protos.ipc.invalidation.AndroidService.ListenerUpcall;
@@ -60,7 +60,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.Version;
  * recursively validated.
  *
  */
-public final class ProtocolValidator extends ProtoValidator {
+public final class AndroidIntentProtocolValidator extends ProtoValidator {
   // TODO: rename to AndroidIntentProtocolValidator.
 
   /** Validation for composite (major/minor) versions. */
@@ -250,22 +250,22 @@ public final class ProtocolValidator extends ProtoValidator {
     // We do not post-validate the config in this message, since the Ticl should be doing it, and
     // it's not clear that we should be peering into Ticl protocol buffers anyway.
     static final MessageInfo PERSISTED_STATE_METADATA = new MessageInfo(
-        AndroidTiclStateAccessor.PersistedStateAccessor.METADATA_ACCESSOR,
+        AndroidTiclStateAccessor.METADATA_ACCESSOR,
         FieldInfo.newRequired(MetadataAccessor.CLIENT_CONFIG),
         FieldInfo.newRequired(MetadataAccessor.CLIENT_NAME),
         FieldInfo.newRequired(MetadataAccessor.CLIENT_TYPE),
         FieldInfo.newRequired(MetadataAccessor.TICL_ID));
 
-    static final MessageInfo PERSISTED_STATE = new MessageInfo(
-        AndroidTiclStateAccessor.PERSISTED_STATE_ACCESSOR,
-        FieldInfo.newRequired(PersistedStateAccessor.METADATA, PERSISTED_STATE_METADATA),
-        FieldInfo.newRequired(PersistedStateAccessor.TICL_STATE),
-        FieldInfo.newRequired(PersistedStateAccessor.VERSION));
-
     static final MessageInfo ANDROID_TICL_STATE = new MessageInfo(
         AndroidServiceAccessor.ANDROID_TICL_STATE_ACCESSOR,
-        FieldInfo.newRequired(AndroidTiclStateAccessor.DIGEST),
-        FieldInfo.newRequired(AndroidTiclStateAccessor.STATE, PERSISTED_STATE));
+        FieldInfo.newRequired(AndroidTiclStateAccessor.METADATA, PERSISTED_STATE_METADATA),
+        FieldInfo.newRequired(AndroidTiclStateAccessor.TICL_STATE),
+        FieldInfo.newRequired(AndroidTiclStateAccessor.VERSION));
+
+    static final MessageInfo ANDROID_TICL_STATE_WITH_DIGEST = new MessageInfo(
+        AndroidServiceAccessor.ANDROID_TICL_STATE_WITH_DIGEST_ACCESSOR,
+        FieldInfo.newRequired(AndroidTiclStateWithDigestAccessor.DIGEST),
+        FieldInfo.newRequired(AndroidTiclStateWithDigestAccessor.STATE, ANDROID_TICL_STATE));
   }
 
   /** Returns whether {@code downcall} has a valid set of fields with valid values. */
@@ -297,11 +297,11 @@ public final class ProtocolValidator extends ProtoValidator {
    * Returns whether {@code state} has a valid set of fields with valid values. Does not
    * verify the digest.
    */
-  boolean isTiclStateValid(AndroidTiclState state) {
-    return checkMessage(state, InternalInfos.ANDROID_TICL_STATE);
+  boolean isTiclStateValid(AndroidTiclStateWithDigest state) {
+    return checkMessage(state, InternalInfos.ANDROID_TICL_STATE_WITH_DIGEST);
   }
 
-  public ProtocolValidator(Logger logger) {
+  public AndroidIntentProtocolValidator(Logger logger) {
     super(logger);
   }
 }

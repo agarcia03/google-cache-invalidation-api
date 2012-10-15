@@ -202,7 +202,7 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
    * in {@link InvalidationClientCore}.
    */
   AndroidInvalidationClientImpl(Context context, SystemResources resources, Random random,
-      AndroidTiclState.PersistedState marshalledState) {
+      AndroidTiclState marshalledState) {
     super(resources,
         random,
         marshalledState.getMetadata().getClientType(),

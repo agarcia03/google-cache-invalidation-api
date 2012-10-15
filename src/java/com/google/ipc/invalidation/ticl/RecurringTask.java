@@ -24,7 +24,7 @@ import com.google.ipc.invalidation.util.InternalBase;
 import com.google.ipc.invalidation.util.Marshallable;
 import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.ipc.invalidation.util.Smearer;
-import com.google.protos.ipc.invalidation.MarshalledTicl.RecurringTaskState;
+import com.google.protos.ipc.invalidation.JavaClient.RecurringTaskState;
 
 
 /**

@@ -21,8 +21,8 @@ import com.google.common.base.Strings;
 import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
+import com.google.ipc.invalidation.ticl.android2.AndroidIntentProtocolValidator;
 import com.google.ipc.invalidation.ticl.android2.ProtocolIntents;
-import com.google.ipc.invalidation.ticl.android2.ProtocolValidator;
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants.AuthTokenConstants;
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants.HttpConstants;
 import com.google.protobuf.ByteString;
@@ -70,7 +70,8 @@ public class AndroidMessageSenderService extends IntentService {
 
   private final Logger logger = AndroidLogger.forTag("MsgSenderSvc");
 
-  private final ProtocolValidator validator = new ProtocolValidator(logger);
+  private final AndroidIntentProtocolValidator validator =
+      new AndroidIntentProtocolValidator(logger);
 
   /** The last message sent, for tests. */
   public static byte[] lastTiclMessageForTest = null;

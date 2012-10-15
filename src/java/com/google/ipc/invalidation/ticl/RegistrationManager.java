@@ -31,7 +31,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSubtree;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
-import com.google.protos.ipc.invalidation.MarshalledTicl.RegistrationManagerStateP;
+import com.google.protos.ipc.invalidation.JavaClient.RegistrationManagerStateP;
 
 import java.util.ArrayList;
 import java.util.Collection;

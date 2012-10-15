@@ -25,11 +25,11 @@ import com.google.ipc.invalidation.util.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState.PersistedState;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState.PersistedState.Metadata;
+import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState.Metadata;
+import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclStateWithDigest;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
-import com.google.protos.ipc.invalidation.MarshalledTicl.InvalidationClientState;
+import com.google.protos.ipc.invalidation.JavaClient.InvalidationClientState;
 
 import android.content.Context;
 
@@ -81,7 +81,7 @@ public class TiclStateManager {
    */
   static AndroidInvalidationClientImpl restoreTicl(Context context,
       SystemResources resources) {
-    PersistedState state = readTiclState(context, resources.getLogger());
+    AndroidTiclState state = readTiclState(context, resources.getLogger());
     if (state == null) {
       return null;
     }
@@ -123,7 +123,7 @@ public class TiclStateManager {
    */
   static TiclExistenceResult doesTiclExist(Context context, Logger logger,
       int clientType, byte[] clientName, ClientConfigP config) {
-    PersistedState state = readTiclState(context, logger);
+    AndroidTiclState state = readTiclState(context, logger);
     if (state == null) {
       return TiclExistenceResult.DOES_NOT_EXIST;
     }
@@ -162,8 +162,8 @@ public class TiclStateManager {
     try {
 
       // Create a protobuf with the Ticl state and a digest over it.
-      AndroidTiclState digestedState = createDigestedState(ticl);
-      ProtocolValidator validator = new ProtocolValidator(logger);
+      AndroidTiclStateWithDigest digestedState = createDigestedState(ticl);
+      AndroidIntentProtocolValidator validator = new AndroidIntentProtocolValidator(logger);
       Preconditions.checkState(validator.isTiclStateValid(digestedState),
           "Produced invalid digested state: %s", digestedState);
 
@@ -191,7 +191,7 @@ public class TiclStateManager {
    * or invalid, returns {@code null}.
    */
   
-  static PersistedState readTiclState(Context context, Logger logger) {
+  static AndroidTiclState readTiclState(Context context, Logger logger) {
     FileInputStream inputStream = null;
     try {
       inputStream = openStateFileForReading(context);
@@ -204,12 +204,13 @@ public class TiclStateManager {
         // Cast to int must be safe due to the above size check.
         byte[] fileData = new byte[(int) fileSizeBytes];
         input.readFully(fileData);
-        AndroidTiclState androidState = AndroidTiclState.parseFrom(fileData);
-        ProtocolValidator validator = new ProtocolValidator(logger);
+        AndroidTiclStateWithDigest androidState = AndroidTiclStateWithDigest.parseFrom(fileData);
+        AndroidIntentProtocolValidator validator = new AndroidIntentProtocolValidator(logger);
 
         // Check the structure of the message (required fields set).
         if (!validator.isTiclStateValid(androidState)) {
-          logger.warning("Read AndroidTiclState with invalid structure: %s", androidState);
+          logger.warning("Read AndroidTiclStateWithDigest with invalid structure: %s",
+              androidState);
           return null;
         }
         // Validate the digest in the method.
@@ -238,8 +239,12 @@ public class TiclStateManager {
     return null;
   }
 
-  /** Returns a {@link AndroidTiclState} containing {@code ticlState} and its computed digest. */
-  private static AndroidTiclState createDigestedState(AndroidInvalidationClientImpl ticl) {
+  /**
+   * Returns a {@link AndroidTiclStateWithDigest} containing {@code ticlState} and its computed
+   * digest.
+   */
+  private static AndroidTiclStateWithDigest createDigestedState(
+      AndroidInvalidationClientImpl ticl) {
     Sha1DigestFunction digester = new Sha1DigestFunction();
     ApplicationClientIdP ticlAppId = ticl.getApplicationClientIdP();
     Metadata metaData = Metadata.newBuilder()
@@ -248,12 +253,12 @@ public class TiclStateManager {
          .setClientType(ticlAppId.getClientType())
          .setTiclId(ticl.getSchedulingId())
          .build();
-    PersistedState state = AndroidTiclState.PersistedState.newBuilder()
+    AndroidTiclState state = AndroidTiclState.newBuilder()
         .setMetadata(metaData)
         .setTiclState(ticl.marshal())
         .setVersion(ProtocolIntents.ANDROID_PROTOCOL_VERSION_VALUE).build();
     digester.update(state.toByteArray());
-    AndroidTiclState verifiedState = AndroidTiclState.newBuilder()
+    AndroidTiclStateWithDigest verifiedState = AndroidTiclStateWithDigest.newBuilder()
         .setState(state)
         .setDigest(ByteString.copyFrom(digester.getDigest()))
         .build();
@@ -261,7 +266,7 @@ public class TiclStateManager {
   }
 
   /** Returns whether the digest in {@code state} is correct. */
-  private static boolean isDigestValid(AndroidTiclState state, Logger logger) {
+  private static boolean isDigestValid(AndroidTiclStateWithDigest state, Logger logger) {
     Sha1DigestFunction digester = new Sha1DigestFunction();
     digester.update(state.getState().toByteArray());
     ByteString computedDigest = ByteString.copyFrom(digester.getDigest());

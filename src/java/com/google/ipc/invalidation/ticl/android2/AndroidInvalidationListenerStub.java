@@ -55,7 +55,8 @@ public class AndroidInvalidationListenerStub extends IntentService {
 
   private final AndroidLogger logger = AndroidLogger.forPrefix("");
 
-  private final ProtocolValidator validator = new ProtocolValidator(logger);
+  private final AndroidIntentProtocolValidator validator =
+      new AndroidIntentProtocolValidator(logger);
 
   public AndroidInvalidationListenerStub() {
     super("AndroidInvalidationListener");

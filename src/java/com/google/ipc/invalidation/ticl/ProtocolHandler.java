@@ -63,8 +63,8 @@ import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSyncRequest
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.TokenControlMessage;
-import com.google.protos.ipc.invalidation.MarshalledTicl.BatcherState;
-import com.google.protos.ipc.invalidation.MarshalledTicl.ProtocolHandlerState;
+import com.google.protos.ipc.invalidation.JavaClient.BatcherState;
+import com.google.protos.ipc.invalidation.JavaClient.ProtocolHandlerState;
 
 import java.util.Collection;
 import java.util.HashMap;

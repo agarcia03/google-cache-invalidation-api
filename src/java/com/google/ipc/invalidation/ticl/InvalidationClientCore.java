@@ -68,11 +68,11 @@ import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSubtree;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
-import com.google.protos.ipc.invalidation.MarshalledTicl.InvalidationClientState;
-import com.google.protos.ipc.invalidation.MarshalledTicl.ProtocolHandlerState;
-import com.google.protos.ipc.invalidation.MarshalledTicl.RecurringTaskState;
-import com.google.protos.ipc.invalidation.MarshalledTicl.RegistrationManagerStateP;
-import com.google.protos.ipc.invalidation.MarshalledTicl.StatisticsState;
+import com.google.protos.ipc.invalidation.JavaClient.InvalidationClientState;
+import com.google.protos.ipc.invalidation.JavaClient.ProtocolHandlerState;
+import com.google.protos.ipc.invalidation.JavaClient.RecurringTaskState;
+import com.google.protos.ipc.invalidation.JavaClient.RegistrationManagerStateP;
+import com.google.protos.ipc.invalidation.JavaClient.StatisticsState;
 
 import java.util.ArrayList;
 import java.util.Collection;

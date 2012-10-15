@@ -61,7 +61,7 @@ public class TiclService extends IntentService {
   private AndroidResources resources;
 
   /** Validator for received messages. */
-  private ProtocolValidator validator;
+  private AndroidIntentProtocolValidator validator;
 
   /** The function for computing persistence state digests when rewriting them. */
   private final DigestFunction digestFn = new ObjectIdDigestUtils.Sha1DigestFunction();
@@ -90,7 +90,7 @@ public class TiclService extends IntentService {
     // We create resources anew each time.
     resources = createResources();
     resources.start();
-    validator = new ProtocolValidator(resources.getLogger());
+    validator = new AndroidIntentProtocolValidator(resources.getLogger());
 
     // Dispatch the appropriate handler function based on which extra key is set.
     if (intent.hasExtra(ProtocolIntents.CLIENT_DOWNCALL_KEY)) {
