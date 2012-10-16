@@ -67,6 +67,6 @@ public class Formatter {
     return builder.toString();
   }
 
-  private Formatter() {  // To prevnt instantiation.
+  private Formatter() {  // To prevent instantiation.
   }
 }

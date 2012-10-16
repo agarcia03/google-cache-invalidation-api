@@ -66,7 +66,7 @@
         </intent-filter>
       </receiver>
 
-      <!-- Normally, Clank would instantiate the multiplexer service for us. -->
+      <!-- Normally, Chrome/Android would instantiate the multiplexer service for us. -->
       <!-- GCM multiplexer -->
       <service android:exported="true"
           android:name="com.google.ipc.invalidation.external.client.contrib.MultiplexingGcmListener"/>

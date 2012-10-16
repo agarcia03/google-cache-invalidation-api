@@ -107,7 +107,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   /** The authentication token that can be used in channel requests to the server */
   private String authToken;
 
-  // TODO:  Add code to track time of last network activity (in either direction)
+  // TODO: Add code to track time of last network activity (in either direction)
   // so inactive clients can be detected and periodically flushed from memory.
 
   /**
@@ -239,8 +239,8 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
               try {
                 Bundle result = future.getResult();
                 if (result.containsKey(AccountManager.KEY_INTENT)) {
-                  // TODO: Handle case where there are no authentication credentials
-                  // associated with the client account
+                  // TODO: Handle case where there are no authentication
+                  // credentials associated with the client account
                   logger.severe("Token acquisition requires user login");
                   callback.success(); // No further retries.
                 }
@@ -275,7 +275,8 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
       if (pendingMessages != null) {
         checkReady();
       } else {
-        // TODO: Trigger heartbeat or other action to notify server of new endpoint id
+        // TODO: Trigger heartbeat or other action to notify server of new
+        // endpoint id.
       }
     }
   }

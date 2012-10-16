@@ -117,6 +117,17 @@ public final class AndroidChannelConstants {
   public static final Version CHANNEL_VERSION =
       CommonProtos2.newVersion(MajorVersion.INITIAL.getNumber(), 0);
 
+  /**
+   * An extra set on an intent to the AndroidMessageSenderService to inform it that a GCM
+   * registration id change has occurred. This is sent by the AndroidMessageReceiverService
+   * to trigger the sender service to send any buffered messages when a GCM registration id first
+   * becomes available.
+   * <p>
+   * The value associated with this extra is ignored.
+   */
+  static final String MESSAGE_SENDER_SVC_GCM_REGID_CHANGE =
+      "com.google.ipc.invalidation.channel.sender.gcm_regid_change";
+
   private AndroidChannelConstants() {
     // Disallow instantiation.
   }

@@ -25,7 +25,6 @@ import com.google.ipc.invalidation.ticl.android2.AndroidIntentProtocolValidator;
 import com.google.ipc.invalidation.ticl.android2.ProtocolIntents;
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants.AuthTokenConstants;
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants.HttpConstants;
-import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidNetworkSendRequest;
 import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
@@ -98,6 +97,8 @@ public class AndroidMessageSenderService extends IntentService {
     } else if (intent.hasExtra(AndroidChannelConstants.AuthTokenConstants.EXTRA_AUTH_TOKEN)) {
       // Reply from the app with an auth token and a message to send.
       handleAuthTokenResponse(intent);
+    } else if (intent.hasExtra(AndroidChannelConstants.MESSAGE_SENDER_SVC_GCM_REGID_CHANGE)) {
+      handleGcmRegIdChange();
     } else {
       logger.warning("Ignoring intent: %s", intent);
     }
@@ -212,8 +213,9 @@ public class AndroidMessageSenderService extends IntentService {
       String authTokenType, boolean isRetryForInvalidAuthToken) {
     NetworkEndpointId networkEndpointId = getNetworkEndpointId(this, logger);
     if (networkEndpointId == null) {
-      // No GCM registration.
-      logger.info("Not sending message to the data center: no GCM registration id");
+      // No GCM registration; buffer the message to send when we become registered.
+      logger.info("Buffering message to the data center: no GCM registration id");
+      AndroidChannelPreferences.bufferMessage(this, outgoingMessage);
       return;
     }
     logger.fine("Delivering outbound message: %s bytes", outgoingMessage.length);
@@ -267,6 +269,18 @@ public class AndroidMessageSenderService extends IntentService {
   }
 
   /**
+   * Handles a change in the GCM registration id by sending the buffered client message (if any)
+   * to the data center.
+   */
+  private void handleGcmRegIdChange() {
+    byte[] bufferedMessage = AndroidChannelPreferences.takeBufferedMessage(this);
+    if (bufferedMessage != null) {
+      // Rejoin the start of the code path that handles sending outbound messages.
+      requestAuthTokenForMessage(bufferedMessage, null);
+    }
+  }
+
+  /**
    * Returns a URL to use to send a message to the data center.
    *
    * @param authTokenType type of authentication token that will be used in the request
@@ -280,7 +294,7 @@ public class AndroidMessageSenderService extends IntentService {
     // id.
     urlBuilder.append((channelUrlForTest != null) ? channelUrlForTest : HttpConstants.CHANNEL_URL);
     urlBuilder.append(HttpConstants.REQUEST_URL);
-    urlBuilder.append(base64Encode(networkEndpointId.toByteString()));
+    urlBuilder.append(base64Encode(networkEndpointId.toByteArray()));
 
     // Add query parameter indicating the service to authenticate against
     urlBuilder.append('?');
@@ -333,9 +347,8 @@ public class AndroidMessageSenderService extends IntentService {
   }
 
   /** Returns a base-64 encoded version of {@code bytes}. */
-  private static String base64Encode(ByteString bytes) {
-    return Base64.encodeToString(bytes.toByteArray(),
-        Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING);
+  private static String base64Encode(byte[] bytes) {
+    return Base64.encodeToString(bytes, Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING);
   }
 
   /** Returns the network id for this channel, or {@code null} if one cannot be determined. */

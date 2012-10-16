@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.common;
 
 import com.google.common.base.Receiver;
 import com.google.ipc.invalidation.util.Bytes;
+import com.google.ipc.invalidation.util.LazyString;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
@@ -90,30 +91,9 @@ public class CommonProtoStrings2 {
     };
   }
 
-  /**
-   * Given an {@code element} to be logged lazily, returns null if the object is null. Otherwise,
-   * return an object that would convert it to a string using {@code builderFunction}. I.e., this
-   * method will call {@code builderFunction} with a new {@link TextBuilder} return the string
-   * created with it.
-   */
-  static <T> Object toLazyCompactString(final T element,
-      final Receiver<TextBuilder> builderFunction) {
-    if (element == null) {
-      return null;
-    }
-    return new Object() {
-      @Override
-      public String toString() {
-        TextBuilder builder = new TextBuilder();
-        builderFunction.accept(builder);
-        return builder.toString();
-      }
-    };
-  }
-
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final ObjectIdP objectId) {
-    return toLazyCompactString(objectId, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(objectId, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, objectId);
@@ -123,7 +103,7 @@ public class CommonProtoStrings2 {
 
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final InvalidationP invalidation) {
-    return toLazyCompactString(invalidation, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(invalidation, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, invalidation);
@@ -133,7 +113,7 @@ public class CommonProtoStrings2 {
 
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final RegistrationP registration) {
-    return toLazyCompactString(registration, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(registration, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, registration);
@@ -143,7 +123,7 @@ public class CommonProtoStrings2 {
 
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final ApplicationClientIdP applicationId) {
-    return toLazyCompactString(applicationId, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(applicationId, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, applicationId);
@@ -153,7 +133,7 @@ public class CommonProtoStrings2 {
 
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final RegistrationSummary regSummary) {
-    return toLazyCompactString(regSummary, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(regSummary, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, regSummary);
@@ -163,7 +143,7 @@ public class CommonProtoStrings2 {
 
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final InfoMessage infoMessage) {
-    return toLazyCompactString(infoMessage, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(infoMessage, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, infoMessage);
@@ -173,7 +153,7 @@ public class CommonProtoStrings2 {
 
   /** See spec in implementation notes. */
   public static Object toLazyCompactString(final RegistrationSyncMessage syncMessage) {
-    return toLazyCompactString(syncMessage, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(syncMessage, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, syncMessage);
@@ -184,7 +164,7 @@ public class CommonProtoStrings2 {
   /** See spec in implementation notes and toCompactString for ClientToServerMessage. */
   public static Object toLazyCompactString(final ClientToServerMessage message,
       final ByteString authUserId, final boolean printLowFrequencyMessagesOnly) {
-    return toLazyCompactString(message, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(message, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, message, authUserId, printLowFrequencyMessagesOnly);
@@ -195,7 +175,7 @@ public class CommonProtoStrings2 {
   /** See spec in implementation notes and toCompactString for ServerToClientMessage. */
   public static Object toLazyCompactString(final ServerToClientMessage message,
       final ByteString authUserId, final boolean printLowFrequencyMessagesOnly) {
-    return toLazyCompactString(message, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(message, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactString(builder, message, authUserId, printLowFrequencyMessagesOnly);
@@ -207,7 +187,7 @@ public class CommonProtoStrings2 {
   /** See spec in implementation notes. */
   public static Object toLazyCompactStringForObjectIds(
       final Collection<ObjectIdP> objectIds) {
-    return toLazyCompactString(objectIds, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(objectIds, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactStringForObjectIds(builder, objectIds);
@@ -218,7 +198,7 @@ public class CommonProtoStrings2 {
   /** See spec in implementation notes. */
   public static Object toLazyCompactStringForInvalidations(
       final Collection<InvalidationP> invalidations) {
-    return toLazyCompactString(invalidations, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(invalidations, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactStringForInvalidations(builder, invalidations);
@@ -229,7 +209,7 @@ public class CommonProtoStrings2 {
   /** See spec in implementation notes. */
   public static Object toLazyCompactStringForRegistrations(
       final Collection<RegistrationP> registrations) {
-    return toLazyCompactString(registrations, new Receiver<TextBuilder>() {
+    return LazyString.toLazyCompactString(registrations, new Receiver<TextBuilder>() {
       @Override
       public void accept(TextBuilder builder) {
         toCompactStringForRegistrations(builder, registrations);

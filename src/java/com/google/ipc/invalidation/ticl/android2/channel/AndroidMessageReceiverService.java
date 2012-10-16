@@ -90,10 +90,13 @@ public class AndroidMessageReceiverService extends MultiplexingGcmListener.Abstr
 
   @Override
   protected void onRegistered(String registrationId) {
-    // TODO: considering buffering messages sent when we do not have a GCM
-    // registration id and sending them when one becomes available. Alternatively, consider
-    // using an alarm to try resending after a short interval, to avoid having to store the
-    // message. Regardless, we should see whether this actually happens in practice first.
+    // Inform the sender service that the registration id has changed. If the sender service
+    // had buffered a message because no registration id was previously available, this intent
+    // will cause it to send that message.
+    Intent sendBuffered = new Intent();
+    sendBuffered.setClass(this, AndroidMessageSenderService.class);
+    sendBuffered.putExtra(AndroidChannelConstants.MESSAGE_SENDER_SVC_GCM_REGID_CHANGE, true);
+    startService(sendBuffered);
 
     // TODO: send a message to  when the registration id changes so
     // that  can update its stored network endpoint id for this client.
