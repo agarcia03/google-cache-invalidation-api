@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Specification of message types between clients and channel gateways.
+// Specification of invalidation gateway internal forwarding messages and
+// services.
 
 syntax = "proto2";
 
@@ -20,32 +21,8 @@ option optimize_for = LITE_RUNTIME;
 
 package ipc.invalidation;
 
-import "channel.proto";
-import "channel_common.proto";
-import "client_protocol.proto";
-
-// The message communicated between gateway and clients. Note that
-// RegistrarGatewayMessage is between and inside gateways and registrars,
-// and ClientGatewayMessage is between gateways and clients.
-// The message contains:
-// 1) protocol version: version of the protocol between clients and gateways.
-// 2) The message type: whether it wraps ServerToClientMessage, or
-//    ClientToServiceMessage or DisconnectRequest message.
-// 3) encoding: the encoding type of the message: raw protobuf or json.
-// 4) client network endpoint id. Stubby and Android clients are expected to
-//    set this field, and Buzz clients do not set this field.
-// 5) service endpoint id. It is the routing info the clients can provide to
-//    gateway servers. Typically, it is a serialization of instance spec
-//    of the targeted server instance.
-// 6) network_message is the payload, either C2SMsg or S2CMsg or
-//    DisconnectRequest
-// 7) debug_info: some extra text for debug purpose.
-// Note that for backward compatibility, ClientGatewayMessage also tentatively
-// contains three old fields that are not used for now: is_client_to_server,
-// service_context and rpc_scheduling_hash.
+// The message communicated between gateway and clients.
 message ClientGatewayMessage {
-  // The following fields are for backward compatibility
-
   // Whether it is client to server or server to client.
   optional bool is_client_to_server = 1;
 
@@ -55,35 +32,7 @@ message ClientGatewayMessage {
   // Rpc scheduling hash.
   optional int64 rpc_scheduling_hash = 3;
 
-  // The following fields are the new-format message.
-
-  // Version of the protocol between clients and gateways
-  optional ProtocolVersion protocol_version = 5;
-
-  // ClientGatewayMessage could wrap three types of messages as its payload.
-  enum MessageType {
-    CLIENT_TO_SERVER = 1; // a ClientToServerMessage.
-    SERVER_TO_CLIENT = 2; // a ServerToClientMessage.
-    DISCONNECT = 3;       // a DisconnectRequest message.
-  }
-
-  // Type of the wrapped network_message.
-  optional MessageType message_type = 6;
-
-  // The encoding type of the message.
-  optional ChannelMessageEncoding.MessageEncoding encoding = 7;
-
-  // The client network endpoint id.
-  optional NetworkEndpointId client_endpoint_id = 8;
-
-  // The service endpoint end for the targeted server instance.
-  optional bytes service_endpoint_id = 9;
-
-  // Payload of the network message (ClientToServerMessage
-  // or ServerToClientMessage or DisconnectRequest)
-  // Keep the field number = 4 for backward compatibility.
+  // Payload of the network message (ClientToServerMessage or
+  // ServerToClientMessage).
   optional bytes network_message = 4;
-
-  // debug information for the message. Ex: sequence number.
-  optional string debug_info = 10;
 }
