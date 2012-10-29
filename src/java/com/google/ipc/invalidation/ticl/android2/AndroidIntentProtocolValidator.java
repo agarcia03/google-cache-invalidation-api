@@ -149,6 +149,7 @@ public final class AndroidIntentProtocolValidator extends ProtoValidator {
         FieldInfo.newRequired(InternalDowncallAccessor.VERSION, VERSION),
         FieldInfo.newOptional(InternalDowncallAccessor.NETWORK_STATUS, NETWORK_STATUS),
         FieldInfo.newOptional(InternalDowncallAccessor.SERVER_MESSAGE, SERVER_MESSAGE),
+        FieldInfo.newOptional(InternalDowncallAccessor.NETWORK_ADDR_CHANGE),
         FieldInfo.newOptional(InternalDowncallAccessor.CREATE_CLIENT, CREATE_CLIENT_MESSAGE)) {
       @Override
       public boolean postValidate(MessageLite message) {

@@ -794,6 +794,7 @@ public class ClientProtocolAccessor {
         "object_id",
         "is_known_version",
         "version",
+        "is_trickle_restart",
         "payload",
         "bridge_arrival_time_ms"
       ));
@@ -801,6 +802,7 @@ public class ClientProtocolAccessor {
     public static final Descriptor OBJECT_ID = new Descriptor("object_id");
     public static final Descriptor IS_KNOWN_VERSION = new Descriptor("is_known_version");
     public static final Descriptor VERSION = new Descriptor("version");
+    public static final Descriptor IS_TRICKLE_RESTART = new Descriptor("is_trickle_restart");
     public static final Descriptor PAYLOAD = new Descriptor("payload");
     public static final Descriptor BRIDGE_ARRIVAL_TIME_MS = new Descriptor("bridge_arrival_time_ms");
     
@@ -819,6 +821,9 @@ public class ClientProtocolAccessor {
       }
       if (field == VERSION) {
         return message.hasVersion();
+      }
+      if (field == IS_TRICKLE_RESTART) {
+        return message.hasIsTrickleRestart();
       }
       if (field == PAYLOAD) {
         return message.hasPayload();
@@ -844,6 +849,9 @@ public class ClientProtocolAccessor {
       }
       if (field == VERSION) {
         return message.getVersion();
+      }
+      if (field == IS_TRICKLE_RESTART) {
+        return message.getIsTrickleRestart();
       }
       if (field == PAYLOAD) {
         return message.getPayload();

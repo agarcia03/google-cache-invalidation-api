@@ -98,7 +98,7 @@ public abstract class ProtoValidator {
 
     /**
      * Function called after the presence/absence of all fields in this message and its child
-     * messages have been verified. Should be overriden to enforce additional semantic constraints
+     * messages have been verified. Should be overridden to enforce additional semantic constraints
      * beyond field presence/absence if needed.
      */
     protected boolean postValidate(MessageLite message) {

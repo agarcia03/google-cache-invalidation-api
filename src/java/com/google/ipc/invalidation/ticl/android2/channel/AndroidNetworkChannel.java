@@ -17,7 +17,6 @@ package com.google.ipc.invalidation.ticl.android2.channel;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources;
-import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.ticl.TestableNetworkChannel;
 import com.google.ipc.invalidation.ticl.android2.ProtocolIntents;
 import com.google.ipc.invalidation.ticl.android2.ResourcesFactory.AndroidResources;
@@ -47,13 +46,8 @@ public class AndroidNetworkChannel implements TestableNetworkChannel {
   }
 
   @Override
-  public void setMessageReceiver(Callback<byte[]> incomingReceiver) {
-    resources.setNetworkMessageReceiver(incomingReceiver);
-  }
-
-  @Override
-  public void addNetworkStatusReceiver(Callback<Boolean> networkStatusReceiver) {
-    resources.setNetworkStatusReceiver(networkStatusReceiver);
+  public void setListener(NetworkListener listener) {
+    resources.setNetworkListener(listener);
   }
 
   @Override

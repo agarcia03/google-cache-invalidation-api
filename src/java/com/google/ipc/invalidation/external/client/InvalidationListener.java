@@ -22,11 +22,26 @@ import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 
 /**
- * Interface through which invalidation-related events are delivered by the library to the
- * application. Each event must be acknowledged by the application. Each includes an AckHandle that
- * the application must use to call {@code InvalidationClient.acknowledge} after it is done handling
+ * Listener Interface that must be implemented by  clients to receive object invalidations,
+ * registration status events, and error events.
+ * <p>
+ * After the application publishes an invalidation (oid, version) to ,  guarantees to send
+ * at least one of the following events to listeners that have registered for oid:
+ * <ol>
+ *   <li> Invalidate(oid, version)
+ *   <li> Invalidate(oid, laterVersion) where laterVersion >= version
+ *   <li> InvalidateUnknownVersion(oid)
+ * </ol>
+ * <p>
+ * Each invalidation must be acknowledged by the application. Each includes an AckHandle that
+ * the application must use to call {@link InvalidationClient#acknowledge} after it is done handling
  * that event.
- *
+ * <p>
+ * Please see http://go/-api for additional information on the  API and semantics.
+ * <p>
+ * Please see {@link com.google.ipc.invalidation.external.client.contrib.SimpleListener} for a
+ * base class that implements some events on behalf of the application.
+ * <p>
  */
 public interface InvalidationListener {
   /** Possible registration states for an object. */
@@ -39,6 +54,9 @@ public interface InvalidationListener {
    * Called in response to the {@code InvalidationClient.start} call. Indicates that the
    * InvalidationClient is now ready for use, i.e., calls such as register/unregister can be
    * performed on that object.
+   * <p>
+   * The application MUST NOT issue calls such as register/unregister on the InvalidationClient
+   * before receiving this event.
    *
    * @param client the {@link InvalidationClient} invoking the listener
    */
@@ -46,15 +64,23 @@ public interface InvalidationListener {
 
   /**
    * Indicates that an object has been updated to a particular version.
+   * <ul>
+   *   <li> When it receives this call, the application MUST hit its backend to fetch the
+   *   updated state of the object, unless it already has has a version at least as recent as that
+   *   of the invalidation.
    *
-   * The Ticl guarantees that this callback will be invoked at least once for
-   * every invalidation that it guaranteed to deliver. It does not guarantee
-   * exactly-once delivery or in-order delivery (with respect to the version
-   * number).
+   *   <li>  MAY choose to drop older versions of invalidations, as long as it calls
+   *   {@link #invalidate} with a later version of the same object, or calls
+   *   {@link #invalidateUnknownVersion}.
    *
-   * The application should acknowledge this event by calling
-   * {@link InvalidationClient#acknowledge(AckHandle)} with the provided {@code
-   * ackHandle} otherwise the event may be redelivered.
+   *   <li>  MAY reorder or duplicate invalidations.
+   *
+   *   <li>  MAY drop a published payload without notice.
+   *
+   *   <li> The application MUST acknowledge this event by calling
+   *   {@link InvalidationClient#acknowledge} with the provided {@code ackHandle}, otherwise the
+   *   event will be redelivered.
+   * </ul>
    *
    * @param client the {@link InvalidationClient} invoking the listener
    * @param ackHandle event acknowledgement handle
@@ -62,23 +88,35 @@ public interface InvalidationListener {
   void invalidate(InvalidationClient client, Invalidation invalidation, AckHandle ackHandle);
 
   /**
-   * As {@link #invalidate}, but for an unknown application store version. The object may or may not
-   * have been updated - to ensure that the application does not miss an update from its backend,
-   * the application must check and/or fetch the latest version from its store.
+   * Indicates that an object has been updated, but the version number and payload are unknown.
+   *
+   * <ul>
+   *   <li> When it receives this call, the application MUST hit its backend to fetch the updated
+   *   state of the object, regardless of what version it has in its cache.
+   *
+   *   <li> The application MUST acknowledge this event by calling
+   *   {@link InvalidationClient#acknowledge} with the provided {@code ackHandle}, otherwise the
+   *   event will be redelivered.
+   * </ul>
+   *
+   * @param client the {@link InvalidationClient} invoking the listener
+   * @param ackHandle event acknowledgement handle
    */
   void invalidateUnknownVersion(InvalidationClient client, ObjectId objectId,
       AckHandle ackHandle);
 
   /**
-   * Indicates that the application should consider all objects to have changed.
-   * This event is generally sent when the client has been disconnected from the
-   * network for too long a period and has been unable to resynchronize with the
-   * update stream, but it may be invoked arbitrarily (although  tries hard
-   * not to invoke it under normal circumstances).
+   * Indicates that the application should consider all objects to have changed. This event is sent
+   * extremely rarely.
    *
-   * The application should acknowledge this event by calling
-   * {@link InvalidationClient#acknowledge(AckHandle)} with the provided {@code
-   * ackhandle} otherwise the event may be redelivered.
+   * <ul>
+   *   <li> The application MUST hit its backend to fetch the updated state of all objects,
+   *   regardless of what version it has in its cache.
+   *
+   *   <li> The application MUST acknowledge this event by calling
+   *   {@link InvalidationClient#acknowledge} with the provided {@code ackHandle}, otherwise the
+   *   event will be redelivered.
+   * </ul>
    *
    * @param client the {@link InvalidationClient} invoking the listener
    * @param ackHandle event acknowledgement handle
@@ -98,10 +136,11 @@ public interface InvalidationListener {
   /**
    * Indicates that an object registration or unregistration operation may have failed.
    * <p>
-   * For transient failures, the application can retry the registration later - if it chooses to do
-   * so, it must use a sensible backoff policy such as exponential backoff. For permanent failures,
-   * it must not automatically retry without fixing the situation (e.g., by presenting a dialog box
-   * to the user).
+   * For transient failures, the application MAY retry the registration later. If it chooses to do
+   * so, it MUST use exponential backoff or other sensible backoff policy..
+   * <p>
+   * For permanent failures, the application MUST NOT automatically retry without fixing the
+   * situation (e.g., by presenting a dialog box to the user).
    *
    * @param client the {@link InvalidationClient} invoking the listener
    * @param objectId the id of the object whose state changed
@@ -112,38 +151,24 @@ public interface InvalidationListener {
       boolean isTransient, String errorMessage);
 
   /**
-   * Indicates that the all registrations for the client are in an unknown state (e.g., they could
-   * have been removed). The application MUST inform the {@code InvalidationClient} of its
-   * registrations once it receives this event.  The requested objects are those for which the
-   * digest of their serialized object ids matches a particular prefix bit-pattern. The digest for
-   * an object id is computed as following (the digest chosen for this method is SHA-1):
-   * <p>
-   *   digest = new Digest();
-   *   digest.update(Little endian encoding of object source type)
-   *   digest.update(object name)
-   *   digest.getDigestSummary()
-   * <p>
-   * For a set of objects, digest is computed by sorting lexicographically based on their digests
-   * and then performing the update process given above (i.e., calling digest.update on each
-   * object's digest and then calling getDigestSummary at the end).
-   * <p>
-   * IMPORTANT: A client can always register for more objects than what is requested here. For
-   * example, in response to this call, the client can ignore the prefix parameters and register for
-   * all its objects.
+   * Indicates that all registrations for the client are in an unknown state (e.g.,  may have
+   * dropped registrations.)
+   *
+   * The application MUST call {@link InvalidationClient#register} for all objects that it wishes
+   * to be registered for.
    *
    * @param client the {@link InvalidationClient} invoking the listener
-   * @param prefix prefix of the object ids as described above.
-   * @param prefixLength number of bits in {@code prefix} to consider.
+   * @param ignored clients can ignore this argument.
+   * @param ignored2 clients can ignore this argument.
    */
-  void reissueRegistrations(InvalidationClient client, byte[] prefix, int prefixLength);
+  void reissueRegistrations(InvalidationClient client, byte[] ignored, int ignored2);
 
   /**
-   * Informs the listener about errors that have occurred in the backend, e.g., authentication,
-   * authorization problems.
-   * <p>
-   * The application should acknowledge this event by calling
-   * {@link InvalidationClient#acknowledge(AckHandle)} with the provided {@code ackHandle} otherwise
-   * the event may be redelivered.
+   * Informs the listener about errors that have occurred in the backend.
+   *
+   * If the error reason is AUTH_FAILURE, the application may notify the user.
+   * Otherwise, the application should log the error info for debugging purposes but take no
+   * other action.
    *
    * @param client the {@link InvalidationClient} invoking the listener
    * @param errorInfo information about the error

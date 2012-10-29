@@ -80,7 +80,8 @@ message InternalDowncall {
   // Exactly one must be set.
   optional ServerMessage server_message = 2;
   optional NetworkStatus network_status = 3;
-  optional CreateClient create_client = 4;
+  optional bool network_addr_change = 4;
+  optional CreateClient create_client = 5;
 }
 
 // Upcall from Ticl to application listener.

@@ -29,7 +29,6 @@ import com.google.ipc.invalidation.ticl.PersistenceUtils;
 import com.google.ipc.invalidation.ticl.ProtoConverter;
 import com.google.ipc.invalidation.ticl.android2.AndroidInvalidationClientImpl.IntentForwardingListener;
 import com.google.ipc.invalidation.ticl.android2.ResourcesFactory.AndroidResources;
-import com.google.ipc.invalidation.ticl.android2.TiclStateManager.TiclExistenceResult;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidSchedulerEvent;
 import com.google.protos.ipc.invalidation.AndroidService.ClientDowncall;
@@ -186,7 +185,7 @@ public class TiclService extends IntentService {
     }
     resources.getLogger().fine("Handle internal downcall: %s", downcall);
 
-    // Dispatch the request.
+    // Message from the data center; just forward it to the Ticl.
     if (downcall.hasServerMessage()) {
       // We deliver the message regardless of whether the Ticl existed, since we'll want to
       // rewrite persistent state in the case where it did not.
@@ -196,53 +195,50 @@ public class TiclService extends IntentService {
       if (ticl != null) {
         TiclStateManager.saveTicl(this, resources.getLogger(), ticl);
       }
-    } else if (downcall.hasNetworkStatus()) {
+      return;
+    }
+
+    // Network online/offline status change; just forward it to the Ticl.
+    if (downcall.hasNetworkStatus()) {
       // Network status changes only make sense for Ticls that do exist.
       // TODO: what if this is the "wrong" Ticl?
       AndroidInvalidationClientImpl ticl = TiclStateManager.restoreTicl(this, resources);
       if (ticl != null) {
-        resources.getNetworkStatusReceiver().accept(downcall.getNetworkStatus().getIsOnline());
+        resources.getNetworkListener().onOnlineStatusChange(
+            downcall.getNetworkStatus().getIsOnline());
         TiclStateManager.saveTicl(this, resources.getLogger(), ticl);
       }
-    } else if (downcall.hasCreateClient()) {
-      handleCreateClient(downcall.getCreateClient());
-    } else {
-      throw new RuntimeException("Invalid internal downcall passed validation: " + downcall);
+      return;
     }
+
+    // Client network address change; just forward it to the Ticl.
+    if (downcall.getNetworkAddrChange()) {
+      AndroidInvalidationClientImpl ticl = TiclStateManager.restoreTicl(this, resources);
+      if (ticl != null) {
+        resources.getNetworkListener().onAddressChange();
+        TiclStateManager.saveTicl(this, resources.getLogger(), ticl);
+      }
+      return;
+    }
+
+    // Client creation request (meta operation).
+    if (downcall.hasCreateClient()) {
+      handleCreateClient(downcall.getCreateClient());
+      return;
+    }
+    throw new RuntimeException("Invalid internal downcall passed validation: " + downcall);
   }
 
   /** Handles a {@code createClient} request. */
   private void handleCreateClient(CreateClient createClient) {
-    TiclExistenceResult ticlExistence = TiclStateManager.doesTiclExist(this,
-        resources.getLogger(), createClient.getClientType(),
-        createClient.getClientName().toByteArray(), createClient.getClientConfig());
-    switch (ticlExistence) {
-      case MATCH:
-        resources.getLogger().fine("Create client: Ticl already exists");
+    // Ensure no Ticl currently exists.
+    TiclStateManager.deleteStateFile(this);
 
-        // If the client already existed, but it had already started, then we need to synthesize
-        // a ready upcall for the listener.
-        AndroidInvalidationClientImpl ticl = TiclStateManager.restoreTicl(this, resources);
-        if (ticl.isStarted()) {
-          Intent readyIntent = ProtocolIntents.ListenerUpcalls.newReadyIntent();
-          IntentForwardingListener.issueIntent(this, readyIntent);
-        }
-        break;
-      case NO_MATCH:
-        // Error; mismatched configuration parameters.
-        resources.getLogger().warning("Create client: Ticl already exists but does not match");
-        informListenerOfPermanentError("Create-client had inconsistent configuration parameters");
-        break;
-      case DOES_NOT_EXIST:
-        // Create Ticl.
-        resources.getLogger().fine("Create client: Ticl does not exist; creating");
-        TiclStateManager.createTicl(this, resources, createClient.getClientType(),
-            createClient.getClientName().toByteArray(), createClient.getClientConfig(),
-            createClient.getSkipStartForTest());
-        break;
-      default:
-        throw new RuntimeException("Bad switch value: " + ticlExistence);
-    }
+    // Create the requested Ticl.
+    resources.getLogger().fine("Create client: creating");
+    TiclStateManager.createTicl(this, resources, createClient.getClientType(),
+        createClient.getClientName().toByteArray(), createClient.getClientConfig(),
+        createClient.getSkipStartForTest());
   }
 
   /**
@@ -254,7 +250,7 @@ public class TiclService extends IntentService {
   private void handleServerMessage(boolean isTiclStarted, byte[] message) {
     if (isTiclStarted) {
       // Normal case -- message for a started Ticl. Deliver the message.
-      resources.getNetworkMessageReceiver().accept(message);
+      resources.getNetworkListener().onMessageReceived(message);
       return;
     }
     // The Ticl isn't started. Rewrite persistent storage so that the last-send-time is a long

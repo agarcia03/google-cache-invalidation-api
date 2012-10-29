@@ -540,19 +540,21 @@ public abstract class InvalidationClientCore extends InternalBase
    * {@code resources}.
    */
   private void registerWithNetwork(final SystemResources resources) {
-    // Handle received messages.
-    resources.getNetwork().setMessageReceiver(new Callback<byte[]>() {
+    resources.getNetwork().setListener(new NetworkChannel.NetworkListener() {
       @Override
-      public void accept(final byte[] incomingMessage) {
+      public void onMessageReceived(byte[] incomingMessage) {
         final String name = "handleIncomingMessage";
         InvalidationClientCore.this.handleIncomingMessage(incomingMessage);
       }
-    });
-    // Handle network status changes.
-    resources.getNetwork().addNetworkStatusReceiver(new Callback<Boolean>() {
       @Override
-      public void accept(final Boolean isOnline) {
+      public void onOnlineStatusChange(boolean isOnline) {
         InvalidationClientCore.this.handleNetworkStatusChange(isOnline);
+      }
+      @Override
+      public void onAddressChange() {
+        // Send a message to the server. The header will include the new network address.
+        Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
+        sendInfoMessageToServer(false, false);
       }
     });
   }

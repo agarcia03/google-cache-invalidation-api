@@ -20,8 +20,8 @@ import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
-import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.ticl.TestableNetworkChannel;
 import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -92,12 +92,6 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   /** Invalidation client proxy using the channel. */
   private final AndroidClientProxy proxy;
 
-  /** Callback receiver for this channel */
-  private Callback<byte[]> callbackReceiver;
-
-  /** Status receiver for this channel */
-  private Callback<Boolean> statusReceiver;
-
   /** System resources for this channel */
   private SystemResources resources;
 
@@ -106,6 +100,9 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
 
   /** The authentication token that can be used in channel requests to the server */
   private String authToken;
+
+  /** Listener for network events. */
+  private NetworkChannel.NetworkListener listener;
 
   // TODO: Add code to track time of last network activity (in either direction)
   // so inactive clients can be detected and periodically flushed from memory.
@@ -294,8 +291,8 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
   }
 
   @Override
-  public void addNetworkStatusReceiver(Callback<Boolean> statusReceiver) {
-    this.statusReceiver = statusReceiver;
+  public void setListener(NetworkChannel.NetworkListener listener) {
+    this.listener = Preconditions.checkNotNull(listener);
   }
 
   @Override
@@ -343,9 +340,9 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
 
       logger.fine("Enabling network endpoint: %s", getWebEncodedEndpointId());
 
-      // Notify the status receiver that we are now network enabled
-      if (statusReceiver != null) {
-        statusReceiver.accept(true);
+      // Notify the network listener that we are now network enabled
+      if (listener != null) {
+        listener.onOnlineStatusChange(true);
       }
 
       // Flush any pending messages
@@ -376,7 +373,7 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
     String clientKey = proxy.getClientKey();
     if (addrMessage.getClientKey().equals(clientKey)) {
       logger.fine("Deliver to %s message %s", clientKey, addrMessage);
-      callbackReceiver.accept(addrMessage.getMessage().toByteArray());
+      listener.onMessageReceived(addrMessage.getMessage().toByteArray());
     } else {
       logger.severe("Not delivering message due to key mismatch: %s vs %s",
           addrMessage.getClientKey(), clientKey);
@@ -390,11 +387,6 @@ class AndroidChannel extends AndroidChannelBase implements TestableNetworkChanne
     NetworkEndpointId networkEndpointId = getNetworkId();
     return Base64.encodeToString(networkEndpointId.toByteArray(),
         Base64.URL_SAFE | Base64.NO_WRAP  | Base64.NO_PADDING);
-  }
-
-  @Override
-  public void setMessageReceiver(Callback<byte[]> incomingReceiver) {
-    this.callbackReceiver = incomingReceiver;
   }
 
   @Override

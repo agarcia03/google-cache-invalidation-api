@@ -18,10 +18,10 @@ package com.google.ipc.invalidation.ticl.android2;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources;
+import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.external.client.SystemResources.Storage;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
-import com.google.ipc.invalidation.external.client.types.Callback;
 import com.google.ipc.invalidation.ticl.BasicSystemResources;
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidNetworkChannel;
 
@@ -63,11 +63,8 @@ public class ResourcesFactory {
     /** Android system context. */
     private final Context context;
 
-    /** Ticl-provided receiver for incoming messages. */
-    private Callback<byte[]> incomingReceiver;
-
-    /** Ticl-provided receiver for network status changes. */
-    private Callback<Boolean> networkStatusReceiver;
+    /** Ticl-provided receiver for network events. */
+    private NetworkChannel.NetworkListener networkListener;
 
     /**
      * Creates an instance of resources for production code.
@@ -98,32 +95,24 @@ public class ResourcesFactory {
     }
 
     /**
-     * Sets the network message receiver provided by the Ticl. The network calls this method when
-     * the Ticl provides it with a receiver; the Ticl service later retrieves the receiver when
-     * it has a message to deliver to the Ticl.
+     * Sets the network message listener provided by the Ticl. The network calls this method when
+     * the Ticl provides it with a listener; the Ticl service later retrieves the listener when
+     * it has a network event to communicate to the Ticl.
      */
-    public void setNetworkMessageReceiver(Callback<byte[]> receiver) {
-      this.incomingReceiver = receiver;
+    public void setNetworkListener(NetworkChannel.NetworkListener networkListener) {
+      Preconditions.checkState(this.networkListener == null, "Listener already set: %s",
+          networkListener);
+      this.networkListener = Preconditions.checkNotNull(networkListener);
     }
 
-    /**
-     * Sets the network status receiver provided by the Ticl. The network calls this method when
-     * the Ticl provides it with a receiver; the Ticl service later retrieves the receiver when
-     * it has a status to deliver to the Ticl.
-     */
-    public void setNetworkStatusReceiver(Callback<Boolean> receiver) {
-      this.networkStatusReceiver = receiver;
+    /** Clears the network listener. */
+    void clearNetworkListener() {
+      this.networkListener = null;
     }
 
-    /** Returns the network message receiver provided by the Ticl. */
-    Callback<byte[]> getNetworkMessageReceiver() {
-      return Preconditions.checkNotNull(incomingReceiver, "network message receiver not yet set");
-    }
-
-    /** Returns the network status receiver provided by the Ticl. */
-    Callback<Boolean> getNetworkStatusReceiver() {
-      return Preconditions.checkNotNull(networkStatusReceiver,
-          "network status receiver not yet set");
+    /** Returns the network listener provided by the Ticl. */
+    NetworkChannel.NetworkListener getNetworkListener() {
+      return Preconditions.checkNotNull(networkListener, "network listener not yet set");
     }
 
     /** Returns the platform string to use when constructing the resources. */

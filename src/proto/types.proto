@@ -48,7 +48,9 @@ message ObjectSource {
 
     // Numbers below 1000 are reserved for internal use.
     CHROME_SYNC = 1004;
+    COSMO_CHANGELOG = 1014;
     CHROME_COMPONENTS = 1025;
+    CHROME_PUSH_MESSAGING = 1030;
   }
   optional Type type = 1;
 }

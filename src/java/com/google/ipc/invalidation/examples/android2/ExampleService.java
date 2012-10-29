@@ -94,7 +94,7 @@ public final class ExampleService extends IntentService {
       // Tell the account manager there is a stale authorization token.
       String authToken = intent.getStringExtra(EXTRA_INVALIDATE_AUTH_TOKEN);
       Log.i(TAG, "Invalidating authorization token " + authToken);
-      accountManager.invalidateAuthToken(AUTH_TYPE, authToken);
+      accountManager.invalidateAuthToken(GOOGLE_ACCOUNT_TYPE, authToken);
     }
     Account account = getAccount(accountManager);
     Log.i(TAG, "Retrieving authorization token for account " + account.name);

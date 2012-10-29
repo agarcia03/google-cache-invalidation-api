@@ -138,6 +138,13 @@ public class ProtocolIntents {
       return intent;
     }
 
+    public static Intent newNetworkAddrChangeIntent() {
+      Intent intent = new Intent();
+      intent.putExtra(INTERNAL_DOWNCALL_KEY,
+          newBuilder().setNetworkAddrChange(true).build().toByteArray());
+      return intent;
+    }
+
     public static Intent newCreateClientIntent(int clientType, byte[] clientName,
         ClientConfigP config, boolean skipStartForTest) {
       CreateClient createClient = CreateClient.newBuilder()

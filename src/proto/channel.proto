@@ -31,6 +31,7 @@ option java_outer_classname = "Channel";
 
 
 
+
 import "channel_common.proto";
 
 message NetworkEndpointId {

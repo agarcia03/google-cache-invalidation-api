@@ -17,7 +17,6 @@ package com.google.ipc.invalidation.util;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.ByteString.ByteIterator;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -235,26 +234,24 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
     Preconditions.checkNotNull(first);
     Preconditions.checkNotNull(second);
 
-    ByteIterator firstIterator = first.iterator();
-    ByteIterator secondIterator = second.iterator();
-    while (firstIterator.hasNext()) {
-      if (!secondIterator.hasNext()) {
+    // Note: size() is O(1) on ByteString.
+    for (int i = 0; i < first.size(); ++i) {
+      if (i == second.size()) {
         // 'first' is longer than 'second' (logically, think of 'second' as padded with special
         // 'blank' symbols that are smaller than any other symbol per the usual lexicographic
         // ordering convention.)
         return +1;
       }
-      // Compare byte values.
-      byte firstByte = firstIterator.nextByte();
-      byte secondByte = secondIterator.nextByte();
+      byte firstByte = first.byteAt(i);
+      byte secondByte = second.byteAt(i);
       if (firstByte != secondByte) {
         return (firstByte & 0xff) - (secondByte & 0xff);
       }
     }
-    // If 'second' has remaining bytes, it is longer than 'first' and we return -1. Otherwise, it
-    // implies that both iterators have been consumed and no differences discovered in which case
-    // we return 0.
-    return secondIterator.hasNext() ? -1 : 0;
+    // We ran through both strings and found no differences. If 'second' is longer than 'first',
+    // then we return -1. Otherwise, it implies that both strings have been consumed and no
+    // differences discovered in which case we return 0.
+    return (second.size() > first.size()) ? -1 : 0;
   }
 
   /**

@@ -58,30 +58,46 @@ public interface SystemResources {
 
   /** Interface specifying the network functionality provided by {@link SystemResources}. */
   public interface NetworkChannel extends ResourceComponent {
+    /** Interface implemented by listeners for network events. */
+    public interface NetworkListener {
+      /** Upcall made when a network message has been received from the data center. */
+      // Implementation note: this is currently a serialized ServerToClientMessage protocol buffer.
+      // Implementors MAY NOT rely on this fact.
+      void onMessageReceived(byte[] message);
+
+      /**
+       * Upcall made when the network online status has changed. It will be invoked with
+       * a boolean indicating whether the network is connected.
+       * <p>
+       * This is a best-effort upcall. Note that indicating incorrectly that the network is
+       * connected can result in unnecessary calls for {@link #sendMessage}. Incorrect information
+       * that the network is disconnected can result in messages not being sent by the client
+       * library.
+       */
+      void onOnlineStatusChange(boolean isOnline);
+
+      /**
+       * Upcall made when the network address has changed. Note that the network channel
+       * implementation is responsible for determining what constitutes the network address and what
+       * it means to have it change.
+       * <p>
+       * This is a best-effort call; however, failure to invoke it may prevent the client from
+       * receiving messages and cause it to behave as though offline until its next heartbeat.
+       */
+      void onAddressChange();
+    }
 
     /** Sends {@code outgoingMessage} to the data center. */
     // Implementation note: this is currently a serialized ClientToServerMessage protocol buffer.
     // Implementors MAY NOT rely on this fact.
     void sendMessage(byte[] outgoingMessage);
 
-    /** Sets the receiver to which messages from the data center will be delivered. */
-    // Implementation note: this is currently a serialized ServerToClientMessage protocol buffer.
-    // Implementors MAY NOT rely on this fact.
-    void setMessageReceiver(Callback<byte[]> incomingReceiver);
-
     /**
-     * Informs the network channel that {@code networkStatusReceiver} be informed about changes
-     * to network status changes. If the network is connected, the channel should call
-     * {@code networkStatusReceiver.accept(true)} and when the network is disconnected, it should
-     * call {@code networkStatusReceiver.accept(false)}. Note that multiple receivers can be
-     * registered with the channel to receive such status updates.
+     * Sets the {@link NetworkListener} to which events will be delivered.
      * <p>
-     * The informing of the status to the {@code networkStatusReceiver} can be implemented in a
-     * best-effort manner with the caveat that indicating incorrectly that the network is connected
-     * can result in unnecessary calls for {@link #sendMessage}. Incorrect information that the
-     * network is disconnected can result in messages not being sent by the client library.
+     * REQUIRES: no listener already be registered.
      */
-    void addNetworkStatusReceiver(Callback<Boolean> networkStatusReceiver);
+    void setListener(NetworkListener listener);
   }
 
   /**

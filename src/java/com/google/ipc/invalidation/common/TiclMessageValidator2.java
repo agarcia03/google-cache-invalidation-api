@@ -76,7 +76,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
     super(logger);
   }
 
-  /** Describes how to validate common mesages. */
+  /** Describes how to validate common messages. */
   
   public class CommonMsgInfos {
 
@@ -124,6 +124,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
         FieldInfo.newRequired(InvalidationPAccessor.IS_KNOWN_VERSION),
         FieldInfo.newRequired(InvalidationPAccessor.VERSION),
         FieldInfo.newOptional(InvalidationPAccessor.PAYLOAD),
+        FieldInfo.newOptional(InvalidationPAccessor.IS_TRICKLE_RESTART),
         FieldInfo.newOptional(InvalidationPAccessor.BRIDGE_ARRIVAL_TIME_MS)) {
       @Override
       public boolean postValidate(MessageLite message) {
@@ -131,6 +132,16 @@ public class TiclMessageValidator2 extends ProtoValidator {
         InvalidationP invalidation = (InvalidationP) message;
         if (invalidation.getVersion() < 0) {
           logger.info("Version was negative: %s", invalidation);
+          return false;
+        }
+        boolean isUnknownVersion = !invalidation.getIsKnownVersion();
+        // Note that a missing value for is_trickle_restart is treated like a true value,
+        // becomes it comes from a downlevel client that uses invalidation semantics.
+        boolean isTrickleRestart = !invalidation.hasIsTrickleRestart() ||
+            !invalidation.getIsTrickleRestart();
+        if (isUnknownVersion && !isTrickleRestart) {
+          logger.info("is_trickle_restart must be true or missing if is_known_version is false: %s",
+              invalidation);
           return false;
         }
         return true;
@@ -228,7 +239,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
         }
 
         // If set, message id must not be empty.
-        // Do not use String.isEmpty() here for Froyo (JDK5) compat
+        // Do not use String.isEmpty() here for Froyo (JDK5) compatibility.
         if (header.hasMessageId() && (header.getMessageId().length() == 0)) {
           logger.info("Message id was set but empty: %s", header);
           return false;
@@ -247,7 +258,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
       }
     };
 
-    /** Validation for appliction client ids. */
+    /** Validation for application client ids. */
     final MessageInfo APPLICATION_CLIENT_ID = new MessageInfo(
         // Client type is optional here since the registrar needs to accept messages from
         // the ticls that do not set the client type.
@@ -261,7 +272,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
       }
     };
 
-    /** Validation for client initialization mesages. */
+    /** Validation for client initialization messages. */
     final MessageInfo INITIALIZE_MESSAGE = new MessageInfo(
         ClientProtocolAccessor.INITIALIZE_MESSAGE_ACCESSOR,
         FieldInfo.newRequired(InitializeMessageAccessor.CLIENT_TYPE),
@@ -353,7 +364,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
           return false;
         }
         // If set, message id must not be empty.
-        // Do not use String.isEmpty() here for Froyo (JDK5) compat
+        // Do not use String.isEmpty() here for Froyo (JDK5) compatibility.
         if (header.hasMessageId() && (header.getMessageId().length() == 0)) {
           logger.info("Message id was set but empty: %s", header);
           return false;

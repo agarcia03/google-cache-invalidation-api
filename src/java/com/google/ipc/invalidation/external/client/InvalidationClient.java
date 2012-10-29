@@ -22,14 +22,14 @@ import com.google.ipc.invalidation.external.client.types.ObjectId;
 import java.util.Collection;
 
 /**
- * Interface for the invalidation client library.
+ * Interface for the invalidation client library (Ticl).
  *
  */
 public interface InvalidationClient {
 
   /**
-   * Starts the client. This method must be called before any other method is invoked. The client is
-   * considered to be started after {@code InvalidationListener.ready} has received by the
+   * Starts the client. This method MUST be called before any other method is invoked. The client is
+   * considered to be started after {@link InvalidationListener#ready} has received by the
    * application.
    * <p>
    * REQUIRES: {@link #start} has not already been called.
@@ -46,48 +46,51 @@ public interface InvalidationClient {
   void stop();
 
   /**
-   * Requests that the Ticl register to receive notifications for the object with id
-   * {@code objectId}. The library guarantees that the caller will be informed of the results of
-   * this call either via {@code InvalidationListener.informRegistrationStatus} or
-   * {@code InvalidationListener.informRegistrationFailure} unless the library informs the caller of
-   * a connection failure via {@code InvalidationListener.informError}. The caller should consider
-   * the registration to have succeeded only if it gets a call
-   * {@code InvalidationListener.informRegistrationStatus} for {@code objectId} with
-   * {@code InvalidationListener.RegistrationState.REGISTERED}.
-   * Note that if the network is disconnected, the listener events will probably show up when the
-   * network connection is repaired.
+   * Registers to receive invalidations for the object with id {@code objectId}.
    * <p>
-   * REQUIRES: {@link #start} has been called and and {@code InvalidationListener.ready} has been
+   * The library guarantees that the caller will be informed of the results of this call either via
+   * {@link InvalidationListener#informRegistrationStatus} or
+   * {@link InvalidationListener#informRegistrationFailure}.
+   * <p>
+   * The caller should consider the registration to have succeeded only if it gets a call
+   * {@link InvalidationListener#informRegistrationStatus} for {@code objectId} with
+   * {@code InvalidationListener.RegistrationState.REGISTERED}.  Note that if the network is
+   * disconnected, the listener events will probably show up after the network connection is
+   * repaired.
+   * <p>
+   * REQUIRES: {@link #start} has been called and {@link InvalidationListener#ready} has been
    * received by the application's listener.
    */
   void register(ObjectId objectId);
 
   /**
-   * Registrations for multiple objects. See the specs on {@link #register(ObjectId)} for more
-   * details. If the caller needs to register for a number of object ids, this method is more
-   * efficient than calling {@code register} in a loop.
+   * Registers to receive invalidations for multiple objects. See the specs on
+   * {@link #register(ObjectId)} for more details. If the caller needs to register for a number of
+   * object ids, this method is more efficient than calling {@code register} in a loop.
    */
   void register(Collection<ObjectId> objectIds);
 
   /**
-   * Requests that the Ticl unregister for notifications for the object with id {@code objectId}.
+   * Unregisters for invalidations for the object with id {@code objectId}.
+   * <p>
    * The library guarantees that the caller will be informed of the results of this call either via
-   * {@code InvalidationListener.informRegistrationStatus} or
-   * {@code InvalidationListener.informRegistrationFailure} unless the library informs the caller of
-   * a connection failure via {@code InvalidationListener.informError}. The caller should consider
-   * the unregistration to have succeeded only if it gets a call
-   * {@code InvalidationListener.informRegistrationStatus} for {@code objectId} with
-   * {@code InvalidationListener.RegistrationState.UNREGISTERED}.
+   * {@link InvalidationListener#informRegistrationStatus} or
+   * {@link InvalidationListener#informRegistrationFailure} unless the library informs the caller of
+   * a connection failure via {@link InvalidationListener#informError}.
+   * <p>
+   * The caller should consider the unregistration to have succeeded only if it gets a call
+   * {@link InvalidationListener#informRegistrationStatus} for {@code objectId} with
+   * {@link InvalidationListener.RegistrationState#UNREGISTERED}.
    * Note that if the network is disconnected, the listener events will probably show up when the
    * network connection is repaired.
    * <p>
-   * REQUIRES: {@link #start} has been called and and {@code InvalidationListener.ready} has been
+   * REQUIRES: {@link #start} has been called and and {@link InvalidationListener#ready} has been
    * receiveed by the application's listener.
    */
   void unregister(ObjectId objectId);
 
   /**
-   * Unregistrations for multiple objects. See the specs on {@link #unregister(ObjectId)} for more
+   * Unregisters for multiple objects. See the specs on {@link #unregister(ObjectId)} for more
    * details. If the caller needs to unregister for a number of object ids, this method is more
    * efficient than calling {@code unregister} in a loop.
    */
@@ -98,7 +101,7 @@ public interface InvalidationClient {
    * acknowledgement handle. This indicates that the client has accepted responsibility for
    * processing the event and it does not need to be redelivered later.
    * <p>
-   * REQUIRES: {@link #start} has been called and and {@code InvalidationListener.ready} has been
+   * REQUIRES: {@link #start} has been called and and {@link InvalidationListener#ready} has been
    * received by the application's listener.
    */
   void acknowledge(AckHandle ackHandle);

@@ -174,7 +174,10 @@ message InvalidationP {
 
   // Whether the invalidation is for a known version of the object as assigned
   // by an application backend (is_known_version == true) or an unknown system
-  // version synthesized by the invalidation service.
+  // version synthesized by the invalidation service. (Note that if
+  // is_known_version is false then is_trickle_restart be true or missing
+  // because an unknown version implies that invalidation versions prior to the
+  // current backend version may have been dropped.)
   optional bool is_known_version = 2;
 
   // Version being invalidated (see comment on is_known_version). If the
@@ -185,6 +188,12 @@ message InvalidationP {
   // this system version (and an ack for a later system version acknowledges an
   // invalidation for all earlier system version for *that* object.
   optional int64 version = 3;
+
+  // Whether the object's Trickle is restarting at this version.
+  //  sets this value to true to inform Trickle API clients that it may
+  // have dropped invalidations prior to "version", or, if is_known_version is
+  // false, prior to the current backend version.
+  optional bool is_trickle_restart = 6 [default = false];
 
   // Optional payload associated with this invalidation.
   optional bytes payload = 4;

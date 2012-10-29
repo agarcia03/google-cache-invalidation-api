@@ -87,19 +87,22 @@ public class AndroidMessageReceiverService extends MultiplexingGcmListener.Abstr
     }
   }
 
-
   @Override
   protected void onRegistered(String registrationId) {
     // Inform the sender service that the registration id has changed. If the sender service
     // had buffered a message because no registration id was previously available, this intent
     // will cause it to send that message.
     Intent sendBuffered = new Intent();
+    final String ignoredData = "";
+    sendBuffered.putExtra(AndroidChannelConstants.MESSAGE_SENDER_SVC_GCM_REGID_CHANGE, ignoredData);
     sendBuffered.setClass(this, AndroidMessageSenderService.class);
-    sendBuffered.putExtra(AndroidChannelConstants.MESSAGE_SENDER_SVC_GCM_REGID_CHANGE, true);
     startService(sendBuffered);
 
-    // TODO: send a message to  when the registration id changes so
-    // that  can update its stored network endpoint id for this client.
+    // Inform the Ticl service that the registration id has changed. This will cause it to send
+    // a message to the data center and update the GCM registration id stored at the data center.
+    Intent updateServer = ProtocolIntents.InternalDowncalls.newNetworkAddrChangeIntent();
+    updateServer.setClassName(this, new AndroidTiclManifest(this).getTiclServiceClass());
+    startService(updateServer);
   }
 
   @Override

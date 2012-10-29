@@ -20,8 +20,6 @@ import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.ObjectIdDigestUtils.Sha1DigestFunction;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
-import com.google.ipc.invalidation.ticl.ProtoWrapper;
-import com.google.ipc.invalidation.util.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState;
@@ -39,7 +37,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Random;
 
 
@@ -49,18 +46,6 @@ import java.util.Random;
  */
 
 public class TiclStateManager {
-  /** Result type for {@link #doesTiclExist(Context, Logger, int, byte[], ClientConfigP)}. */
-  enum TiclExistenceResult {
-    /** Ticl exists with supplied parameters. */
-    MATCH,
-
-    /** Ticl exists but with different parameters than those supplied. */
-    NO_MATCH,
-
-    /** Ticl does not exist. */
-    DOES_NOT_EXIST,
-  }
-
   /** Name of the file to which Ticl state will be persisted. */
   private static final String TICL_STATE_FILENAME = "android_ticl_service_state.bin";
 
@@ -115,39 +100,6 @@ public class TiclStateManager {
     AndroidInternalScheduler scheduler =
         (AndroidInternalScheduler) resources.getInternalScheduler();
     scheduler.setTiclId(ticl.getSchedulingId());
-  }
-
-  /**
-   * Returns whether persistent storage exists for a Ticl with the given {@code clientType},
-   * {@code clientName}, and {@code config}.
-   */
-  static TiclExistenceResult doesTiclExist(Context context, Logger logger,
-      int clientType, byte[] clientName, ClientConfigP config) {
-    AndroidTiclState state = readTiclState(context, logger);
-    if (state == null) {
-      return TiclExistenceResult.DOES_NOT_EXIST;
-    }
-    Metadata metadata = state.getMetadata();
-    if (configEqual(metadata.getClientConfig(), config)
-        && (metadata.getClientType() == clientType)
-        && Arrays.equals(metadata.getClientName().toByteArray(), clientName)) {
-      return TiclExistenceResult.MATCH;
-    } else {
-      logger.warning("Ticl parameter mismatch (existing/requested): clientType=%s/%s," +
-          "clientName=%s/%s, config=%s/%s, Config=%s/%s", metadata.getClientType(), clientType,
-          Bytes.toString(metadata.getClientName()), Bytes.toString(clientName),
-          Bytes.toString(metadata.getClientConfig().toByteString()),
-          Bytes.toString(config.toByteString()));
-      return TiclExistenceResult.NO_MATCH;
-    }
-  }
-
-  /**
-   * Determines whether two client configs are equal (required since generated lite protos do not
-   * implement value equals method).
-   */
-  private static boolean configEqual(ClientConfigP x, ClientConfigP y) {
-    return ProtoWrapper.of(x).equals(ProtoWrapper.of(y));
   }
 
   /**

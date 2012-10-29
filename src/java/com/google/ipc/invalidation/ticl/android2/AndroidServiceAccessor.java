@@ -733,12 +733,14 @@ public class AndroidServiceAccessor {
         "version",
         "server_message",
         "network_status",
+        "network_addr_change",
         "create_client"
       ));
     
     public static final Descriptor VERSION = new Descriptor("version");
     public static final Descriptor SERVER_MESSAGE = new Descriptor("server_message");
     public static final Descriptor NETWORK_STATUS = new Descriptor("network_status");
+    public static final Descriptor NETWORK_ADDR_CHANGE = new Descriptor("network_addr_change");
     public static final Descriptor CREATE_CLIENT = new Descriptor("create_client");
     
     /** Returns whether {@code field} is present in {@code message}. */
@@ -756,6 +758,9 @@ public class AndroidServiceAccessor {
       }
       if (field == NETWORK_STATUS) {
         return message.hasNetworkStatus();
+      }
+      if (field == NETWORK_ADDR_CHANGE) {
+        return message.hasNetworkAddrChange();
       }
       if (field == CREATE_CLIENT) {
         return message.hasCreateClient();
@@ -778,6 +783,9 @@ public class AndroidServiceAccessor {
       }
       if (field == NETWORK_STATUS) {
         return message.getNetworkStatus();
+      }
+      if (field == NETWORK_ADDR_CHANGE) {
+        return message.getNetworkAddrChange();
       }
       if (field == CREATE_CLIENT) {
         return message.getCreateClient();
