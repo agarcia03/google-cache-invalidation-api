@@ -119,6 +119,11 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
     return bytes;
   }
 
+  /** Converts this to a byte string. */
+  public ByteString toByteString() {
+    return ByteString.copyFrom(getByteArray());
+  }
+
   /**
    * Returns a new {@code Bytes} containing the given subrange of bytes [{@code
    * from}, {@code to}).

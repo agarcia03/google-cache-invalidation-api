@@ -16,6 +16,8 @@
 
 package com.google.ipc.invalidation.util;
 
+import com.google.protobuf.ByteString;
+
 import java.lang.reflect.Field;
 
 /**
@@ -92,6 +94,12 @@ public class TextBuilder {
    */
   public TextBuilder append(Object object) {
     builder.append(object);
+    return this;
+  }
+
+  /** Appends the {@link Bytes#toString} representation of {@code bytes} to this builder. */
+  public TextBuilder append(ByteString bytes) {
+    builder.append(Bytes.toString(bytes));
     return this;
   }
 

@@ -56,6 +56,7 @@ message ProtocolHandlerState {
 message RegistrationManagerStateP {
   repeated ObjectIdP registrations = 1;
   optional RegistrationSummary last_known_server_summary = 2;
+  repeated RegistrationP pending_operations = 3;
 }
 
 // State of a recurring task. Fields correspond directly to fields in

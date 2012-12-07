@@ -35,7 +35,8 @@ import java.util.Map;
 public class AndroidTiclManifest {
   /**
    * Name of the {@code <application>} metadata element whose value gives the Java class that
-   * implements the application {@code InvalidationListener}. Must always be set.
+   * implements the application {@code InvalidationListener}. Must be set if
+   * {@link #LISTENER_SERVICE_NAME_KEY} is not set.
    */
   private static final String LISTENER_NAME_KEY = "ipc.invalidation.ticl.listener_class";
 
@@ -45,12 +46,21 @@ public class AndroidTiclManifest {
    */
   private static final String TICL_SERVICE_NAME_KEY = "ipc.invalidation.ticl.service_class";
 
+  /**
+   * Name of the {@code <application>} metadata element whose value gives the Java class that
+   * implements the application's invalidation listener intent service.
+   */
+  private static final String LISTENER_SERVICE_NAME_KEY =
+      "ipc.invalidation.ticl.listener_service_class";
+
   /** Default values returned if not overriden by the manifest file. */
   private static final Map<String, String> DEFAULTS = new HashMap<String, String>();
   static {
       DEFAULTS.put(TICL_SERVICE_NAME_KEY,
           "com.google.ipc.invalidation.ticl.android2.TiclService");
       DEFAULTS.put(LISTENER_NAME_KEY, "");
+      DEFAULTS.put(LISTENER_SERVICE_NAME_KEY,
+          "com.google.ipc.invalidation.ticl.android2.AndroidInvalidationListenerStub");
   }
 
   private final Context context;
@@ -69,6 +79,11 @@ public class AndroidTiclManifest {
     return Preconditions.checkNotNull(readApplicationMetadata(LISTENER_NAME_KEY));
   }
 
+  /** Returns the name of the class implementing the invalidation listener intent service. */
+  public String getListenerServiceClass() {
+    return Preconditions.checkNotNull(readApplicationMetadata(LISTENER_SERVICE_NAME_KEY));
+  }
+
   /**
    * Returns the metadata-provided value for {@code key} in  {@code AndroidManifest.xml} if one
    * exists, or the value from {@link #DEFAULTS} if one does not.
@@ -79,8 +94,10 @@ public class AndroidTiclManifest {
       // Read the manifest-provided value.
       appInfo = context.getPackageManager().getApplicationInfo(context.getPackageName(),
           PackageManager.GET_META_DATA);
-      String value = appInfo.metaData.getString(key);
-
+      String value = null;
+      if (appInfo.metaData != null) {
+        value = appInfo.metaData.getString(key);
+      }
       // Return the manifest value if present or the default value if not.
       return (value != null) ?
           value : Preconditions.checkNotNull(DEFAULTS.get(key), "No default value for %s", key);

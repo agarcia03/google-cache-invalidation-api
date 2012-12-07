@@ -138,9 +138,10 @@ public class TiclMessageValidator2 extends ProtoValidator {
         // Note that a missing value for is_trickle_restart is treated like a true value,
         // becomes it comes from a downlevel client that uses invalidation semantics.
         boolean isTrickleRestart = !invalidation.hasIsTrickleRestart() ||
-            !invalidation.getIsTrickleRestart();
+            invalidation.getIsTrickleRestart();
         if (isUnknownVersion && !isTrickleRestart) {
-          logger.info("is_trickle_restart must be true or missing if is_known_version is false: %s",
+          logger.info(
+              "if is_known_version is false, is_trickle_restart must be true or missing: %s",
               invalidation);
           return false;
         }

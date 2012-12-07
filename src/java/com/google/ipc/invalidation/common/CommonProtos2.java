@@ -123,30 +123,23 @@ public class CommonProtos2 {
         .build();
   }
 
-  public static InvalidationP newInvalidationP(ObjectIdP oid, long version) {
-    return newInvalidationP(oid, version, null, null, null);
-  }
-
   public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
       TrickleState trickleState) {
-    return newInvalidationP(oid, version, null, null, trickleState);
+    return newInvalidationP(oid, version, trickleState, null, null);
   }
 
   public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
-      ByteString payload, Long bridgeArrivalTimeMs) {
-    return newInvalidationP(oid, version, payload, bridgeArrivalTimeMs, null);
+      TrickleState trickleState, ByteString payload) {
+    return newInvalidationP(oid, version, trickleState, payload, null);
   }
 
   public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
-      ByteString payload, Long bridgeArrivalTimeMs,
-      TrickleState trickleState) {
+      TrickleState trickleState, ByteString payload, Long bridgeArrivalTimeMs) {
     InvalidationP.Builder builder = InvalidationP.newBuilder()
         .setObjectId(oid)
         .setIsKnownVersion(true)
-        .setVersion(version);
-    if (trickleState != null) {
-      builder.setIsTrickleRestart(trickleState == TrickleState.RESTART);
-    }
+        .setVersion(version)
+        .setIsTrickleRestart(trickleState == TrickleState.RESTART);
     if (payload != null) {
       builder.setPayload(payload);
     }
@@ -156,12 +149,38 @@ public class CommonProtos2 {
     return builder.build();
   }
 
-  public static InvalidationP newInvalidationPForUnknownVersion(ObjectIdP oid, long version) {
+  public static InvalidationP newInvalidationPForUnknownVersion(ObjectIdP oid,
+      long sequenceNumber) {
     return InvalidationP.newBuilder()
         .setObjectId(oid)
         .setIsKnownVersion(false)
-        .setVersion(version)
+        .setIsTrickleRestart(true)
+        .setVersion(sequenceNumber)
         .build();
+  }
+
+  /**
+   * Returns an invalidation that is identical to {@code invalidation} but with the
+   * {@code is_trickle_restart} flag set to true. If the input {@invalidation} is already restarted,
+   * it is returned directly. Otherwise, a new invalidation is created.
+   */
+  public static InvalidationP toRestartedInvalidation(InvalidationP invalidation) {
+    if (invalidation.hasIsTrickleRestart() && invalidation.getIsTrickleRestart()) {
+      return invalidation;
+    }
+    return invalidation.toBuilder().setIsTrickleRestart(true).build();
+  }
+
+  /**
+   * Returns an invalidation that is identical to {@code invalidation} but with the
+   * {@code is_trickle_restart} flag set to false. If the input {@invalidation} is already
+   * a continuous invalidation, it is returned directly. Otherwise, a new invalidation is created.
+   */
+  public static InvalidationP toContinuousInvalidation(InvalidationP invalidation) {
+    if (invalidation.hasIsTrickleRestart() && !invalidation.getIsTrickleRestart()) {
+      return invalidation;
+    }
+    return invalidation.toBuilder().setIsTrickleRestart(false).build();
   }
 
   public static RegistrationP newRegistrationP(ObjectIdP oid, boolean isReg) {
@@ -170,6 +189,14 @@ public class CommonProtos2 {
         .setOpType(isReg ? RegistrationP.OpType.REGISTER : RegistrationP.OpType.UNREGISTER)
         .build();
     return registration;
+  }
+
+  public static RegistrationP newRegistrationPForRegistration(ObjectIdP oid) {
+    return newRegistrationP(oid, true);
+  }
+
+  public static RegistrationP newRegistrationPForUnregistration(ObjectIdP oid) {
+    return newRegistrationP(oid, false);
   }
 
   public static StatusP newSuccessStatus() {
@@ -369,16 +396,8 @@ public class CommonProtos2 {
     AndroidChannel.EndpointId.Builder endpointBuilder = AndroidChannel.EndpointId.newBuilder()
         .setC2DmRegistrationId(registrationId)
         .setClientKey(clientKey)
-        .setPackageName(packageName);
-
-    // The protocol version field was set in the INITIAL channel implementation but subsequent
-    // versions only set the channel version.
-    if (channelVersion == null) {
-      // TODO:  Remove once unversioned clients are no longer supported
-      endpointBuilder.setProtocolVersion(CommonInvalidationConstants2.PROTOCOL_VERSION);
-    } else {
-      endpointBuilder.setChannelVersion(channelVersion);
-    }
+        .setPackageName(packageName)
+        .setChannelVersion(channelVersion);
     return newNetworkEndpointId(NetworkAddress.ANDROID, endpointBuilder.build().toByteString());
   }
 

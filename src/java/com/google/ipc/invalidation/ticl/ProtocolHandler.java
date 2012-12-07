@@ -381,9 +381,6 @@ class ProtocolHandler implements Marshallable<ProtocolHandlerState> {
     /** Records that a message was sent to the server at the current time. */
     void handleMessageSent();
 
-    /** Handles a change in network connectivity. */
-    void handleNetworkStatusChange(boolean isOnline);
-
     /** Returns a summary of the current desired registrations. */
     RegistrationSummary getRegistrationSummary();
 

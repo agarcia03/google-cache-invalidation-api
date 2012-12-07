@@ -61,8 +61,6 @@ import com.google.protos.ipc.invalidation.ClientProtocol.Version;
  *
  */
 public final class AndroidIntentProtocolValidator extends ProtoValidator {
-  // TODO: rename to AndroidIntentProtocolValidator.
-
   /** Validation for composite (major/minor) versions. */
   static final MessageInfo VERSION = new MessageInfo(ClientProtocolAccessor.VERSION_ACCESSOR,
     FieldInfo.newRequired(VersionAccessor.MAJOR_VERSION),

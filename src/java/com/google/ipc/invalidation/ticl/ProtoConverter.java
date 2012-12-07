@@ -18,6 +18,7 @@ package com.google.ipc.invalidation.ticl;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.CommonProtos2;
+import com.google.ipc.invalidation.common.TrickleState;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.protobuf.ByteString;
@@ -99,7 +100,13 @@ public class ProtoConverter {
   public static InvalidationP convertToInvalidationProto(Invalidation invalidation) {
     Preconditions.checkNotNull(invalidation);
     ObjectIdP objectId = convertToObjectIdProto(invalidation.getObjectId());
+
+    // Invalidations clients do not know about trickle restarts. Every invalidation is allowed
+    // to suppress earlier invalidations and acks implicitly acknowledge all previous
+    // invalidations. Therefore the correct semanantics are provided by setting isTrickleRestart to
+    // true.
     return CommonProtos2.newInvalidationP(objectId, invalidation.getVersion(),
+        TrickleState.RESTART,
         invalidation.getPayload() == null ? null : ByteString.copyFrom(invalidation.getPayload()),
         null);
   }

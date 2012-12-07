@@ -27,7 +27,6 @@ option java_outer_classname = "AndroidState";
 
 
 
-// TODO: Factor out Version and remove this dependency
 import "client_protocol.proto";
 
 // Base metadata for an Android client instance.  All of these values

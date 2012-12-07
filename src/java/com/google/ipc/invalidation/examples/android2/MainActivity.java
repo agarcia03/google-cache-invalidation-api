@@ -17,12 +17,12 @@
 package com.google.ipc.invalidation.examples.android2;
 
 import com.google.android.gcm.GCMRegistrar;
-import com.google.ipc.invalidation.external.client.android2.AndroidClientFactory;
+import com.google.ipc.invalidation.external.client.contrib.AndroidListener;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
-import com.google.protos.ipc.invalidation.Types.ClientType.Type;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
@@ -42,7 +42,7 @@ import java.util.Map.Entry;
        --port=8888 --channelUri="talkgadget.google.com" --use_lcs=false
  * </code>
  *
- * <p>Just publish invalidations with ids similar to 'Obj0', 'Obj1', ... 'Obj9'
+ * <p>Just publish invalidations with ids similar to 'Obj1', 'Obj2', ... 'Obj3'
  *
  */
 public final class MainActivity extends Activity {
@@ -51,7 +51,7 @@ public final class MainActivity extends Activity {
   private static final String TAG = "TEA2:MainActivity";
 
   /** Ticl client configuration. */
-  private static final Type clientType = Type.DEMO;
+  private static final int CLIENT_TYPE = 4; // Demo client ID.
   private static final byte[] CLIENT_NAME = "TEA2:eetrofoot".getBytes();
 
   /** Sender ID associated with 's Android Push Messaging quota. */
@@ -63,17 +63,9 @@ public final class MainActivity extends Activity {
    * essentials in this example.
    */
   public static final class State {
-    private static final Map<ObjectId, String> registrationStatus = new HashMap<ObjectId, String>();
     private static final Map<ObjectId, String> lastInformedVersion =
         new HashMap<ObjectId, String>();
     private static volatile MainActivity currentActivity;
-
-    public static void setRegistrationStatus(ObjectId objectId, String status) {
-      synchronized (registrationStatus) {
-        registrationStatus.put(objectId, status);
-      }
-      refreshData();
-    }
 
     public static void setVersion(ObjectId objectId, String version) {
       synchronized (lastInformedVersion) {
@@ -89,13 +81,16 @@ public final class MainActivity extends Activity {
   /** Called when the activity is first created. */
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    Log.i(TAG, "Creating main activity");
     super.onCreate(savedInstanceState);
 
     initializeGcm();
 
-    // createClient will create and start a client. When the client is available, or if there is an
-    // existing client, InvalidationListener.ready() is called.
-    AndroidClientFactory.createClient(getApplicationContext(), clientType, CLIENT_NAME);
+    // Create and start a notification client. When the client is available, or if there is an
+    // existing client, AndroidListener.reissueRegistrations() is called.
+    Context context = getApplicationContext();
+    Intent startIntent = AndroidListener.createStartIntent(context, CLIENT_TYPE, CLIENT_NAME);
+    context.startService(startIntent);
 
     // Setup UI.
     info = new TextView(this);
@@ -126,13 +121,6 @@ public final class MainActivity extends Activity {
     final MainActivity activity = State.currentActivity;
     if (null != activity) {
       final StringBuilder builder = new StringBuilder();
-      builder.append("Registration status\n---------------\n");
-      synchronized (State.registrationStatus) {
-        for (Entry<ObjectId, String> entry : State.registrationStatus.entrySet()) {
-          builder.append(entry.getKey().toString()).append(" -> ").append(entry.getValue())
-              .append("\n");
-        }
-      }
       builder.append("\nLast informed versions status\n---------------\n");
       synchronized (State.lastInformedVersion) {
         for (Entry<ObjectId, String> entry : State.lastInformedVersion.entrySet()) {

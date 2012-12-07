@@ -61,10 +61,6 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
   /** Class implementing the application listener stub (allows overriding default for tests). */
   static Class<? extends Service> listenerServiceClassForTest = null;
 
-  /** Name of the class that implements the application listener stub in production code. */
-  private static final String LISTENER_STUB_CLASS_NAME =
-      "com.google.ipc.invalidation.ticl.android2.AndroidInvalidationListenerStub";
-
   /**
    * {@link InvalidationListener} implementation that forwards all calls to a remote listener
    * using Android intents.
@@ -154,11 +150,12 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
     }
 
     /**
-     * Sends {@code intent} to the real listener using the {@link AndroidInvalidationListenerStub}.
+     * Sends {@code intent} to the real listener via the listener intent service class.
      */
     static void issueIntent(Context context, Intent intent) {
       intent.setClassName(context, (listenerServiceClassForTest != null) ?
-          listenerServiceClassForTest.getName() : LISTENER_STUB_CLASS_NAME);
+          listenerServiceClassForTest.getName() :
+              new AndroidTiclManifest(context).getListenerServiceClass());
       context.startService(intent);
     }
 

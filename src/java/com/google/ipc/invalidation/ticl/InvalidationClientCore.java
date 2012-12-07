@@ -26,6 +26,7 @@ import com.google.ipc.invalidation.common.DigestFunction;
 import com.google.ipc.invalidation.common.ObjectIdDigestUtils;
 import com.google.ipc.invalidation.common.TiclMessageValidator2;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
+import com.google.ipc.invalidation.external.client.InvalidationListener.RegistrationState;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
@@ -65,6 +66,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.InfoRequestMessage.Info
 import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
+import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP.OpType;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSubtree;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;
@@ -80,6 +82,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.logging.Level;
 
 
@@ -363,7 +366,7 @@ public abstract class InvalidationClientCore extends InternalBase
   /** Logger reference into the resources object for cleaner code. */
   private final Logger logger;
 
-  /** Storage for the Ticl peristent state. */
+  /** Storage for the Ticl persistent state. */
   Storage storage;
 
   /** Application callback interface. */
@@ -405,8 +408,6 @@ public abstract class InvalidationClientCore extends InternalBase
   private ByteString nonce = null;
 
   /** Whether we should send registrations to the server or not. */
-  // TODO: Make the server summary in the registration manager nullable
-  // and replace this variable with a test for whether it's null or not.
   private boolean shouldSendRegistrations;
 
   /** Whether the network is online.  Assume so when we start. */
@@ -961,11 +962,6 @@ public abstract class InvalidationClientCore extends InternalBase
       logger.info("Register %s, %s", CommonProtoStrings2.toLazyCompactString(objectIdProto),
           regOpType);
       objectIdProtos.add(objectIdProto);
-      // Inform immediately of success so that the application is informed even if the reply
-      // message from the server is lost. When we get a real ack from the server, we do
-      // not need to inform the application.
-      InvalidationListener.RegistrationState regState = convertOpTypeToRegState(regOpType);
-      listener.informRegistrationStatus(InvalidationClientCore.this, objectId, regState);
     }
 
     // Update the registration manager state, then have the protocol client send a message.
@@ -1029,22 +1025,6 @@ public abstract class InvalidationClientCore extends InternalBase
   }
 
   @Override
-  public void handleNetworkStatusChange(final boolean isOnline) {
-    // If we're back online and haven't sent a message to the server in a while, send a heartbeat to
-    // make sure the server knows we're online.
-    Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    boolean wasOnline = this.isOnline;
-    this.isOnline = isOnline;
-    if (isOnline && !wasOnline && (internalScheduler.getCurrentTimeMs() >
-        lastMessageSendTimeMs + config.getOfflineHeartbeatThresholdMs())) {
-      logger.log(
-          Level.INFO, "Sending heartbeat after reconnection, previous send was %s ms ago",
-          internalScheduler.getCurrentTimeMs() - lastMessageSendTimeMs);
-      sendInfoMessageToServer(false, !registrationManager.isStateInSyncWithServer());
-    }
-  }
-
-  @Override
   public void handleMessageSent() {
     // The ProtocolHandler just sent a message to the server. If the channel supports offline
     // delivery (see the comment in the ClientConfigP), store this time to stable storage. This
@@ -1069,6 +1049,21 @@ public abstract class InvalidationClientCore extends InternalBase
   //
   // Private methods and toString.
   //
+
+  void handleNetworkStatusChange(final boolean isOnline) {
+    // If we're back online and haven't sent a message to the server in a while, send a heartbeat to
+    // make sure the server knows we're online.
+    Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
+    boolean wasOnline = this.isOnline;
+    this.isOnline = isOnline;
+    if (isOnline && !wasOnline && (internalScheduler.getCurrentTimeMs() >
+        lastMessageSendTimeMs + config.getOfflineHeartbeatThresholdMs())) {
+      logger.log(Level.INFO,
+          "Sending heartbeat after reconnection, previous send was %s ms ago",
+          internalScheduler.getCurrentTimeMs() - lastMessageSendTimeMs);
+      sendInfoMessageToServer(false, !registrationManager.isStateInSyncWithServer());
+    }
+  }
 
   /**
    * Handles an {@code incomingMessage} from the data center. If it is valid and addressed to
@@ -1144,7 +1139,6 @@ public abstract class InvalidationClientCore extends InternalBase
       Preconditions.checkArgument(TypedUtil.<ByteString>equals(headerToken, nonce),
           "Provided with new token and mismatched nonce: header = %s, nonce = %s",
           headerToken, nonce);
-      setNonce(null);
       logger.info("New token being assigned at client: %s, Old = %s",
           CommonProtoStrings2.toLazyCompactString(newToken),
           CommonProtoStrings2.toLazyCompactString(clientToken));
@@ -1170,7 +1164,20 @@ public abstract class InvalidationClientCore extends InternalBase
       // We've received a summary from the server, so if we were suppressing
       // registrations, we should now allow them to go to the registrar.
       shouldSendRegistrations = true;
-      registrationManager.informServerRegistrationSummary(header.registrationSummary);
+
+      // Pass the registration summary to the registration manager. If we are now in agreement
+      // with the server and we had any pending operations, we can tell the listener that those
+      // operations have succeeded.
+      Set<ProtoWrapper<RegistrationP>> upcalls =
+          registrationManager.informServerRegistrationSummary(header.registrationSummary);
+      logger.fine("Receivced new server registration summary (%s); will make %s upcalls",
+          header.registrationSummary, upcalls.size());
+      for (ProtoWrapper<RegistrationP> upcall : upcalls) {
+        RegistrationP registration = upcall.getProto();
+        ObjectId objectId = ProtoConverter.convertFromObjectIdProto(registration.getObjectId());
+        RegistrationState regState = convertOpTypeToRegState(registration.getOpType());
+        listener.informRegistrationStatus(this, objectId, regState);
+      }
     }
   }
 
@@ -1215,16 +1222,18 @@ public abstract class InvalidationClientCore extends InternalBase
       boolean wasSuccess = localProcessingStatuses.get(i);
       logger.fine("Process reg status: %s", regStatus);
 
-      // Only inform in the case of failure since the success path has already
-      // been dealt with (the ticl issued informRegistrationStatus immediately
-      // after receiving the register/unregister call).
       ObjectId objectId = ProtoConverter.convertFromObjectIdProto(
         regStatus.getRegistration().getObjectId());
-      if (!wasSuccess) {
+      if (wasSuccess) {
+        // Server operation was both successful and agreed with what the client wanted.
+        OpType regOpType = regStatus.getRegistration().getOpType();
+        InvalidationListener.RegistrationState regState = convertOpTypeToRegState(regOpType);
+        listener.informRegistrationStatus(InvalidationClientCore.this, objectId, regState);
+      } else {
+        // Server operation either failed or disagreed with client's intent (e.g., successful
+        // unregister, but the client wanted a registration).
         String description = CommonProtos2.isSuccess(regStatus.getStatus()) ?
             "Registration discrepancy detected" : regStatus.getStatus().getDescription();
-
-        // Note "success" shows up as transient failure in this scenario.
         boolean isPermanent = CommonProtos2.isPermanentFailure(regStatus.getStatus());
         listener.informRegistrationFailure(InvalidationClientCore.this, objectId, !isPermanent,
             description);
@@ -1288,9 +1297,11 @@ public abstract class InvalidationClientCore extends InternalBase
     }
 
     // If there are any registrations, remove them and issue registration failure.
-    Collection<ObjectIdP> desiredRegistrations = registrationManager.removeRegisteredObjects();
+    Collection<ProtoWrapper<ObjectIdP>> desiredRegistrations =
+        registrationManager.removeRegisteredObjects();
     logger.warning("Issuing failure for %s objects", desiredRegistrations.size());
-    for (ObjectIdP objectId : desiredRegistrations) {
+    for (ProtoWrapper<ObjectIdP> objectIdWrapper : desiredRegistrations) {
+      ObjectIdP objectId = objectIdWrapper.getProto();
       listener.informRegistrationFailure(this,
         ProtoConverter.convertFromObjectIdProto(objectId), false, "Auth error: " + description);
     }
@@ -1313,8 +1324,6 @@ public abstract class InvalidationClientCore extends InternalBase
       return true;
     } else if (nonce != null) {
       // Nonce case.
-      Preconditions.checkState(nonce != null, "Client token and nonce are both null: %s, %s",
-          clientToken, nonce);
       if (!TypedUtil.<ByteString>equals(nonce, parsedMessage.header.token)) {
         statistics.recordError(ClientErrorType.NONCE_MISMATCH);
         logger.info("Rejecting server message with mismatched nonce: Client = %s, Server = %s",
@@ -1328,6 +1337,7 @@ public abstract class InvalidationClientCore extends InternalBase
       }
     }
     // Neither token nor nonce; ignore message.
+    logger.warning("Neither token nor nonce was set in validateToken: %s, %s", clientToken, nonce);
     return false;
   }
 
@@ -1352,7 +1362,8 @@ public abstract class InvalidationClientCore extends InternalBase
    */
   private void sendInfoMessageToServer(boolean mustSendPerformanceCounters,
       boolean requestServerSummary) {
-    logger.info("Sending info message to server");
+    logger.info("Sending info message to server; request server summary = %s",
+        requestServerSummary);
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
     List<SimplePair<String, Integer>> performanceCounters =

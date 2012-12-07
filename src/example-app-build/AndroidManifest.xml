@@ -20,7 +20,7 @@
 
     <application>
       <!-- Configure the listener class for the application -->
-      <meta-data android:name="ipc.invalidation.ticl.listener_class"
+      <meta-data android:name="ipc.invalidation.ticl.listener_service_class"
           android:value="com.google.ipc.invalidation.examples.android2.ExampleListener"/>
 
       <!-- Example activity -->
@@ -31,8 +31,12 @@
         </intent-filter>
       </activity>
 
-      <!-- Service handling authorization token requests -->
-      <service android:exported="false" android:name=".ExampleService">
+      <!-- Receiver for scheduler alarms. Must be exported for the AlarmManager to call it. -->
+      <receiver android:exported="true"
+          android:name="com.google.ipc.invalidation.external.client.contrib.AndroidListener$AlarmReceiver"/>
+
+      <!-- Ticl listener. -->
+      <service android:exported="false" android:name=".ExampleListener">
         <intent-filter>
           <action android:name="com.google.ipc.invalidation.AUTH_TOKEN_REQUEST"/>
         </intent-filter>
@@ -42,10 +46,6 @@
       <!-- Ticl manager service. -->
       <service android:exported="false"
           android:name="com.google.ipc.invalidation.ticl.android2.TiclService"/>
-
-      <!-- Ticl listener. -->
-      <service android:exported="false"
-          android:name="com.google.ipc.invalidation.ticl.android2.AndroidInvalidationListenerStub"/>
 
       <!-- Ticl sender. -->
       <service android:exported="false"

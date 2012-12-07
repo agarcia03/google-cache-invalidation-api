@@ -54,23 +54,23 @@ public class ProtocolIntents {
   static final Version ANDROID_PROTOCOL_VERSION_VALUE = CommonProtos2.newVersion(1, 0);
 
   /** Key of Intent byte[] extra holding a client downcall protocol buffer. */
-  static final String CLIENT_DOWNCALL_KEY = "ipcinv-downcall";
+  public static final String CLIENT_DOWNCALL_KEY = "ipcinv-downcall";
 
   /** Key of Intent byte[] extra holding an internal downcall protocol buffer. */
-  static final String INTERNAL_DOWNCALL_KEY = "ipcinv-internal-downcall";
+  public static final String INTERNAL_DOWNCALL_KEY = "ipcinv-internal-downcall";
 
   /** Key of Intent byte[] extra holding a listener upcall protocol buffer. */
-  static final String LISTENER_UPCALL_KEY = "ipcinv-upcall";
+  public static final String LISTENER_UPCALL_KEY = "ipcinv-upcall";
 
   /** Key of Intent byte[] extra holding a schedule event protocol buffer. */
-  static final String SCHEDULER_KEY = "ipcinv-scheduler";
+  public static final String SCHEDULER_KEY = "ipcinv-scheduler";
 
   /** Key of Intent byte[] extra holding an outbound message protocol buffer. */
   public static final String OUTBOUND_MESSAGE_KEY = "ipcinv-outbound-message";
 
   /** Intents corresponding to calls on {@code InvalidationClient}. */
-  static class ClientDowncalls {
-    static Intent newStartIntent() {
+  public static class ClientDowncalls {
+    public static Intent newStartIntent() {
       Intent intent = new Intent();
       intent.putExtra(CLIENT_DOWNCALL_KEY, newBuilder()
           .setStart(StartDowncall.getDefaultInstance())
@@ -78,7 +78,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newStopIntent() {
+    public static Intent newStopIntent() {
       Intent intent = new Intent();
       intent.putExtra(CLIENT_DOWNCALL_KEY, newBuilder()
           .setStop(StopDowncall.getDefaultInstance())
@@ -86,7 +86,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newAcknowledgeIntent(AckHandleP ackHandle) {
+    public static Intent newAcknowledgeIntent(AckHandleP ackHandle) {
       AckDowncall ackDowncall = AckDowncall.newBuilder()
           .setAckHandle(ackHandle.toByteString()).build();
       Intent intent = new Intent();
@@ -95,7 +95,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newRegistrationIntent(Iterable<ObjectIdP> registrations) {
+    public static Intent newRegistrationIntent(Iterable<ObjectIdP> registrations) {
       RegistrationDowncall regDowncall = RegistrationDowncall.newBuilder()
           .addAllRegistrations(registrations).build();
       Intent intent = new Intent();
@@ -104,7 +104,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newUnregistrationIntent(Iterable<ObjectIdP> unregistrations) {
+    public static Intent newUnregistrationIntent(Iterable<ObjectIdP> unregistrations) {
       RegistrationDowncall unregDowncall = RegistrationDowncall.newBuilder()
           .addAllUnregistrations(unregistrations).build();
       Intent intent = new Intent();
@@ -115,6 +115,10 @@ public class ProtocolIntents {
 
     private static ClientDowncall.Builder newBuilder() {
       return ClientDowncall.newBuilder().setVersion(ANDROID_PROTOCOL_VERSION_VALUE);
+    }
+
+    private ClientDowncalls() {
+      // Disallow instantiation.
     }
   }
 
@@ -129,7 +133,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newNetworkStatusIntent(Boolean status) {
+    public static Intent newNetworkStatusIntent(Boolean status) {
       Intent intent = new Intent();
       intent.putExtra(INTERNAL_DOWNCALL_KEY,
           newBuilder()
@@ -162,18 +166,22 @@ public class ProtocolIntents {
     private static InternalDowncall.Builder newBuilder() {
       return InternalDowncall.newBuilder().setVersion(ANDROID_PROTOCOL_VERSION_VALUE);
     }
+
+    private InternalDowncalls() {
+      // Disallow instantiation.
+    }
   }
 
   /** Intents corresponding to calls on {@code InvalidationListener}. */
-  static class ListenerUpcalls {
-    static Intent newReadyIntent() {
+  public static class ListenerUpcalls {
+    public static Intent newReadyIntent() {
       Intent intent = new Intent();
       intent.putExtra(LISTENER_UPCALL_KEY,
           newBuilder().setReady(ReadyUpcall.getDefaultInstance()).build().toByteArray());
       return intent;
     }
 
-    static Intent newInvalidateIntent(InvalidationP invalidation, AckHandleP ackHandle) {
+    public static Intent newInvalidateIntent(InvalidationP invalidation, AckHandleP ackHandle) {
       Intent intent = new Intent();
       InvalidateUpcall invUpcall = InvalidateUpcall.newBuilder()
           .setAckHandle(ackHandle.toByteString())
@@ -183,7 +191,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newInvalidateUnknownIntent(ObjectIdP object, AckHandleP ackHandle) {
+    public static Intent newInvalidateUnknownIntent(ObjectIdP object, AckHandleP ackHandle) {
       Intent intent = new Intent();
       InvalidateUpcall invUpcall = InvalidateUpcall.newBuilder()
           .setAckHandle(ackHandle.toByteString())
@@ -193,7 +201,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newInvalidateAllIntent(AckHandleP ackHandle) {
+    public static Intent newInvalidateAllIntent(AckHandleP ackHandle) {
       Intent intent = new Intent();
       InvalidateUpcall invUpcall = InvalidateUpcall.newBuilder()
           .setAckHandle(ackHandle.toByteString())
@@ -203,7 +211,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newRegistrationStatusIntent(ObjectIdP object, boolean isRegistered) {
+    public static Intent newRegistrationStatusIntent(ObjectIdP object, boolean isRegistered) {
       Intent intent = new Intent();
       RegistrationStatusUpcall regUpcall = RegistrationStatusUpcall.newBuilder()
             .setObjectId(object)
@@ -213,7 +221,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newRegistrationFailureIntent(ObjectIdP object, boolean isTransient,
+    public static Intent newRegistrationFailureIntent(ObjectIdP object, boolean isTransient,
         String message) {
       Intent intent = new Intent();
       RegistrationFailureUpcall regUpcall = RegistrationFailureUpcall.newBuilder()
@@ -225,7 +233,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newReissueRegistrationsIntent(byte[] prefix, int length) {
+    public static Intent newReissueRegistrationsIntent(byte[] prefix, int length) {
       Intent intent = new Intent();
       ReissueRegistrationsUpcall reissueRegistrations = ReissueRegistrationsUpcall.newBuilder()
           .setPrefix(ByteString.copyFrom(prefix))
@@ -235,7 +243,7 @@ public class ProtocolIntents {
       return intent;
     }
 
-    static Intent newErrorIntent(ErrorInfo errorInfo) {
+    public static Intent newErrorIntent(ErrorInfo errorInfo) {
       Intent intent = new Intent();
       ErrorUpcall errorUpcall = ErrorUpcall.newBuilder()
           .setErrorCode(errorInfo.getErrorReason())
@@ -250,10 +258,14 @@ public class ProtocolIntents {
     private static ListenerUpcall.Builder newBuilder() {
       return ListenerUpcall.newBuilder().setVersion(ANDROID_PROTOCOL_VERSION_VALUE);
     }
+
+    private ListenerUpcalls() {
+      // Disallow instantiation.
+    }
   }
 
   /** Returns a new intent encoding a request to execute the scheduled action {@code eventName}. */
-  static Intent newSchedulerIntent(String eventName, long ticlId) {
+  public static Intent newSchedulerIntent(String eventName, long ticlId) {
     byte[] eventBytes =
         AndroidSchedulerEvent.newBuilder()
           .setVersion(ANDROID_PROTOCOL_VERSION_VALUE)

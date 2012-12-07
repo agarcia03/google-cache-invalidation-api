@@ -83,8 +83,8 @@ public class ExponentialBackoffDelayGenerator {
     int delay = 0;  // After a reset, the delay is 0.
     if (inRetryMode) {
 
-      // Generate the delay.
-      delay = (int) (random.nextDouble() * currentMaxDelay);
+      // Generate the delay in the range [1, currentMaxDelay].
+      delay = random.nextInt(currentMaxDelay) + 1;
 
       // Adjust the max for the next run.
       int maxDelay = initialMaxDelay * maxExponentialFactor;

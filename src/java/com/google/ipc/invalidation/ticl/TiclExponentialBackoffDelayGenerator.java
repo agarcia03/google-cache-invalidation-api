@@ -50,7 +50,6 @@ public class TiclExponentialBackoffDelayGenerator
         marshalledState.getInRetryMode());
   }
 
-
   @Override
   public ExponentialBackoffState marshal() {
     return ExponentialBackoffState.newBuilder()

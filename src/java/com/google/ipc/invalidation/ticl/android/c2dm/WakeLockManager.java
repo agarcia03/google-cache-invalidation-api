@@ -57,6 +57,8 @@ public class WakeLockManager {
 
   /** Returns the wake lock manager. */
   public static WakeLockManager getInstance(Context context) {
+    Preconditions.checkNotNull(context);
+    Preconditions.checkNotNull(context.getApplicationContext());
     synchronized (LOCK) {
       if (theManager == null) {
         theManager = new WakeLockManager(context.getApplicationContext());
