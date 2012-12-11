@@ -25,16 +25,13 @@
 #include "google/cacheinvalidation/deps/stl-namespace.h"
 #include "google/cacheinvalidation/impl/client-protocol-namespace-fix.h"
 #include "google/cacheinvalidation/impl/constants.h"
-#include "google/protobuf/message.h"
-#include "google/protobuf/text_format.h"
+#include "google/protobuf/repeated_field.h"
 
 namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
 using ::ipc::invalidation::ProtocolVersion;
-using ::google::protobuf::Message;
 using ::google::protobuf::RepeatedPtrField;
-using ::google::protobuf::TextFormat;
 
 // Functor to compare various protocol messages.
 struct ProtoCompareLess {
