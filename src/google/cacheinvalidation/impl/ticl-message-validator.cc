@@ -276,6 +276,7 @@ DEFINE_VALIDATOR(ClientConfigP) {
   ALLOW(smear_percent);
   ALLOW(is_transient);
   ALLOW(initial_persistent_heartbeat_delay_ms);
+  ALLOW(channel_supports_offline_delivery);
   REQUIRE(protocol_handler_config);
 }
 
