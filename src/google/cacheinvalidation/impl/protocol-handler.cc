@@ -91,17 +91,12 @@ ProtocolHandler::ProtocolHandler(
 
 void ProtocolHandler::InitConfig(ProtocolHandlerConfigP* config) {
   // Add rate limits.
-  // Allow at most 1 message every 1000 msec.
-  int window0_ms = 1000;
-  int num_messages_per_window0 = 1;
 
-  // Allow at most 6 messages every minute.
-  int window1_ms = 60 * 1000;
-  int num_messages_per_window1 = 6;
+  // Allow at most 3 messages every 5 seconds.
+  int window_ms = 5 * 1000;
+  int num_messages_per_window = 3;
 
-  ProtoHelpers::InitRateLimitP(window0_ms, num_messages_per_window0,
-      config->add_rate_limit());
-  ProtoHelpers::InitRateLimitP(window1_ms, num_messages_per_window1,
+  ProtoHelpers::InitRateLimitP(window_ms, num_messages_per_window,
       config->add_rate_limit());
 }
 
