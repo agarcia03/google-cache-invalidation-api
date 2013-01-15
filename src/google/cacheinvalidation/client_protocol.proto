@@ -161,7 +161,7 @@ message ApplicationClientIdP {
 
 // Invalidation for a given object/version.
 message InvalidationP {
-  // The id of the object being invalidted.
+  // The id of the object being invalidated.
   optional ObjectIdP object_id = 1;
 
   // Whether the invalidation is for a known version of the object as assigned
@@ -171,7 +171,7 @@ message InvalidationP {
 
   // Version being invalidated (see comment on is_known_version). If the
   // is_known_version is false, the version corresponds to an internal "system
-  // version" for *that* ojbect. An object's system version has no meaning to
+  // version" for *that* object. An object's system version has no meaning to
   // the application other than the fact that these system versions are also
   // monotonically increasing and the client must ack such an invalidation with
   // this system version (and an ack for a later system version acknowledges an
@@ -180,6 +180,14 @@ message InvalidationP {
 
   // Optional payload associated with this invalidation.
   optional bytes payload = 4;
+
+  // The time when the bridge created this invalidation, in milliseconds.
+  // This is expressed as ms since 00:00:00 UTC, 1 January 1970
+  // (i.e., the UNIX epoch). If the client associated with this is offline,
+  // this will be cleared in the registrar.  This field should be ignored when
+  // comparing two InvalidationP's to see if they represent the same
+  // invalidation.
+  optional int64 bridge_arrival_time_ms = 5;
 }
 
 // Specifies the intention to change a registration on a specific object.  To
