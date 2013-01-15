@@ -99,6 +99,10 @@ class MockProtocolListener : public ProtocolListener {
       void(const ServerMessageHeader&, ErrorMessage::Code,
            const string&));
 
+  MOCK_METHOD0(HandleMessageSent, void());
+
+  MOCK_METHOD1(HandleNetworkStatusChange, void(bool));  // NOLINT
+
   MOCK_METHOD1(GetRegistrationSummary, void(RegistrationSummary*));  // NOLINT
 
   MOCK_METHOD0(GetClientToken, string());
@@ -156,8 +160,16 @@ class ProtocolHandlerTest : public UnitTestBase {
   // A random number generator.
   scoped_ptr<Random> random;
 
+  void AddExpectationForHandleMessageSent() {
+    EXPECT_CALL(listener, HandleMessageSent());
+  }
+
  private:
   void InitListenerExpectations() {
+    // The network will tell the protocol handler it's online, and the protocol
+    // handler will forward that information to the listener.
+    EXPECT_CALL(listener, HandleNetworkStatusChange(true));
+
     // When the handler asks the listener for the client token, return whatever
     // |token| currently is.
     EXPECT_CALL(listener, GetClientToken())
@@ -191,6 +203,7 @@ TEST_F(ProtocolHandlerTest, SendInitializeOnly) {
           protocol_handler.get(), &ProtocolHandler::SendInitializeMessage,
           app_client_id, nonce, "Startup"));
 
+  AddExpectationForHandleMessageSent();
   ClientToServerMessage expected_message;
 
   // Build the header.
@@ -331,6 +344,8 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendRegistrationSyncSubtree,
           subtree));
+
+  AddExpectationForHandleMessageSent();
 
   token = "test token";
 

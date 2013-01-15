@@ -430,6 +430,11 @@ void ProtocolHandler::SendMessageToServer() {
   string serialized;
   builder.SerializeToString(&serialized);
   network_->SendMessage(serialized);
+
+  // Record that the message was sent. Schedule it as a separate event to avoid
+  // invoking a callback on the Ticl inline.
+  internal_scheduler_->Schedule(Scheduler::NoDelay(), NewPermanentCallback(
+      listener_, &ProtocolListener::HandleMessageSent));
 }
 
 void ProtocolHandler::InitRegistrationMessage(
@@ -479,7 +484,8 @@ void ProtocolHandler::MessageReceiver(const string& message) {
 }
 
 void ProtocolHandler::NetworkStatusReceiver(bool status) {
-  // Do nothing for now.
+  internal_scheduler_->Schedule(Scheduler::NoDelay(), NewPermanentCallback(
+      listener_, &ProtocolListener::HandleNetworkStatusChange, status));
 }
 
 }  // namespace invalidation

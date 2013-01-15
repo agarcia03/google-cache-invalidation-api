@@ -534,6 +534,11 @@ message ClientConfigP {
   // clients, which will destroy and recreate the Ticl when transitioning
   // between foreground and background states.
   optional bool channel_supports_offline_delivery = 11 [default = false];
+
+  // If the client loses network connectivity, it will send a heartbeat after it
+  // comes online, unless it had already sent a message more recently than this
+  // threshold.
+  optional int32 offline_heartbeat_threshold_ms = 12 [default = 60000];
 }
 
 // A message asking the client to change its configuration parameters

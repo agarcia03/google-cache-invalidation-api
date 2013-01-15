@@ -207,6 +207,7 @@ InvalidationClientImpl::InvalidationClientImpl(
       smearer_(random, config.smear_percent()),
       protocol_handler_(config.protocol_handler_config(), resources, &smearer_,
           statistics_.get(), application_name, this, msg_validator_.get()),
+      is_online_(true),
       random_(random) {
   storage_.get()->SetSystemResources(resources_);
   application_client_id_.set_client_name(client_name);
@@ -661,6 +662,29 @@ void InvalidationClientImpl::HandleErrorMessage(
   resources_->listener_scheduler()->Schedule(
       Scheduler::NoDelay(),
       NewPermanentCallback(this, &InvalidationClientImpl::Stop));
+}
+
+void InvalidationClientImpl::HandleMessageSent() {
+  last_message_send_time_ = internal_scheduler_->GetCurrentTime();
+}
+
+void InvalidationClientImpl::HandleNetworkStatusChange(bool is_online) {
+  // If we're back online and haven't sent a message to the server in a while,
+  // send a heartbeat to make sure the server knows we're online.
+  bool was_online = is_online_;
+  is_online_ = is_online;
+  if (is_online && !was_online &&
+      (internal_scheduler_->GetCurrentTime() >
+       last_message_send_time_ + TimeDelta::FromMilliseconds(
+           config_.offline_heartbeat_threshold_ms()))) {
+    TLOG(logger_, INFO,
+         "Sending heartbeat after reconnection; previous send was %s ms ago",
+         Int64ToString(
+             (internal_scheduler_->GetCurrentTime() - last_message_send_time_)
+             .InMilliseconds()).c_str());
+    SendInfoMessageToServer(
+        false, !registration_manager_.IsStateInSyncWithServer());
+  }
 }
 
 void InvalidationClientImpl::GetRegistrationManagerStateAsSerializedProto(

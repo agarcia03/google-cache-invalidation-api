@@ -164,6 +164,12 @@ class ProtocolListener {
       ErrorMessage::Code code,
       const string& description) = 0;
 
+  /* Records that a message was sent to the server at the current time. */
+  virtual void HandleMessageSent() = 0;
+
+  /* Handles a change in network connectivity. */
+  virtual void HandleNetworkStatusChange(bool is_online) = 0;
+
   /* Stores a summary of the current desired registrations. */
   virtual void GetRegistrationSummary(RegistrationSummary* summary) = 0;
 

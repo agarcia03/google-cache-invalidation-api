@@ -266,6 +266,10 @@ class InvalidationClientImpl : public InvalidationClient,
       ErrorMessage::Code code,
       const string& description);
 
+  virtual void HandleMessageSent();
+
+  virtual void HandleNetworkStatusChange(bool is_online);
+
   virtual void GetRegistrationSummary(RegistrationSummary* summary) {
     registration_manager_.GetClientSummary(summary);
   }
@@ -410,6 +414,12 @@ class InvalidationClientImpl : public InvalidationClient,
   // TODO(ghc): Make the server summary in the registration manager nullable
   // and replace this variable with a test for whether it's null or not.
   bool should_send_registrations_;
+
+  /* Whether the network is online.  Assume so when we start. */
+  bool is_online_;
+
+  /* Last time a message was sent to the server. */
+  Time last_message_send_time_;
 
   /* A task for acquiring the token (if the client has no token). */
   scoped_ptr<AcquireTokenTask> acquire_token_task_;
