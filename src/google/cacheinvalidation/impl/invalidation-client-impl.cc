@@ -59,7 +59,7 @@ bool AcquireTokenTask::RunTask() {
   // Otherwise, ignore.
   if (client_->client_token_.empty()) {
     // Allocate a nonce and send a message requesting a new token.
-    client_->set_nonce(IntToString(
+    client_->set_nonce(SimpleItoa(
         client_->internal_scheduler_->GetCurrentTime().ToInternalValue()));
     client_->protocol_handler_.SendInitializeMessage(
         client_->application_client_id_, client_->nonce_, "AcquireToken");
@@ -241,7 +241,7 @@ void InvalidationClientImpl::Start() {
 
   // Initialize the nonce so that we can maintain the invariant that exactly
   // one of "nonce" and "clientToken" is non-null.
-  set_nonce(IntToString(
+  set_nonce(SimpleItoa(
       internal_scheduler_->GetCurrentTime().ToInternalValue()));
 
   TLOG(logger_, INFO, "Starting with C++ config: %s",
@@ -679,7 +679,7 @@ void InvalidationClientImpl::HandleNetworkStatusChange(bool is_online) {
            config_.offline_heartbeat_threshold_ms()))) {
     TLOG(logger_, INFO,
          "Sending heartbeat after reconnection; previous send was %s ms ago",
-         Int64ToString(
+         SimpleItoa(
              (internal_scheduler_->GetCurrentTime() - last_message_send_time_)
              .InMilliseconds()).c_str());
     SendInfoMessageToServer(

@@ -347,7 +347,9 @@ void ProtocolHandler::SendMessageToServer() {
 
   if (next_message_send_time_ms_ > GetCurrentTimeMs()) {
     TLOG(logger_, WARNING, "In quiet period: not sending message to server: "
-         "%lld > %lld", next_message_send_time_ms_, GetCurrentTimeMs());
+         "%s > %s",
+         SimpleItoa(next_message_send_time_ms_).c_str(),
+         SimpleItoa(GetCurrentTimeMs()).c_str());
     return;
   }
 
