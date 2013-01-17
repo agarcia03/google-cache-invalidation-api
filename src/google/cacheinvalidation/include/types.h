@@ -223,15 +223,6 @@ class Invalidation {
     Init(object_id, version, true);
   }
 
-  /*
-   * Creates an invalidation for the given object, version, and restarted
-   * flag.
-   */
-  Invalidation(const ObjectId& object_id, int64 version,
-               bool is_trickle_restart) {
-    Init(object_id, version, is_trickle_restart);
-  }
-
   /* Creates an invalidation for the given object, version, and payload. */
   Invalidation(const ObjectId& object_id, int64 version,
                const string& payload) {
