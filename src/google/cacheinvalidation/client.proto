@@ -51,3 +51,14 @@ message PersistentStateBlob {
   // Implementation-specific message authentication code for the Ticl state.
   optional bytes authentication_code = 2;
 }
+
+// State of a Ticl RunState.
+message RunStateP {
+  enum State {
+    NOT_STARTED = 1;
+    STARTED = 2;
+    STOPPED = 3;
+  }
+  optional State state = 1;
+}
+
