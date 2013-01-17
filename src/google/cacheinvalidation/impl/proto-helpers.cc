@@ -336,6 +336,7 @@ DEFINE_TO_STRING(InvalidationP) {
   OPTIONAL(object_id);
   OPTIONAL(is_known_version);
   OPTIONAL(version);
+  OPTIONAL(is_trickle_restart);
   OPTIONAL(payload);
   OPTIONAL(bridge_arrival_time_ms)
   END();

@@ -168,6 +168,7 @@ void UnitTestBase::MakeInvalidationsFromObjectIds(
     InvalidationP invalidation;
     invalidation.mutable_object_id()->CopyFrom(object_ids[i]);
     invalidation.set_is_known_version(true);
+    invalidation.set_is_trickle_restart(true);
 
     // Pick an arbitrary version number; it shouldn't really matter, but we
     // try not to make them correlated too much with the object name.
