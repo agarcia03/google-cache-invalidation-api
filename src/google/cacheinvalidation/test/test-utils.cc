@@ -48,7 +48,6 @@ void UnitTestBase::SetUp() {
   reg_summary.reset(new RegistrationSummary());
   InitZeroRegistrationSummary(reg_summary.get());
   InitSystemResources();  // Set up system resources
-  InitCommonExpectations();  // Set up expectations for common mock operations
   message_callback = NULL;
 
   // Start the scheduler and resources.
@@ -57,9 +56,10 @@ void UnitTestBase::SetUp() {
 }
 
 void UnitTestBase::TearDown() {
-  CHECK(message_callback != NULL);
-  delete message_callback;
-  message_callback = NULL;
+  if (message_callback != NULL) {
+    delete message_callback;
+    message_callback = NULL;
+  }
 }
 
 void UnitTestBase::InitSystemResources() {

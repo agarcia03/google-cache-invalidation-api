@@ -129,6 +129,8 @@ class InvalidationClientImplTest : public UnitTestBase {
   // components and setting up common expectations for certain mock objects.
   virtual void SetUp() {
     UnitTestBase::SetUp();
+    InitCommonExpectations();  // Set up expectations for common mock operations
+
 
     // Clear throttle limits so that it does not interfere with any test.
     InvalidationClientImpl::InitConfig(&config);

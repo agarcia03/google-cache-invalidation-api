@@ -45,10 +45,17 @@ using INVALIDATION_STL_NAMESPACE::pair;
 using INVALIDATION_STL_NAMESPACE::set;
 using INVALIDATION_STL_NAMESPACE::string;
 
-/* Representation of a message header for use in a server message. */
+/*
+ * Representation of a message header for use in a server message.
+ */
 struct ServerMessageHeader {
  public:
-  /* Constructs an instance.
+  ServerMessageHeader() {
+  }
+
+  /* Initializes an instance. Note that this call *does not* make copies of
+   * the pointed-to data. Instances are always allocated inside a ParsedMessage,
+   * and the containing ParsedMessage owns the data.
    *
    * Arguments:
    *     init_token - server-sent token.
@@ -56,32 +63,156 @@ struct ServerMessageHeader {
    *     If num_registations is not set, means no registration summary was
    *     received from the server.
    */
-  ServerMessageHeader(const string& init_token,
-                      const RegistrationSummary& init_registration_summary)
-      : token_(init_token) {
-    registration_summary_.CopyFrom(init_registration_summary);
+  void InitFrom(const string* init_token,
+      const RegistrationSummary* init_registration_summary) {
+    token_ = init_token;
+    registration_summary_ = init_registration_summary;
   }
 
   const string& token() const {
-    return token_;
+    return *token_;
   }
 
-  // Returns the registration summary if any. |this| continues to own the space.
+  // Returns the registration summary if any.
   const RegistrationSummary* registration_summary() const {
-    return registration_summary_.has_num_registrations() ?
-        &registration_summary_ : NULL;
+    return registration_summary_;
   }
 
   // Returns a human-readable representation of this object for debugging.
   string ToString() const;
 
+ private:
   // Server-sent token.
-  string token_;
+  const string* token_;
+
   // Summary of the client's registration state at the server.
-  RegistrationSummary registration_summary_;
+  const RegistrationSummary* registration_summary_;
+
+  DISALLOW_COPY_AND_ASSIGN(ServerMessageHeader);
+};
+
+/*
+ * Representation of a message receiver for the server. Such a message is
+ * guaranteed to be valid (i.e. checked by the message validator), but
+ * the session token is NOT checked.
+ */
+struct ParsedMessage {
+ public:
+  ParsedMessage() {
+  }
+
+  ServerMessageHeader header;
+
+  /*
+   * Each of these fields points to a field in the base_message
+   * ServerToClientMessage protobuf. It is non-null iff the corresponding hasYYY
+   * method in the protobuf would return true.
+   */
+  const TokenControlMessage* token_control_message;
+  const InvalidationMessage* invalidation_message;
+  const RegistrationStatusMessage* registration_status_message;
+  const RegistrationSyncRequestMessage* registration_sync_request_message;
+  const ConfigChangeMessage* config_change_message;
+  const InfoRequestMessage* info_request_message;
+  const ErrorMessage* error_message;
+
+  /*
+   * Initializes an instance from a |raw_message|. This function makes a copy of
+   * the message internally.
+   */
+  void InitFrom(const ServerToClientMessage& raw_message);
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ServerMessageHeader);
+  ServerToClientMessage base_message;
+  DISALLOW_COPY_AND_ASSIGN(ParsedMessage);
+};
+
+/*
+ * Class that batches messages to be sent to the data center.
+ */
+class Batcher {
+ public:
+  Batcher(Logger* logger, Statistics* statistics)
+       : logger_(logger),
+         statistics_(statistics),
+         pending_initialize_message_(NULL),
+         pending_info_message_(NULL) {
+  }
+
+  /* Sets the initialize |message| to be sent to the server. */
+  void SetInitializeMessage(const InitializeMessage* message) {
+    pending_initialize_message_.reset(message);
+  }
+
+  /* Sets the info |message| to be sent to the server. */
+  void SetInfoMessage(const InfoMessage* message) {
+    pending_info_message_.reset(message);
+  }
+
+  /* Adds a registration on |object_id| to be sent to the server. */
+  void AddRegistration(const ObjectIdP& object_id,
+                       const RegistrationP::OpType& reg_op_type) {
+    pending_registrations_[object_id] = reg_op_type;
+  }
+
+  /* Adds an acknowledgment of |invalidation| to be sent to the server. */
+  void AddAck(const InvalidationP& invalidation) {
+    pending_acked_invalidations_.insert(invalidation);
+  }
+
+  /* Adds a registration subtree |reg_subtree| to be sent to the server. */
+  void AddRegSubtree(const RegistrationSubtree& reg_subtree) {
+    pending_reg_subtrees_.insert(reg_subtree);
+  }
+
+  /*
+   * Builds a message from the batcher state and resets the batcher. Returns
+   * whether the message could be built.
+   *
+   * Note that the returned message does NOT include a header.
+   */
+  bool ToBuilder(ClientToServerMessage* builder,
+      bool has_client_token);
+
+  /*
+   * Initializes a registration message based on registrations from
+   * |pending_registrations|.
+   *
+   * REQUIRES: pending_registrations.size() > 0
+   */
+  void InitRegistrationMessage(RegistrationMessage* reg_message);
+
+  /* Initializes an invalidation ack message based on acks from
+   * |pending_acked_invalidations|.
+   * <p>
+   * REQUIRES: pending_acked_invalidations.size() > 0
+   */
+  void InitAckMessage(InvalidationMessage* ack_message);
+
+ private:
+  Logger* const logger_;
+
+  Statistics* const statistics_;
+
+  /* Set of pending registrations stored as a map for overriding later
+   * operations.
+   */
+  map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>
+      pending_registrations_;
+
+  /* Set of pending invalidation acks. */
+  set<InvalidationP, ProtoCompareLess> pending_acked_invalidations_;
+
+  /* Set of pending registration sub trees for registration sync. */
+  set<RegistrationSubtree, ProtoCompareLess> pending_reg_subtrees_;
+
+  /* Pending initialization message to send to the server, if any. */
+  scoped_ptr<const InitializeMessage> pending_initialize_message_;
+
+  /* Pending info message to send to the server, if any. */
+  scoped_ptr<const InfoMessage> pending_info_message_;
+
+  DISALLOW_COPY_AND_ASSIGN(Batcher);
 };
 
 /* Listener for protocol events. The protocol client calls these methods when
@@ -96,73 +227,6 @@ class ProtocolListener {
  public:
   ProtocolListener() {}
   virtual ~ProtocolListener() {}
-
-  /* Handles an incoming message from the server. This method may be called in
-   * addition to the handle* methods below - so the listener code should be
-   * prepared for it.
-   *
-   * Arguments:
-   * header - server message header
-   */
-  virtual void HandleIncomingHeader(const ServerMessageHeader& header) = 0;
-
-  /* Handles a token change event from the server.
-   *
-   * Arguments:
-   * header - server message header
-   * new_token - a new token for the client. If NULL, it means destroy the
-   *     token.
-   */
-  virtual void HandleTokenChanged(
-      const ServerMessageHeader& header, const string& new_token) = 0;
-
-  /* Handles invalidations from the server.
-   *
-   * Arguments:
-   * header - server message header
-   */
-  virtual void HandleInvalidations(
-      const ServerMessageHeader& header,
-      const RepeatedPtrField<InvalidationP>& invalidations) = 0;
-
-  /* Handles registration updates from the server.
-   *
-   * Arguments:
-   * header - server message header
-   * reg_status - registration updates
-   */
-  virtual void HandleRegistrationStatus(
-      const ServerMessageHeader& header,
-      const RepeatedPtrField<RegistrationStatus>& reg_status) = 0;
-
-  /* Handles a registration sync request from the server.
-   *
-   * Arguments:
-   * header - server message header.
-   */
-  virtual void HandleRegistrationSyncRequest(
-      const ServerMessageHeader& header) = 0;
-
-  /* Handles an info message from the server.
-   *
-   * Arguments:
-   * header - server message header.
-   * info_types - types of info requested.
-   */
-  virtual void HandleInfoMessage(
-      const ServerMessageHeader& header,
-      const RepeatedField<InfoRequestMessage_InfoType>& info_types) = 0;
-
-  /* Handles an error message from the server.
-   *
-   * Arguments:
-   * code - error reason
-   * description - human-readable description of the error
-   */
-  virtual void HandleErrorMessage(
-      const ServerMessageHeader& header,
-      ErrorMessage::Code code,
-      const string& description) = 0;
 
   /* Records that a message was sent to the server at the current time. */
   virtual void HandleMessageSent() = 0;
@@ -194,7 +258,7 @@ class BatchingTask : public RecurringTask {
   virtual bool RunTask();
 
  private:
-  Throttle* throttle_;
+  ProtocolHandler* protocol_handler_;
 };
 
 /* Parses messages from the server and calls appropriate functions on the
@@ -277,10 +341,20 @@ class ProtocolHandler {
    */
   void SendRegistrationSyncSubtree(const RegistrationSubtree& reg_subtree);
 
- private:
-  /* Handles a message from the server. */
-  void HandleIncomingMessage(const string& incoming_message);
+  /*
+   * Handles a message from the server. If the message can be processed (i.e.,
+   * is valid, is of the right version, and is not a silence message), returns
+   * a ParsedMessage representing it. Otherwise, returns NULL.
+   *
+   * This class intercepts and processes silence messages. In this case, it will
+   * discard any other data in the message.
+   *
+   * Note that this method does not check the session token of any message.
+   */
+  bool HandleIncomingMessage(const string& incoming_message,
+      ParsedMessage* parsed_message);
 
+ private:
   /* Verifies that server_token matches the token currently held by the client.
    */
   bool CheckServerToken(const string& server_token);
@@ -290,28 +364,8 @@ class ProtocolHandler {
    */
   void SendMessageToServer();
 
-  /* Initializes a registration message based on registrations from
-   * |pending_registrations|.
-   *
-   * REQUIRES: pending_registrations.size() > 0
-   */
-  void InitRegistrationMessage(RegistrationMessage* reg_message);
-
-  /* Initializes an invalidation ack message based on acks from
-   * |pending_acked_invalidations|.
-   * <p>
-   * REQUIRES: pending_acked_invalidations.size() > 0
-   */
-  void InitAckMessage(InvalidationMessage* ack_message);
-
   /* Stores the header to include on a message to the server. */
   void InitClientHeader(ClientHeader* header);
-
-  /* Handles inbound messages from the network. */
-  void MessageReceiver(const string& message);
-
-  /* Responds to changes in network connectivity. */
-  void NetworkStatusReceiver(bool status);
 
   // Returns the current time in milliseconds.
   int64 GetCurrentTimeMs() {
@@ -325,16 +379,20 @@ class ProtocolHandler {
 
   // A logger.
   Logger* logger_;
+
   // Scheduler for the client's internal processing.
   Scheduler* internal_scheduler_;
+
   // Network channel for sending and receiving messages to and from the server.
   NetworkChannel* network_;
 
   // A throttler to prevent the client from sending too many messages in a given
   // interval.
   Throttle throttle_;
+
   // The protocol listener.
   ProtocolListener* listener_;
+
   // Checks that messages (inbound and outbound) conform to basic validity
   // constraints.
   TiclMessageValidator* msg_validator_;
@@ -353,26 +411,11 @@ class ProtocolHandler {
    */
   int64 next_message_send_time_ms_;
 
-  /* Set of pending registrations stored as a map for overriding later
-   * operations.
-   */
-  map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>
-      pending_registrations_;
-
-  /* Set of pending invalidation acks. */
-  set<InvalidationP, ProtoCompareLess> pending_acked_invalidations_;
-
-  /* Set of pending registration sub trees for registration sync. */
-  set<RegistrationSubtree, ProtoCompareLess> pending_reg_subtrees_;
-
-  /* Pending initialization message to send to the server, if any. */
-  scoped_ptr<InitializeMessage> pending_initialize_message_;
-
-  /* Pending info message to send to the server, if any. */
-  scoped_ptr<InfoMessage> pending_info_message_;
-
   /* Statistics objects to track number of sent messages, etc. */
   Statistics* statistics_;
+
+  // Batches messages to be sent to the server.
+  Batcher batcher_;
 
   /* Task to send all batched messages to the server. */
   scoped_ptr<BatchingTask> batching_task_;
