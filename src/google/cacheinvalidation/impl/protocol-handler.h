@@ -244,22 +244,8 @@ class ProtocolListener {
   DISALLOW_COPY_AND_ASSIGN(ProtocolListener);
 };
 
-/* The task that is scheduled to send batched messages to the server (when
- * needed).
- */
-class BatchingTask : public RecurringTask {
- public:
-  BatchingTask(ProtocolHandler *handler, Smearer* smearer,
-      TimeDelta batching_delay);
-
-  virtual ~BatchingTask() {}
-
-  // The actual implementation as required by the RecurringTask.
-  virtual bool RunTask();
-
- private:
-  ProtocolHandler* protocol_handler_;
-};
+// Forward-declare the BatchingTask so that send* methods can take it.
+class BatchingTask;
 
 /* Parses messages from the server and calls appropriate functions on the
  * ProtocolListener to handle various types of message content.  Also buffers
@@ -308,11 +294,14 @@ class ProtocolHandler {
    *     backend
    * application_client_id - application-specific client id
    * nonce - nonce for the request
+   * batching_task - recurring task to trigger batching. No ownership taken.
    * debug_string - information to identify the caller
    */
   void SendInitializeMessage(
       const ApplicationClientIdP& application_client_id,
-      const string& nonce, const string& debug_string);
+      const string& nonce,
+      BatchingTask* batching_task,
+      const string& debug_string);
 
   /* Sends an info message to the server with the performance counters supplied
    * in performance_counters and the config supplies in client_config (which
@@ -320,26 +309,39 @@ class ProtocolHandler {
    */
   void SendInfoMessage(const vector<pair<string, int> >& performance_counters,
                        ClientConfigP* client_config,
-                       bool request_server_registration_summary);
+                       bool request_server_registration_summary,
+                       BatchingTask* batching_task);
 
   /* Sends a registration request to the server.
    *
    * Arguments:
    * object_ids - object ids on which to (un)register
    * reg_op_type - whether to register or unregister
+   * batching_task - recurring task to trigger batching. No ownership taken.
    */
   void SendRegistrations(const vector<ObjectIdP>& object_ids,
-                         RegistrationP::OpType reg_op_type);
+                         RegistrationP::OpType reg_op_type,
+                         BatchingTask* batching_task);
 
   /* Sends an acknowledgement for invalidation to the server. */
-  void SendInvalidationAck(const InvalidationP& invalidation);
+  void SendInvalidationAck(const InvalidationP& invalidation,
+                           BatchingTask* batching_task);
 
   /* Sends a single registration subtree to the server.
    *
    * Arguments:
    * reg_subtree - subtree to send
+   * batching_task - recurring task to trigger batching. No ownership taken.
    */
-  void SendRegistrationSyncSubtree(const RegistrationSubtree& reg_subtree);
+  void SendRegistrationSyncSubtree(const RegistrationSubtree& reg_subtree,
+                                   BatchingTask* batching_task);
+
+  /* Sends pending data to the server (e.g., registrations, acks, registration
+   * sync messages).
+   *
+   * REQUIRES: caller do no further work after the method returns.
+   */
+  void SendMessageToServer();
 
   /*
    * Handles a message from the server. If the message can be processed (i.e.,
@@ -352,17 +354,12 @@ class ProtocolHandler {
    * Note that this method does not check the session token of any message.
    */
   bool HandleIncomingMessage(const string& incoming_message,
-      ParsedMessage* parsed_message);
+                             ParsedMessage* parsed_message);
 
  private:
   /* Verifies that server_token matches the token currently held by the client.
    */
   bool CheckServerToken(const string& server_token);
-
-  /* Sends pending data to the server (e.g., registrations, acks, registration
-   * sync messages).
-   */
-  void SendMessageToServer();
 
   /* Stores the header to include on a message to the server. */
   void InitClientHeader(ClientHeader* header);
@@ -373,6 +370,7 @@ class ProtocolHandler {
   }
 
   friend class BatchingTask;
+
   // Information about the client, e.g., application name, OS, etc.
 
   ClientVersion client_version_;
@@ -416,9 +414,6 @@ class ProtocolHandler {
 
   // Batches messages to be sent to the server.
   Batcher batcher_;
-
-  /* Task to send all batched messages to the server. */
-  scoped_ptr<BatchingTask> batching_task_;
 
   DISALLOW_COPY_AND_ASSIGN(ProtocolHandler);
 };

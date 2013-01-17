@@ -62,7 +62,9 @@ bool AcquireTokenTask::RunTask() {
     client_->set_nonce(SimpleItoa(
         client_->internal_scheduler_->GetCurrentTime().ToInternalValue()));
     client_->protocol_handler_.SendInitializeMessage(
-        client_->application_client_id_, client_->nonce_, "AcquireToken");
+        client_->application_client_id_, client_->nonce_,
+        client_->batching_task_.get(),
+        "AcquireToken");
     // Reschedule to check state, retry if necessary after timeout.
     return true;
   } else {
@@ -188,6 +190,21 @@ bool HeartbeatTask::RunTask() {
   return true;  // Reschedule.
 }
 
+BatchingTask::BatchingTask(
+    ProtocolHandler *handler, Smearer* smearer, TimeDelta batching_delay)
+    : RecurringTask(
+        "Batching", handler->internal_scheduler_, handler->logger_, smearer,
+        NULL,  batching_delay, Scheduler::NoDelay()),
+        protocol_handler_(handler) {
+}
+
+bool BatchingTask::RunTask() {
+  // Send message to server - the batching information is picked up in
+  // SendMessageToServer.
+  protocol_handler_->SendMessageToServer();
+  return false;  // Don't reschedule.
+}
+
 InvalidationClientCore::InvalidationClientCore(
     SystemResources* resources, Random* random, int client_type,
     const string& client_name, const ClientConfigP& config,
@@ -229,6 +246,10 @@ void InvalidationClientCore::CreateSchedulingTasks() {
   reg_sync_heartbeat_task_.reset(new RegSyncHeartbeatTask(this));
   persistent_write_task_.reset(new PersistentWriteTask(this));
   heartbeat_task_.reset(new HeartbeatTask(this));
+  batching_task_.reset(new BatchingTask(&protocol_handler_,
+      &smearer_,
+      TimeDelta::FromMilliseconds(
+          config_.protocol_handler_config().batching_delay_ms())));
 }
 
 void InvalidationClientCore::InitConfig(ClientConfigP* config) {
@@ -398,7 +419,8 @@ void InvalidationClientCore::PerformRegisterOperations(
   // Check whether we should suppress sending registrations because we don't
   // yet know the server's summary.
   if (should_send_registrations_ && (!object_id_protos_to_send.empty())) {
-    protocol_handler_.SendRegistrations(object_id_protos_to_send, reg_op_type);
+    protocol_handler_.SendRegistrations(
+        object_id_protos_to_send, reg_op_type, batching_task_.get());
   }
   reg_sync_heartbeat_task_.get()->EnsureScheduled("PerformRegister");
 }
@@ -438,7 +460,7 @@ void InvalidationClientCore::Acknowledge(const AckHandle& acknowledge_handle) {
   invalidation->clear_payload();  // Don't send the payload back.
   statistics_->RecordIncomingOperation(
       Statistics::IncomingOperationType_ACKNOWLEDGE);
-  protocol_handler_.SendInvalidationAck(*invalidation);
+  protocol_handler_.SendInvalidationAck(*invalidation, batching_task_.get());
 }
 
 string InvalidationClientCore::ToString() {
@@ -635,7 +657,7 @@ void InvalidationClientCore::HandleRegistrationSyncRequest() {
   // Generate a single subtree for all the registrations.
   RegistrationSubtree subtree;
   registration_manager_.GetRegistrations("", 0, &subtree);
-  protocol_handler_.SendRegistrationSyncSubtree(subtree);
+  protocol_handler_.SendRegistrationSyncSubtree(subtree, batching_task_.get());
 }
 
 void InvalidationClientCore::HandleInfoMessage(
@@ -822,7 +844,7 @@ void InvalidationClientCore::SendInfoMessageToServer(
     config_to_send = &config_;
   }
   protocol_handler_.SendInfoMessage(performance_counters, config_to_send,
-      request_server_summary);
+      request_server_summary, batching_task_.get());
 }
 
 void InvalidationClientCore::set_nonce(const string& new_nonce) {

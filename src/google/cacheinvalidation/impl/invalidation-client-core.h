@@ -105,6 +105,23 @@ class HeartbeatTask : public RecurringTask {
   Time next_performance_send_time_;
 };
 
+/* The task that is scheduled to send batched messages to the server (when
+ * needed).
+ */
+class BatchingTask : public RecurringTask {
+ public:
+  BatchingTask(ProtocolHandler *handler, Smearer* smearer,
+      TimeDelta batching_delay);
+
+  virtual ~BatchingTask() {}
+
+  // The actual implementation as required by the RecurringTask.
+  virtual bool RunTask();
+
+ private:
+  ProtocolHandler* protocol_handler_;
+};
+
 class InvalidationClientCore : public InvalidationClient,
                                public ProtocolListener {
  public:
@@ -454,6 +471,9 @@ class InvalidationClientCore : public InvalidationClient,
 
   /* A task for periodic heartbeats. */
   scoped_ptr<HeartbeatTask> heartbeat_task_;
+
+  /* Task to send all batched messages to the server. */
+  scoped_ptr<BatchingTask> batching_task_;
 
   /* Random number generator for smearing, exp backoff, etc. */
   scoped_ptr<Random> random_;

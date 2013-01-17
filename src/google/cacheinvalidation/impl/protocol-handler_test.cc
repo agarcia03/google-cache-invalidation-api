@@ -129,6 +129,9 @@ class ProtocolHandlerTest : public UnitTestBase {
         new ProtocolHandler(
             config, resources.get(), smearer.get(), statistics.get(),
             "unit-test", &listener, validator.get()));
+    batching_task.reset(
+        new BatchingTask(protocol_handler.get(), smearer.get(),
+            TimeDelta::FromMilliseconds(config.batching_delay_ms())));
   }
 
   // Configuration for the protocol handler (uses defaults).
@@ -158,6 +161,9 @@ class ProtocolHandlerTest : public UnitTestBase {
 
   // A random number generator.
   scoped_ptr<Random> random;
+
+  // Batching task for the protocol handler.
+  scoped_ptr<BatchingTask> batching_task;
 
   void AddExpectationForHandleMessageSent() {
     EXPECT_CALL(listener, HandleMessageSent());
@@ -211,7 +217,7 @@ TEST_F(ProtocolHandlerTest, SendInitializeOnly) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendInitializeMessage,
-          app_client_id, nonce, "Startup"));
+          app_client_id, nonce, batching_task.get(), "Startup"));
 
   AddExpectationForHandleMessageSent();
   ClientToServerMessage expected_message;
@@ -306,7 +312,7 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendInfoMessage,
-          perf_counters, &client_config, true));
+          perf_counters, &client_config, true, batching_task.get()));
 
   // Synthesize a few test object ids.
   vector<ObjectIdP> oids;
@@ -321,7 +327,7 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendRegistrations,
-          oid_vec, RegistrationP_OpType_REGISTER));
+          oid_vec, RegistrationP_OpType_REGISTER, batching_task.get()));
 
   // Then unregister for the second and third.  This overrides the registration
   // on oids[1].
@@ -332,7 +338,7 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendRegistrations,
-          oid_vec, RegistrationP_OpType_UNREGISTER));
+          oid_vec, RegistrationP_OpType_UNREGISTER, batching_task.get()));
 
   // Send a couple of invalidations.
   vector<InvalidationP> invalidations;
@@ -343,7 +349,7 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
         Scheduler::NoDelay(),
         NewPermanentCallback(
             protocol_handler.get(), &ProtocolHandler::SendInvalidationAck,
-            invalidations[i]));
+            invalidations[i], batching_task.get()));
   }
 
   // Send a simple registration subtree.
@@ -353,7 +359,7 @@ TEST_F(ProtocolHandlerTest, SendMultipleMessageTypes) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendRegistrationSyncSubtree,
-          subtree));
+          subtree, batching_task.get()));
 
   AddExpectationForHandleMessageSent();
 
@@ -584,7 +590,7 @@ TEST_F(ProtocolHandlerTest, ConfigMessage) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(), &ProtocolHandler::SendInfoMessage,
-          empty_vector, NULL, false));
+          empty_vector, NULL, false, batching_task.get()));
 
   // Keep simulating passage of time until just before the quiet period ends.
   // Nothing should be sent.  (The mock network will catch any attempts to send
@@ -646,7 +652,8 @@ TEST_F(ProtocolHandlerTest, TokenMissing) {
       Scheduler::NoDelay(),
       NewPermanentCallback(
           protocol_handler.get(),
-          &ProtocolHandler::SendInfoMessage, empty_vector, NULL, true));
+          &ProtocolHandler::SendInfoMessage, empty_vector, NULL, true,
+          batching_task.get()));
 
   internal_scheduler->PassTime(GetMaxBatchingDelay(config));
 
@@ -670,7 +677,8 @@ TEST_F(ProtocolHandlerTest, InvalidOutboundMessage) {
       NewPermanentCallback(
           protocol_handler.get(),
           &ProtocolHandler::SendInvalidationAck,
-          invalidations[0]));
+          invalidations[0],
+          batching_task.get()));
 
   internal_scheduler->PassTime(GetMaxBatchingDelay(config));
 

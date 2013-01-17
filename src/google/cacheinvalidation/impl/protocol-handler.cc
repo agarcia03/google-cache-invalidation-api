@@ -18,6 +18,7 @@
 
 #include "google/cacheinvalidation/deps/string_util.h"
 #include "google/cacheinvalidation/impl/constants.h"
+#include "google/cacheinvalidation/impl/invalidation-client-core.h"
 #include "google/cacheinvalidation/impl/log-macro.h"
 #include "google/cacheinvalidation/impl/proto-helpers.h"
 #include "google/cacheinvalidation/impl/recurring-task.h"
@@ -35,22 +36,6 @@ using ::ipc::invalidation::RegistrationSyncMessage;
 using ::ipc::invalidation::ServerHeader;
 using ::ipc::invalidation::ServerToClientMessage;
 using ::ipc::invalidation::TokenControlMessage;
-
-BatchingTask::BatchingTask(
-    ProtocolHandler *handler, Smearer* smearer, TimeDelta batching_delay)
-    : RecurringTask(
-        "Batching", handler->internal_scheduler_, handler->logger_, smearer,
-        NULL,  batching_delay, Scheduler::NoDelay()),
-        protocol_handler_(handler) {
-}
-
-bool BatchingTask::RunTask() {
-  // Send message to server - the batching information is picked up in
-  // SendMessageToServer. Go through a throttler to ensure that we obey rate
-  // limits in sending messages.
-  protocol_handler_->SendMessageToServer();
-  return false;  // Don't reschedule.
-}
 
 string ServerMessageHeader::ToString() const {
   return StringPrintf(
@@ -106,9 +91,7 @@ ProtocolHandler::ProtocolHandler(
       last_known_server_time_ms_(0),
       next_message_send_time_ms_(0),
       statistics_(statistics),
-      batcher_(resources->logger(), statistics),
-      batching_task_(new BatchingTask(this, smearer,
-          TimeDelta::FromMilliseconds(config.batching_delay_ms()))) {
+      batcher_(resources->logger(), statistics) {
   // Initialize client version.
   ProtoHelpers::InitClientVersion(resources->platform(), application_name,
       &client_version_);
@@ -221,7 +204,9 @@ bool ProtocolHandler::CheckServerToken(const string& server_token) {
 
 void ProtocolHandler::SendInitializeMessage(
     const ApplicationClientIdP& application_client_id,
-    const string& nonce, const string& debug_string) {
+    const string& nonce,
+    BatchingTask* batching_task,
+    const string& debug_string) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   // Simply store the message in pending_initialize_message_ and send it
@@ -232,13 +217,14 @@ void ProtocolHandler::SendInitializeMessage(
        debug_string.c_str(),
        ProtoHelpers::ToString(*message).c_str());
   batcher_.SetInitializeMessage(message);
-  batching_task_->EnsureScheduled(debug_string);
+  batching_task->EnsureScheduled(debug_string);
 }
 
 void ProtocolHandler::SendInfoMessage(
     const vector<pair<string, int> >& performance_counters,
     ClientConfigP* client_config,
-    bool request_server_registration_summary) {
+    bool request_server_registration_summary,
+    BatchingTask* batching_task) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   // Simply store the message in pending_info_message_ and send it
@@ -265,33 +251,37 @@ void ProtocolHandler::SendInfoMessage(
   TLOG(logger_, INFO, "Batching info message for client: %s",
        ProtoHelpers::ToString(*message).c_str());
   batcher_.SetInfoMessage(message);
-  batching_task_->EnsureScheduled("Send-info");
+  batching_task->EnsureScheduled("Send-info");
 }
 
 void ProtocolHandler::SendRegistrations(
-    const vector<ObjectIdP>& object_ids, RegistrationP::OpType reg_op_type) {
+    const vector<ObjectIdP>& object_ids,
+    RegistrationP::OpType reg_op_type,
+    BatchingTask* batching_task) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   for (size_t i = 0; i < object_ids.size(); ++i) {
     batcher_.AddRegistration(object_ids[i], reg_op_type);
   }
-  batching_task_->EnsureScheduled("Send-registrations");
+  batching_task->EnsureScheduled("Send-registrations");
 }
 
-void ProtocolHandler::SendInvalidationAck(const InvalidationP& invalidation) {
+void ProtocolHandler::SendInvalidationAck(const InvalidationP& invalidation,
+    BatchingTask* batching_task) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   // We could do squelching - we don't since it is unlikely to be too beneficial
   // here.
   batcher_.AddAck(invalidation);
-  batching_task_->EnsureScheduled("Send-ack");
+  batching_task->EnsureScheduled("Send-ack");
 }
 
 void ProtocolHandler::SendRegistrationSyncSubtree(
-    const RegistrationSubtree& reg_subtree) {
+    const RegistrationSubtree& reg_subtree,
+    BatchingTask* batching_task) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   TLOG(logger_, INFO, "Adding subtree: %s",
        ProtoHelpers::ToString(reg_subtree).c_str());
   batcher_.AddRegSubtree(reg_subtree);
-  batching_task_->EnsureScheduled("Send-reg-sync");
+  batching_task->EnsureScheduled("Send-reg-sync");
 }
 
 void ProtocolHandler::SendMessageToServer() {
@@ -331,10 +321,24 @@ void ProtocolHandler::SendMessageToServer() {
   builder.SerializeToString(&serialized);
   network_->SendMessage(serialized);
 
-  // Record that the message was sent. Schedule it as a separate event to avoid
-  // invoking a callback on the Ticl inline.
-  internal_scheduler_->Schedule(Scheduler::NoDelay(), NewPermanentCallback(
-      listener_, &ProtocolListener::HandleMessageSent));
+  // Record that the message was sent. We do this inline to match what the
+  // Java Ticl, which is constrained by Android requirements, does.
+  listener_->HandleMessageSent();
+}
+
+void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
+  CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
+  ProtoHelpers::InitProtocolVersion(builder->mutable_protocol_version());
+  builder->set_client_time_ms(GetCurrentTimeMs());
+  builder->set_message_id(StringPrintf("%d", message_id_));
+  builder->set_max_known_server_time_ms(last_known_server_time_ms_);
+  listener_->GetRegistrationSummary(builder->mutable_registration_summary());
+  const string& client_token = listener_->GetClientToken();
+  if (!client_token.empty()) {
+    TLOG(logger_, FINE, "Sending token on client->server message: %s",
+         ProtoHelpers::ToString(client_token).c_str());
+    builder->set_client_token(client_token);
+  }
 }
 
 bool Batcher::ToBuilder(ClientToServerMessage* builder, bool has_client_token) {
@@ -422,21 +426,6 @@ void Batcher::InitAckMessage(InvalidationMessage* ack_message) {
     ack_message->add_invalidation()->CopyFrom(*iter);
   }
   pending_acked_invalidations_.clear();
-}
-
-void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
-  CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  ProtoHelpers::InitProtocolVersion(builder->mutable_protocol_version());
-  builder->set_client_time_ms(GetCurrentTimeMs());
-  builder->set_message_id(StringPrintf("%d", message_id_++));
-  builder->set_max_known_server_time_ms(last_known_server_time_ms_);
-  listener_->GetRegistrationSummary(builder->mutable_registration_summary());
-  const string& client_token = listener_->GetClientToken();
-  if (!client_token.empty()) {
-    TLOG(logger_, FINE, "Sending token on client->server message: %s",
-         ProtoHelpers::ToString(client_token).c_str());
-    builder->set_client_token(client_token);
-  }
 }
 
 }  // namespace invalidation
