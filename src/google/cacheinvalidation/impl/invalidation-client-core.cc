@@ -722,12 +722,6 @@ void InvalidationClientCore::HandleErrorMessage(
     GetListener()->InformRegistrationFailure(
         this, object_id, false, "Auth error");
   }
-
-  // Schedule the stop on the listener work queue so that it happens after the
-  // inform registration failure calls above
-  resources_->listener_scheduler()->Schedule(
-      Scheduler::NoDelay(),
-      NewPermanentCallback(this, &InvalidationClientCore::Stop));
 }
 
 void InvalidationClientCore::HandleMessageSent() {

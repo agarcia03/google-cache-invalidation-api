@@ -418,8 +418,7 @@ TEST_F(InvalidationClientImplTest, IncomingAuthErrorMessage) {
   EXPECT_CALL(listener, InformRegistrationStatus(Eq(client.get()), Eq(oids[0]),
       InvalidationListener::REGISTERED));
 
-  // Expect error and registration failure from the ticl + a schedule for
-  // ticl.stop.
+  // Expect error and registration failure from the ticl.
   EXPECT_CALL(listener, InformError(Eq(client.get()), _));
   EXPECT_CALL(listener, InformRegistrationFailure(Eq(client.get()), Eq(oids[0]),
       Eq(false), _));
