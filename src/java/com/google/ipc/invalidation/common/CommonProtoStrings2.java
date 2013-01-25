@@ -254,6 +254,9 @@ public class CommonProtoStrings2 {
     builder.append("(Inv: ");
     toCompactString(builder, invalidation.getObjectId());
     builder.append(", ");
+    if (invalidation.getIsTrickleRestart()) {
+      builder.append("<");
+    }
     builder.append(invalidation.getVersion());
     if (invalidation.hasPayload()) {
       builder.append(", P:");

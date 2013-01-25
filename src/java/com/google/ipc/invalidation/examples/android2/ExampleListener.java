@@ -100,6 +100,11 @@ public final class ExampleListener extends AndroidListener {
   }
 
   @Override
+  public void ready(byte[] clientID) {
+    Log.i(TAG, "ready()");
+  }
+
+  @Override
   public void reissueRegistrations(byte[] clientID) {
     Log.i(TAG, "reissueRegistrations()");
     register(clientID, interestingObjects);
@@ -246,8 +251,10 @@ public final class ExampleListener extends AndroidListener {
       List<ObjectId> objectIds = new ArrayList<ObjectId>();
       objectIds.add(objectId);
       if (interestingObjects.contains(objectId)) {
+        Log.i(TAG, "Retrying registration of " + objectId);
         register(clientId, objectIds);
       } else {
+        Log.i(TAG, "Retrying unregistration of " + objectId);
         unregister(clientId, objectIds);
       }
     }
@@ -257,6 +264,20 @@ public final class ExampleListener extends AndroidListener {
   public void informRegistrationStatus(byte[] clientId, ObjectId objectId,
       RegistrationState regState) {
     Log.i(TAG, "informRegistrationStatus");
+
+    List<ObjectId> objectIds = new ArrayList<ObjectId>();
+    objectIds.add(objectId);
+    if (regState == RegistrationState.REGISTERED) {
+      if (!interestingObjects.contains(objectId)) {
+        Log.i(TAG, "Unregistering for object we're no longer interested in");
+        unregister(clientId, objectIds);
+      }
+    } else {
+      if (interestingObjects.contains(objectId)) {
+        Log.i(TAG, "Registering for an object");
+        register(clientId, objectIds);
+      }
+    }
   }
 
   private SharedPreferences getSharedPreferences() {

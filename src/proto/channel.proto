@@ -40,6 +40,7 @@ message NetworkEndpointId {
 
     // Low numbers reserved.
     ANDROID = 113;  // Android delivery service using c2dm / http.
+    LCS = 114;  // Lightweight connection service (Marmoset) channel.
   }
   optional NetworkAddress network_address = 1;
   optional bytes client_address = 2;

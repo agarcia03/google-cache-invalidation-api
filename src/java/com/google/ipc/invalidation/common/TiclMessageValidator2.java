@@ -58,8 +58,6 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ServerHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.Version;
 
-
-
 /**
  * Validator for v2 protocol messages.
  * <p>
@@ -466,5 +464,10 @@ public class TiclMessageValidator2 extends ProtoValidator {
   /** Returns whether {@code invalidation} is valid. */
   public boolean isValid(InvalidationP invalidation) {
     return checkMessage(invalidation, commonMsgInfos.INVALIDATION);
+  }
+
+  /** Returns whether {@code version} is valid. */
+  public boolean isValid(Version version) {
+    return checkMessage(version, commonMsgInfos.VERSION);
   }
 }

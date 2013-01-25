@@ -143,8 +143,7 @@ public abstract class AndroidListener extends IntentService {
   private final InvalidationListener invalidationListener = new InvalidationListener() {
     @Override
     public final void ready(final InvalidationClient client) {
-      // We rely on reissueRegistrations being called by the TICL service after ready().
-      logger.info("ready() upcall received.");
+      AndroidListener.this.ready(state.getClientId().toByteArray());
     }
 
     @Override
@@ -327,6 +326,14 @@ public abstract class AndroidListener extends IntentService {
     Context context = getApplicationContext();
     context.startService(createAcknowledgeIntent(context, ackHandle));
   }
+
+  /**
+   * See specs for {@link InvalidationListener#ready}.
+   *
+   * @param clientId the client identifier that must be passed to {@link #createRegisterIntent}
+   *     and {@link #createUnregisterIntent}
+   */
+  public abstract void ready(byte[] clientId);
 
   /**
    * See specs for {@link InvalidationListener#reissueRegistrations}.
