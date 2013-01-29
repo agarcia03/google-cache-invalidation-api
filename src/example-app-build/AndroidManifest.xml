@@ -69,7 +69,9 @@
       <!-- Normally, Chrome/Android would instantiate the multiplexer service for us. -->
       <!-- GCM multiplexer -->
       <service android:exported="true"
-          android:name="com.google.ipc.invalidation.external.client.contrib.MultiplexingGcmListener"/>
+          android:name="com.google.ipc.invalidation.external.client.contrib.MultiplexingGcmListener">
+        <meta-data android:name="sender_ids" android:value="ipc.invalidation@gmail.com"/>
+      </service>
 
       <!--  multiplexed GCM receiver -->
       <service android:exported="false"

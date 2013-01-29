@@ -226,7 +226,8 @@ public class TiclMessageValidator2 extends ProtoValidator {
             commonMsgInfos.REGISTRATION_SUMMARY),
         FieldInfo.newRequired(ClientHeaderAccessor.CLIENT_TIME_MS),
         FieldInfo.newRequired(ClientHeaderAccessor.MAX_KNOWN_SERVER_TIME_MS),
-        FieldInfo.newOptional(ClientHeaderAccessor.MESSAGE_ID)) {
+        FieldInfo.newOptional(ClientHeaderAccessor.MESSAGE_ID),
+        FieldInfo.newOptional(ClientHeaderAccessor.CLIENT_TYPE)) {
       @Override
       public boolean postValidate(MessageLite message) {
         ClientHeader header = (ClientHeader) message;
