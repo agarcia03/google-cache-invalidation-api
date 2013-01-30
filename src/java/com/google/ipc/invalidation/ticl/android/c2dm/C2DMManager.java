@@ -53,6 +53,9 @@ public class C2DMManager extends IntentService {
   /** Maximum amount of time to wait for manager initialization to complete */
   private static final long MAX_INIT_SECONDS = 30;
 
+  /** Timeout after which wakelocks will be automatically released. */
+  private static final int WAKELOCK_TIMEOUT_MS = 30 * 1000;
+
   /**
    * The action of intents sent from the android c2dm framework regarding registration
    */
@@ -191,7 +194,7 @@ public class C2DMManager extends IntentService {
   
   static void runIntentInService(Context context, Intent intent) {
     // This is called from C2DMBroadcastReceiver and C2DMessaging, there is no init.
-    WakeLockManager.getInstance(context).acquire(C2DMManager.class);
+    WakeLockManager.getInstance(context).acquire(C2DMManager.class, WAKELOCK_TIMEOUT_MS);
     intent.setClassName(context, C2DMManager.class.getCanonicalName());
     context.startService(intent);
   }
@@ -434,7 +437,7 @@ public class C2DMManager extends IntentService {
     if (observer.isHandleWakeLock()) {
       // Set the extra so the observer knows that it needs to release the wake lock
       intent.putExtra(C2DMessaging.EXTRA_RELEASE_WAKELOCK, true);
-      wakeLockManager.acquire(observer.getObserverClass());
+      wakeLockManager.acquire(observer.getObserverClass(), WAKELOCK_TIMEOUT_MS);
     }
     context.startService(intent);
   }

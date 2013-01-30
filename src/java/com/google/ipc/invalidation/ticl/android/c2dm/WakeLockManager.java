@@ -19,6 +19,7 @@ package com.google.ipc.invalidation.ticl.android.c2dm;
 import com.google.common.base.Preconditions;
 
 import android.content.Context;
+import android.os.Build;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.util.Log;
@@ -38,6 +39,13 @@ public class WakeLockManager {
 
   /** Lock over all state. Must be acquired by all non-private methods. */
   private static final Object LOCK = new Object();
+
+  /**
+   * SDK_INT version taken from android.BUILD.VERSION_CODE.ICE_CREAM_SANDWICH. We cannot reference
+   * the field directly because if it is not inlined by the Java compiler, it will not be available
+   * in the earlier versions of Android for which the version check in acquire() exists.
+   */
+  private static final int ICE_CREAM_SANDWICH_VERSION_CODE = 14;
 
   /** Singleton instance. */
   private static WakeLockManager theManager;
@@ -72,18 +80,6 @@ public class WakeLockManager {
   }
 
   /**
-   * Acquires a wake lock identified by the {@code key}.
-   */
-  public void acquire(Object key) {
-    synchronized (LOCK) {
-      cleanup();
-      Preconditions.checkNotNull(key, "Key can not be null");
-      log(key, "acquiring");
-      getWakeLock(key).acquire();
-    }
-  }
-
-  /**
    * Acquires a wake lock identified by the {@code key} that will be automatically released after at
    * most {@code timeoutMs}.
    */
@@ -91,8 +87,17 @@ public class WakeLockManager {
     synchronized (LOCK) {
       cleanup();
       Preconditions.checkNotNull(key, "Key can not be null");
-      log(key, "acquiring with timeout " + timeoutMs);
-      getWakeLock(key).acquire(timeoutMs);
+
+      // Prior to ICS, acquiring a lock with a timeout and then explicitly releasing the lock
+      // results in runtime errors. We rely on the invalidation system correctly releasing locks
+      // rather than defensively requesting a timeout.
+      if (Build.VERSION.SDK_INT >= ICE_CREAM_SANDWICH_VERSION_CODE) {
+        log(key, "acquiring with timeout " + timeoutMs);
+        getWakeLock(key).acquire(timeoutMs);
+      } else {
+        log(key, "acquiring");
+        getWakeLock(key).acquire();
+      }
     }
   }
 
