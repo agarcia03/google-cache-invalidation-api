@@ -14,12 +14,11 @@
 
 // Useful utility functions for the TICL
 
-#include "google/cacheinvalidation/impl/proto-helpers.h"
-
 #include <sstream>
 
 #include "google/cacheinvalidation/client_test_internal.pb.h"
 #include "google/cacheinvalidation/deps/string_util.h"
+#include "google/cacheinvalidation/impl/proto-helpers.h"
 
 namespace invalidation {
 
@@ -64,7 +63,7 @@ using ::ipc::invalidation::RegistrationManagerStateP;
 
 // Expands to a default case branch that returns the string representation of
 // |message|.
-#define ENUM_UNKNOWN() default: return SimpleItoa(message)
+#define ENUM_UNKNOWN() default: return IntToString(message)
 
 DEFINE_TO_STRING(bool) {
   return message ? "true" : "false";
@@ -336,9 +335,7 @@ DEFINE_TO_STRING(InvalidationP) {
   OPTIONAL(object_id);
   OPTIONAL(is_known_version);
   OPTIONAL(version);
-  OPTIONAL(is_trickle_restart);
   OPTIONAL(payload);
-  OPTIONAL(bridge_arrival_time_ms)
   END();
 }
 

@@ -475,7 +475,7 @@ public abstract class InvalidationClientCore extends InternalBase
     this.registrationManager = new RegistrationManager(logger, statistics, digestFn,
         regManagerState);
     this.protocolHandler = new ProtocolHandler(config.getProtocolHandlerConfig(), resources,
-        smearer, statistics, clientType, applicationName, this, msgValidator, protocolHandlerState);
+        smearer, statistics, applicationName, this, msgValidator, protocolHandlerState);
   }
 
   /**
@@ -1133,20 +1133,12 @@ public abstract class InvalidationClientCore extends InternalBase
   private void handleTokenChanged(ByteString headerToken, final ByteString newToken) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
 
-    // The server is either supplying a new token in response to an InitializeMessage, spontaneously
-    // destroying a token we hold, or spontaneously upgrading a token we hold.
-
+    // If we have a new token, then we know that the nonce matched. Accept the token and clear
+    // the nonce.
     if (newToken != null) {
-      // Note: headerToken cannot be null, so a null nonce or clientToken will always be non-equal.
-      boolean headerTokenMatchesNonce = TypedUtil.<ByteString>equals(headerToken, nonce);
-      boolean headerTokenMatchesExistingToken =
-          TypedUtil.<ByteString>equals(headerToken, clientToken);
-      boolean shouldAcceptToken = headerTokenMatchesNonce || headerTokenMatchesExistingToken;
-      if (!shouldAcceptToken) {
-        logger.info("Ignoring new token; %s does not match nonce = %s or existing token = %s",
-            newToken, nonce, clientToken);
-        return;
-      }
+      Preconditions.checkArgument(TypedUtil.<ByteString>equals(headerToken, nonce),
+          "Provided with new token and mismatched nonce: header = %s, nonce = %s",
+          headerToken, nonce);
       logger.info("New token being assigned at client: %s, Old = %s",
           CommonProtoStrings2.toLazyCompactString(newToken),
           CommonProtoStrings2.toLazyCompactString(clientToken));

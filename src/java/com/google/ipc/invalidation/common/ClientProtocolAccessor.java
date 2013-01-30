@@ -250,8 +250,7 @@ public class ClientProtocolAccessor {
         "registration_summary",
         "client_time_ms",
         "max_known_server_time_ms",
-        "message_id",
-        "client_type"
+        "message_id"
       ));
     
     public static final Descriptor PROTOCOL_VERSION = new Descriptor("protocol_version");
@@ -260,7 +259,6 @@ public class ClientProtocolAccessor {
     public static final Descriptor CLIENT_TIME_MS = new Descriptor("client_time_ms");
     public static final Descriptor MAX_KNOWN_SERVER_TIME_MS = new Descriptor("max_known_server_time_ms");
     public static final Descriptor MESSAGE_ID = new Descriptor("message_id");
-    public static final Descriptor CLIENT_TYPE = new Descriptor("client_type");
     
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
@@ -286,9 +284,6 @@ public class ClientProtocolAccessor {
       }
       if (field == MESSAGE_ID) {
         return message.hasMessageId();
-      }
-      if (field == CLIENT_TYPE) {
-        return message.hasClientType();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }
@@ -317,9 +312,6 @@ public class ClientProtocolAccessor {
       }
       if (field == MESSAGE_ID) {
         return message.getMessageId();
-      }
-      if (field == CLIENT_TYPE) {
-        return message.getClientType();
       }
       throw new IllegalArgumentException("Bad descriptor: " + field);
     }

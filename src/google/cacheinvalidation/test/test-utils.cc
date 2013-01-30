@@ -48,6 +48,7 @@ void UnitTestBase::SetUp() {
   reg_summary.reset(new RegistrationSummary());
   InitZeroRegistrationSummary(reg_summary.get());
   InitSystemResources();  // Set up system resources
+  InitCommonExpectations();  // Set up expectations for common mock operations
   message_callback = NULL;
 
   // Start the scheduler and resources.
@@ -56,10 +57,9 @@ void UnitTestBase::SetUp() {
 }
 
 void UnitTestBase::TearDown() {
-  if (message_callback != NULL) {
-    delete message_callback;
-    message_callback = NULL;
-  }
+  CHECK(message_callback != NULL);
+  delete message_callback;
+  message_callback = NULL;
 }
 
 void UnitTestBase::InitSystemResources() {
@@ -168,7 +168,6 @@ void UnitTestBase::MakeInvalidationsFromObjectIds(
     InvalidationP invalidation;
     invalidation.mutable_object_id()->CopyFrom(object_ids[i]);
     invalidation.set_is_known_version(true);
-    invalidation.set_is_trickle_restart(true);
 
     // Pick an arbitrary version number; it shouldn't really matter, but we
     // try not to make them correlated too much with the object name.

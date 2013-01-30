@@ -58,6 +58,8 @@ import com.google.protos.ipc.invalidation.ClientProtocol.ServerHeader;
 import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.Version;
 
+
+
 /**
  * Validator for v2 protocol messages.
  * <p>
@@ -226,8 +228,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
             commonMsgInfos.REGISTRATION_SUMMARY),
         FieldInfo.newRequired(ClientHeaderAccessor.CLIENT_TIME_MS),
         FieldInfo.newRequired(ClientHeaderAccessor.MAX_KNOWN_SERVER_TIME_MS),
-        FieldInfo.newOptional(ClientHeaderAccessor.MESSAGE_ID),
-        FieldInfo.newOptional(ClientHeaderAccessor.CLIENT_TYPE)) {
+        FieldInfo.newOptional(ClientHeaderAccessor.MESSAGE_ID)) {
       @Override
       public boolean postValidate(MessageLite message) {
         ClientHeader header = (ClientHeader) message;
@@ -465,10 +466,5 @@ public class TiclMessageValidator2 extends ProtoValidator {
   /** Returns whether {@code invalidation} is valid. */
   public boolean isValid(InvalidationP invalidation) {
     return checkMessage(invalidation, commonMsgInfos.INVALIDATION);
-  }
-
-  /** Returns whether {@code version} is valid. */
-  public boolean isValid(Version version) {
-    return checkMessage(version, commonMsgInfos.VERSION);
   }
 }

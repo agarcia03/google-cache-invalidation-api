@@ -37,13 +37,11 @@ void ProtoConverter::ConvertFromInvalidationProto(
     const InvalidationP& invalidation_proto, Invalidation* invalidation) {
   ObjectId object_id;
   ConvertFromObjectIdProto(invalidation_proto.object_id(), &object_id);
-  bool is_trickle_restart = invalidation_proto.is_trickle_restart();
   if (invalidation_proto.has_payload()) {
     invalidation->Init(object_id, invalidation_proto.version(),
-                       invalidation_proto.payload(), is_trickle_restart);
+                       invalidation_proto.payload());
   } else {
-    invalidation->Init(object_id, invalidation_proto.version(),
-                       is_trickle_restart);
+    invalidation->Init(object_id, invalidation_proto.version());
   }
 }
 
@@ -55,8 +53,6 @@ void ProtoConverter::ConvertToInvalidationProto(
   if (invalidation.has_payload()) {
     invalidation_proto->set_payload(invalidation.payload());
   }
-  bool is_trickle_restart = invalidation.is_trickle_restart_for_internal_use();
-  invalidation_proto->set_is_trickle_restart(is_trickle_restart);
 }
 
 }  // namespace invalidation

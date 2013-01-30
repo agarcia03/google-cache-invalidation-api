@@ -192,13 +192,8 @@ message InvalidationP {
   // Whether the object's Trickle is restarting at this version.
   //  sets this value to true to inform Trickle API clients that it may
   // have dropped invalidations prior to "version", or, if is_known_version is
-  // false, prior to the current backend version. This field is logically
-  // required and is always set by current code. The default is true because
-  // old Android invalidation clients strip this field when acking
-  // invalidations due to ProtoLite limitations; true is the correct default
-  // because invalidation clients logically ack all current versions and
-  // because old persisted invalidations are all restarted.
-  optional bool is_trickle_restart = 6 [default = true];
+  // false, prior to the current backend version.
+  optional bool is_trickle_restart = 6 [default = false];
 
   // Optional payload associated with this invalidation.
   optional bytes payload = 4;
@@ -287,10 +282,6 @@ message ClientHeader {
 
   // Message id to identify the message -for debugging/monitoring purposes.
   optional string message_id = 6;
-
-  // Client typecode (as in the InitializeMessage, below). This field may or
-  // may not be set.
-  optional int32 client_type = 7;
 }
 
 // A message from the client to the server.

@@ -33,7 +33,7 @@ public class CommonInvalidationConstants2 {
   public static final int CLIENT_MAJOR_VERSION = 3;
 
   /** Minor version of the client library. */
-  public static final int CLIENT_MINOR_VERSION = 3;
+  public static final int CLIENT_MINOR_VERSION = 2;
 
   /** Major version of the protocol between the client and the server. */
   public static final int PROTOCOL_MAJOR_VERSION = 3;
