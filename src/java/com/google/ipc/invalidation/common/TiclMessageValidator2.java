@@ -471,4 +471,9 @@ public class TiclMessageValidator2 extends ProtoValidator {
   public boolean isValid(Version version) {
     return checkMessage(version, commonMsgInfos.VERSION);
   }
+
+  /** Returns the {@code MessageInfo} for a {@link ServerToClientMessage}. */
+  public MessageInfo getServerToClientMessageInfo() {
+    return serverMsgInfos.SERVER_MSG;
+  }
 }
