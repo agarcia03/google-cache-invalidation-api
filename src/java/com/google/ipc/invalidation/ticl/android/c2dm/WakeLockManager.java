@@ -17,12 +17,13 @@
 package com.google.ipc.invalidation.ticl.android.c2dm;
 
 import com.google.common.base.Preconditions;
+import com.google.ipc.invalidation.external.client.SystemResources.Logger;
+import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 
 import android.content.Context;
 import android.os.Build;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
-import android.util.Log;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -34,8 +35,8 @@ import java.util.Map;
  * equivalent number of times.
  */
 public class WakeLockManager {
-  /** Logging tag. */
-  private static final String TAG = "WakeLockMgr";
+  /** Logger. */
+  private static final Logger logger = AndroidLogger.forTag("WakeLockMgr");
 
   /** Lock over all state. Must be acquired by all non-private methods. */
   private static final Object LOCK = new Object();
@@ -112,7 +113,7 @@ public class WakeLockManager {
 
       // If the lock is not held, this is a bogus release.
       if (!wakelock.isHeld()) {
-        Log.w(TAG, "Over-release of wakelock: " + key);
+        logger.warning("Over-release of wakelock: %s", key);
         return;
       }
       // We hold the lock, so we can safely release it.
@@ -196,7 +197,7 @@ public class WakeLockManager {
       Map.Entry<Object, WakeLock> wakeLockEntry = wakeLockIter.next();
       if (!wakeLockEntry.getValue().isHeld()) {
         // Warn and remove the entry from the map if the lock is not held.
-        Log.w(TAG, "Found un-held wakelock '" + wakeLockEntry.getKey() + "' -- timed-out?");
+        logger.warning("Found un-held wakelock '%s' -- timed-out?", wakeLockEntry.getKey());
         wakeLockIter.remove();
       }
     }
@@ -204,7 +205,6 @@ public class WakeLockManager {
 
   /** Logs a debug message that {@code action} has occurred for {@code key}. */
   private static void log(Object key, String action) {
-    // TODO: revert to using  logging.
-    Log.d(TAG, "WakeLock " + action + " for key: {" + key + "}");
+    logger.fine("WakeLock %s for key: {%s}", action, key);
   }
 }
