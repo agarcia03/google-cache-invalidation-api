@@ -36,6 +36,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.PropertyRecord;
 import com.google.protos.ipc.invalidation.ClientProtocol.RateLimitP;
+import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatus;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationStatusMessage;
@@ -49,6 +50,7 @@ import com.google.protos.ipc.invalidation.ClientProtocol.StatusP;
 import com.google.protos.ipc.invalidation.ClientProtocol.TokenControlMessage;
 import com.google.protos.ipc.invalidation.ClientProtocol.Version;
 
+import java.util.Collection;
 import java.util.List;
 
 
@@ -233,6 +235,14 @@ public class CommonProtos2 {
             .build();
   }
 
+  public static RegistrationStatus newTransientFailureRegistrationStatus(
+      RegistrationP registration, String description) {
+    return RegistrationStatus.newBuilder()
+            .setRegistration(registration)
+            .setStatus(newFailureStatus(true, description))
+            .build();
+  }
+
   public static PersistentTiclState newPersistentTiclState(ByteString clientToken,
       long lastMessageSendTimeMs) {
     return PersistentTiclState.newBuilder()
@@ -407,6 +417,26 @@ public class CommonProtos2 {
         .setNetworkAddress(networkAddr)
         .setClientAddress(clientAddr)
         .build();
+  }
+
+  public static TokenControlMessage newTokenControlMessage(ByteString newToken) {
+    TokenControlMessage.Builder builder = TokenControlMessage.newBuilder();
+    if (newToken != null) {
+      builder.setNewToken(newToken);
+    }
+    return builder.build();
+  }
+
+  public static RegistrationStatusMessage newRegistrationStatusMessage(
+      Collection<RegistrationStatus> statuses) {
+    Preconditions.checkArgument(!statuses.isEmpty(), "Empty statuses");
+    return RegistrationStatusMessage.newBuilder().addAllRegistrationStatus(statuses).build();
+  }
+
+  public static RegistrationMessage newRegistrationMessage(
+      Collection<RegistrationP> registrations) {
+    Preconditions.checkArgument(!registrations.isEmpty(), "Empty registrations");
+    return RegistrationMessage.newBuilder().addAllRegistration(registrations).build();
   }
 
   private CommonProtos2() { // To prevent instantiation

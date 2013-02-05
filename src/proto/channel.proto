@@ -52,7 +52,7 @@ message ServerToClientMetadata {
   // Whether this message contains retried invalidations being sent from the
   // server to the client. If the client is an Android device, then the gateway
   // will request that GCM send this message durably, rather than in
-  // a best-effort, delivery-if-online-only manner.
+  // a best-effort, deliver-if-online-and-non-idle-only manner.
   optional bool contains_retried_invalidations = 1;
 
   // Whether this message contains control traffic from the server
