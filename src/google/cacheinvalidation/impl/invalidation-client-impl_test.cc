@@ -58,16 +58,6 @@ using ::testing::SetArgPointee;
 using ::testing::StrictMock;
 using ::testing::proto::WhenDeserializedAs;
 
-// Creates an action InvokeAndDeleteClosure<k> that invokes the kth closure and
-// deletes it after the Run method has been called.
-ACTION_TEMPLATE(
-    InvokeAndDeleteClosure,
-    HAS_1_TEMPLATE_PARAMS(int, k),
-    AND_0_VALUE_PARAMS()) {
-  std::tr1::get<k>(args)->Run();
-  delete std::tr1::get<k>(args);
-}
-
 // Creates an action SaveArgToVector<k>(vector*) that saves the kth argument in
 // |vec|.
 ACTION_TEMPLATE(
@@ -90,35 +80,6 @@ ACTION(InvokeWriteCallbackSuccess) {
   arg2->Run(Status(Status::SUCCESS, ""));
   delete arg2;
 }
-
-// A mock of the InvalidationListener interface.
-class MockInvalidationListener : public InvalidationListener {
- public:
-  MOCK_METHOD1(Ready, void(InvalidationClient*));  // NOLINT
-
-  MOCK_METHOD3(Invalidate,
-      void(InvalidationClient *, const Invalidation&,  // NOLINT
-           const AckHandle&));  // NOLINT
-
-  MOCK_METHOD3(InvalidateUnknownVersion,
-               void(InvalidationClient *, const ObjectId&,
-                    const AckHandle&));  // NOLINT
-
-  MOCK_METHOD2(InvalidateAll,
-      void(InvalidationClient *, const AckHandle&));  // NOLINT
-
-  MOCK_METHOD3(InformRegistrationStatus,
-      void(InvalidationClient*, const ObjectId&, RegistrationState));  // NOLINT
-
-  MOCK_METHOD4(InformRegistrationFailure,
-      void(InvalidationClient*, const ObjectId&, bool, const string&));
-
-  MOCK_METHOD3(ReissueRegistrations,
-      void(InvalidationClient*, const string&, int));
-
-  MOCK_METHOD2(InformError,
-      void(InvalidationClient*, const ErrorInfo&));
-};
 
 // Tests the basic functionality of the invalidation client.
 class InvalidationClientImplTest : public UnitTestBase {

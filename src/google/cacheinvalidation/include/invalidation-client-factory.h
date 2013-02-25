@@ -82,7 +82,7 @@ class InvalidationClientConfig {
  * Arguments:
  *   resources SystemResources to use for logging, scheduling, persistence,
  *       and network connectivity
- *   config configuration provided by the applicaiton
+ *   config configuration provided by the application
  *   listener callback object for invalidation events
  */
 InvalidationClient* CreateInvalidationClient(

@@ -283,6 +283,7 @@ class InvalidationClientCore : public InvalidationClient,
   // Friend classes so that they can access the scheduler, logger, smearer, etc.
   friend class AcquireTokenTask;
   friend class HeartbeatTask;
+  friend class InvalidationClientFactoryTest;
   friend class PersistentWriteTask;
   friend class RegSyncHeartbeatTask;
 

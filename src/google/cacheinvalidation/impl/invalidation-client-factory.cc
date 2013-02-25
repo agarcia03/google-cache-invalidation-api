@@ -20,16 +20,16 @@ namespace invalidation {
 
 InvalidationClient* CreateInvalidationClient(
     SystemResources* resources,
-    const InvalidationClientConfig* config,
+    const InvalidationClientConfig& config,
     InvalidationListener* listener) {
   ClientConfigP client_config;
   InvalidationClientCore::InitConfig(&client_config);
-  client_config.set_allow_suppression(config->allow_suppression());
+  client_config.set_allow_suppression(config.allow_suppression());
   Random* random = new Random(InvalidationClientUtil::GetCurrentTimeMs(
               resources->internal_scheduler()));
   return new InvalidationClientImpl(
-      resources, random, config->client_type(), config->client_name(),
-      client_config, config->application_name(), listener);
+      resources, random, config.client_type(), config.client_name(),
+      client_config, config.application_name(), listener);
 }
 
 // Deprecated, please the factory function that takes an
@@ -40,11 +40,9 @@ InvalidationClient* CreateInvalidationClient(
     const string& client_name,
     const string& application_name,
     InvalidationListener* listener) {
-  return CreateInvalidationClient(resources,
-      new InvalidationClientConfig(
-          client_type, client_name, application_name,
-          true /* allowSuppression*/),
-      listener);
+  InvalidationClientConfig config(
+      client_type, client_name, application_name, true /* allowSuppression*/);
+  return CreateInvalidationClient(resources, config, listener);
 }
 
 InvalidationClient* CreateInvalidationClientForTest(
