@@ -555,11 +555,25 @@ void InvalidationClientCore::HandleTokenChanged(
     const string& header_token, const string& new_token) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
+  // The server is either supplying a new token in response to an
+  // InitializeMessage, spontaneously destroying a token we hold, or
+  // spontaneously upgrading a token we hold.
+
   if (!new_token.empty()) {
-    // Assign a new token.
-    CHECK(header_token == nonce_)
-        << "Provided with new token and mismatched nonce: header = "
-        << header_token << "; nonce = " << nonce_;
+    // Note: header_token cannot be empty, so an empty nonce or client_token will
+    // always be non-equal.
+    bool header_token_matches_nonce = header_token == nonce_;
+    bool header_token_matches_existing_token = header_token == client_token_;
+    bool should_accept_token =
+        header_token_matches_nonce || header_token_matches_existing_token;
+    if (!should_accept_token) {
+      TLOG(logger_, INFO, "Ignoring new token; %s does not match nonce = %s "
+           "or existing token = %s",
+           ProtoHelpers::ToString(new_token).c_str(),
+           ProtoHelpers::ToString(nonce_).c_str(),
+           ProtoHelpers::ToString(client_token_).c_str());
+      return;
+    }
     TLOG(logger_, INFO, "New token being assigned at client: %s, Old = %s",
         ProtoHelpers::ToString(new_token).c_str(),
         ProtoHelpers::ToString(client_token_).c_str());
