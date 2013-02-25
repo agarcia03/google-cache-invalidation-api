@@ -413,11 +413,6 @@ TEST_F(InvalidationClientImplTest, IncomingAuthErrorMessage) {
   InitTestObjectIds(num_objects, &oid_protos);
   ConvertFromObjectIdProtos(oid_protos, &oids);
 
-  // Expect success for the registration below since the client calls
-  // immediately with success.
-  EXPECT_CALL(listener, InformRegistrationStatus(Eq(client.get()), Eq(oids[0]),
-      InvalidationListener::REGISTERED));
-
   // Expect error and registration failure from the ticl.
   EXPECT_CALL(listener, InformError(Eq(client.get()), _));
   EXPECT_CALL(listener, InformRegistrationFailure(Eq(client.get()), Eq(oids[0]),
@@ -451,11 +446,6 @@ TEST_F(InvalidationClientImplTest, NetworkTimeouts) {
   vector<ObjectId> oids;
   InitTestObjectIds(num_objects, &oid_protos);
   ConvertFromObjectIdProtos(oid_protos, &oids);
-
-  // Expect success for the registration below since the client calls
-  // immediately with success.
-  EXPECT_CALL(listener, InformRegistrationStatus(Eq(client.get()), Eq(oids[0]),
-      InvalidationListener::REGISTERED));
 
   // Start the client.
   StartClient();
