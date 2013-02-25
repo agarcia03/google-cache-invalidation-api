@@ -196,7 +196,7 @@ DEFINE_VALIDATOR(InvalidationP) {
   REQUIRE(version);
   NON_NEGATIVE(version);
   ALLOW(payload);
-  ALLOW(bridge_arrival_time_ms)
+  ALLOW(bridge_arrival_time_ms_deprecated)
 }
 
 DEFINE_VALIDATOR(RegistrationP) {

@@ -190,13 +190,10 @@ message InvalidationP {
   // Optional payload associated with this invalidation.
   optional bytes payload = 4;
 
-  // The time when the bridge created this invalidation, in milliseconds.
-  // This is expressed as ms since 00:00:00 UTC, 1 January 1970
-  // (i.e., the UNIX epoch). If the client associated with this is offline,
-  // this will be cleared in the registrar.  This field should be ignored when
-  // comparing two InvalidationP's to see if they represent the same
-  // invalidation.
-  optional int64 bridge_arrival_time_ms = 5;
+  // DEPRECATED: bridge arrival time is now maintained by
+  // InvalidationMetadataP in the SourcedInvalidation, InvalidationContents and
+  // ClientInvalidation containers.
+  optional int64 bridge_arrival_time_ms_deprecated = 5  [deprecated=true];
 }
 
 // Specifies the intention to change a registration on a specific object.  To
