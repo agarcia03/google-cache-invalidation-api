@@ -128,7 +128,7 @@ class ProtocolHandlerTest : public UnitTestBase {
     protocol_handler.reset(
         new ProtocolHandler(
             config, resources.get(), smearer.get(), statistics.get(),
-            "unit-test", &listener, validator.get()));
+            ClientType_Type_TEST, "unit-test", &listener, validator.get()));
     batching_task.reset(
         new BatchingTask(protocol_handler.get(), smearer.get(),
             TimeDelta::FromMilliseconds(config.batching_delay_ms())));

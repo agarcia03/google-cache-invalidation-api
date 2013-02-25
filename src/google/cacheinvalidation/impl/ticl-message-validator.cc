@@ -223,6 +223,7 @@ DEFINE_VALIDATOR(ClientHeader) {
   REQUIRE(client_time_ms);
   REQUIRE(max_known_server_time_ms);
   ALLOW(message_id);
+  ALLOW(client_type);
 }
 
 DEFINE_VALIDATOR(ApplicationClientIdP) {

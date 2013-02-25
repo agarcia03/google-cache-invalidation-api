@@ -274,6 +274,10 @@ message ClientHeader {
 
   // Message id to identify the message -for debugging/monitoring purposes.
   optional string message_id = 6;
+
+  // Client typecode (as in the InitializeMessage, below). This field may or
+  // may not be set.
+  optional int32 client_type = 7;
 }
 
 // A message from the client to the server.

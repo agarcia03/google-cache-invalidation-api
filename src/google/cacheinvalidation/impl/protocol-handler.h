@@ -259,6 +259,7 @@ class ProtocolHandler {
    * resources - resources to use
    * smearer - a smearer to randomize delays
    * statistics - track information about messages sent/received, etc
+   * client_type - client typecode
    * application_name - name of the application using the library (for
    *     debugging/monitoring)
    * listener - callback for protocol events
@@ -268,7 +269,8 @@ class ProtocolHandler {
   ProtocolHandler(const ProtocolHandlerConfigP& config,
                   SystemResources* resources,
                   Smearer* smearer, Statistics* statistics,
-                  const string& application_name, ProtocolListener* listener,
+                  int client_type, const string& application_name,
+                  ProtocolListener* listener,
                   TiclMessageValidator* msg_validator);
 
   /* Initializes |config| with default protocol handler config parameters. */
@@ -414,6 +416,9 @@ class ProtocolHandler {
 
   // Batches messages to be sent to the server.
   Batcher batcher_;
+
+  // Type code for the client.
+  int client_type_;
 
   DISALLOW_COPY_AND_ASSIGN(ProtocolHandler);
 };

@@ -220,7 +220,8 @@ InvalidationClientCore::InvalidationClientCore(
       msg_validator_(new TiclMessageValidator(logger_)),
       smearer_(random, config.smear_percent()),
       protocol_handler_(config.protocol_handler_config(), resources, &smearer_,
-          statistics_.get(), application_name, this, msg_validator_.get()),
+          statistics_.get(), client_type, application_name, this,
+          msg_validator_.get()),
       is_online_(true),
       random_(random) {
   storage_.get()->SetSystemResources(resources_);
