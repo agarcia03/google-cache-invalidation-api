@@ -20,6 +20,7 @@
 
 #include <string>
 
+#include "google/cacheinvalidation/include/types.h"
 #include "google/cacheinvalidation/include/invalidation-listener.h"
 #include "google/cacheinvalidation/include/system-resources.h"
 #include "google/cacheinvalidation/deps/stl-namespace.h"
@@ -28,8 +29,88 @@ namespace invalidation {
 
 using INVALIDATION_STL_NAMESPACE::string;
 
+/* Application-provided configuration for an invalidation client. */
+class InvalidationClientConfig {
+ public:
+  /* Constructs an InvalidationClientConfig instance.
+   *
+   * Arguments:
+   *   client_type Client type code as assigned by the notification system's
+   *      backend.
+   *   client_name Id/name of the client in the application's own naming
+   *      scheme.
+   *   application_name Name of the application using the library (for
+   *      debugging/monitoring)
+   *   allow_suppression If false, invalidateUnknownVersion() is called
+   *      whenever suppression occurs.
+   */
+  InvalidationClientConfig(int client_type,
+                           const string& client_name,
+                           const string& application_name,
+                           bool allow_suppression) :
+      client_type_(client_type), client_name_(client_name),
+      application_name_(application_name),
+      allow_suppression_(allow_suppression) {
+  }
+
+  int32 client_type() const {
+    return client_type_;
+  }
+
+  const string& client_name() const {
+    return client_name_;
+  }
+
+  const string& application_name() const {
+    return application_name_;
+  }
+
+  bool allow_suppression() const {
+    return allow_suppression_;
+  }
+
+ private:
+  const int32 client_type_;
+  const string client_name_;
+  const string application_name_;
+  const bool allow_suppression_;
+};
+
 /* Constructs an invalidation client library instance with a default
  * configuration. Caller owns returned space.
+ *
+ * Arguments:
+ *   resources SystemResources to use for logging, scheduling, persistence,
+ *       and network connectivity
+ *   config configuration provided by the applicaiton
+ *   listener callback object for invalidation events
+ */
+InvalidationClient* CreateInvalidationClient(
+    SystemResources* resources,
+    const InvalidationClientConfig& config,
+    InvalidationListener* listener);
+
+/* Constructs an invalidation client library instance with a configuration
+ * initialized for testing. Caller owns returned space.
+ *
+ * Arguments:
+ *   resources SystemResources to use for logging, scheduling, persistence,
+ *       and network connectivity
+ *   client_type client type code as assigned by the notification system's
+ *       backend
+ *   client_name id/name of the client in the application's own naming scheme
+ *   application_name name of the application using the library (for
+ *       debugging/monitoring)
+ *   listener callback object for invalidation events
+ */
+InvalidationClient* CreateInvalidationClientForTest(
+    SystemResources* resources,
+    const InvalidationClientConfig& config,
+    InvalidationListener* listener);
+
+/* Constructs an invalidation client library instance with a default
+ * configuration. Deprecated, please use the version which takes an
+ * InvalidationClientConfig. Caller owns returned space.
  *
  * Arguments:
  *   resources SystemResources to use for logging, scheduling, persistence,
@@ -49,7 +130,8 @@ InvalidationClient* CreateInvalidationClient(
     InvalidationListener* listener);
 
 /* Constructs an invalidation client library instance with a configuration
- * initialized for testing. Caller owns returned space.
+ * initialized for testing. Deprecated, please use the version which takes an
+ * InvalidationClientConfig. Caller owns returned space.
  *
  * Arguments:
  *   resources SystemResources to use for logging, scheduling, persistence,

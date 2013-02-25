@@ -557,6 +557,13 @@ message ClientConfigP {
   // comes online, unless it had already sent a message more recently than this
   // threshold.
   optional int32 offline_heartbeat_threshold_ms = 12 [default = 60000];
+
+  // Whether the client allows suppression. If true (the default), then
+  // both continuous and restarted invalidations result in an invalidate()
+  // upcall, which is appropriate for invalidation clients. If false,
+  // then restarted invalidations result in an invalidateUnknownVersion()
+  // upcall, which provides correct semantics for Trickles clients.
+  optional bool allow_suppression = 13 [default = true];
 }
 
 // A message asking the client to change its configuration parameters

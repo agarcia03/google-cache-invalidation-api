@@ -613,9 +613,14 @@ void InvalidationClientCore::HandleInvalidations(
       // Regular object. Could be unknown version or not.
       Invalidation inv;
       ProtoConverter::ConvertFromInvalidationProto(invalidation, &inv);
+      bool isSuppressed = invalidation.is_trickle_restart();
       TLOG(logger_, INFO, "Issuing invalidate: %s",
            ProtoHelpers::ToString(invalidation).c_str());
-      if (invalidation.is_known_version()) {
+
+      // Issue invalidate if the invalidation had a known version AND either
+      // no suppression has occurred or the client allows suppression.
+      if (invalidation.is_known_version() &&
+          (!isSuppressed || config_.allow_suppression())) {
         GetListener()->Invalidate(this, inv, ack_handle);
       } else {
         // Unknown version

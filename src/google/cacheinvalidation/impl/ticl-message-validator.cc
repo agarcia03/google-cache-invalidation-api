@@ -281,6 +281,7 @@ DEFINE_VALIDATOR(ClientConfigP) {
   ALLOW(channel_supports_offline_delivery);
   REQUIRE(protocol_handler_config);
   ALLOW(offline_heartbeat_threshold_ms);
+  ALLOW(allow_suppression);
 }
 
 DEFINE_VALIDATOR(InfoMessage) {
