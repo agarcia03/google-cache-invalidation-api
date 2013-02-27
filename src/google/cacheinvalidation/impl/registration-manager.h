@@ -96,8 +96,8 @@ class RegistrationManager {
   void RemoveRegisteredObjects(vector<ObjectIdP>* result) {
     // Add the formerly desired- and pending- registrations to result.
     desired_registrations_->RemoveAll(result);
-    map<ObjectIdP, RegistrationP::OpType>::iterator pending_iter =
-        pending_operations_.begin();
+    map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>::iterator
+        pending_iter = pending_operations_.begin();
     for (; pending_iter != pending_operations_.end(); pending_iter++) {
       result->push_back(pending_iter->first);
     }
@@ -136,8 +136,8 @@ class RegistrationManager {
       // If we are now in sync with the server, then the caller should make
       // inform-reg-status upcalls for all operations that we had pending, if
       // any; they are also no longer pending.
-      map<ObjectIdP, RegistrationP::OpType>::iterator pending_iter =
-          pending_operations_.begin();
+      map<ObjectIdP, RegistrationP::OpType, ProtoCompareLess>::iterator
+          pending_iter = pending_operations_.begin();
       for (; pending_iter != pending_operations_.end(); pending_iter++) {
         RegistrationP reg_p;
         ProtoHelpers::InitRegistrationP(pending_iter->first,
