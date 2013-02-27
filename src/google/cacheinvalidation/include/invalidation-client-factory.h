@@ -76,37 +76,44 @@ class InvalidationClientConfig {
   const bool allow_suppression_;
 };
 
-/* Constructs an invalidation client library instance with a default
- * configuration. Caller owns returned space.
- *
- * Arguments:
- *   resources SystemResources to use for logging, scheduling, persistence,
- *       and network connectivity
- *   config configuration provided by the application
- *   listener callback object for invalidation events
- */
-InvalidationClient* CreateInvalidationClient(
-    SystemResources* resources,
-    const InvalidationClientConfig& config,
-    InvalidationListener* listener);
+// A class for new factory methods.  These methods will be static, so this class
+// is essentially just a namespace.  This is more consistent with how the
+// factory works in other languages, and it avoids overload issues with the old
+// methods defined below.
+class ClientFactory {
+ public:
+  /* Constructs an invalidation client library instance with a default
+   * configuration. Caller owns returned space.
+   *
+   * Arguments:
+   *   resources SystemResources to use for logging, scheduling, persistence,
+   *       and network connectivity
+   *   config configuration provided by the application
+   *   listener callback object for invalidation events
+   */
+  static InvalidationClient* Create(
+      SystemResources* resources,
+      const InvalidationClientConfig& config,
+      InvalidationListener* listener);
 
-/* Constructs an invalidation client library instance with a configuration
- * initialized for testing. Caller owns returned space.
- *
- * Arguments:
- *   resources SystemResources to use for logging, scheduling, persistence,
- *       and network connectivity
- *   client_type client type code as assigned by the notification system's
- *       backend
- *   client_name id/name of the client in the application's own naming scheme
- *   application_name name of the application using the library (for
- *       debugging/monitoring)
- *   listener callback object for invalidation events
- */
-InvalidationClient* CreateInvalidationClientForTest(
-    SystemResources* resources,
-    const InvalidationClientConfig& config,
-    InvalidationListener* listener);
+  /* Constructs an invalidation client library instance with a configuration
+   * initialized for testing. Caller owns returned space.
+   *
+   * Arguments:
+   *   resources SystemResources to use for logging, scheduling, persistence,
+   *       and network connectivity
+   *   client_type client type code as assigned by the notification system's
+   *       backend
+   *   client_name id/name of the client in the application's own naming scheme
+   *   application_name name of the application using the library (for
+   *       debugging/monitoring)
+   *   listener callback object for invalidation events
+   */
+  static InvalidationClient* CreateForTest(
+      SystemResources* resources,
+      const InvalidationClientConfig& config,
+      InvalidationListener* listener);
+};
 
 /* Constructs an invalidation client library instance with a default
  * configuration. Deprecated, please use the version which takes an

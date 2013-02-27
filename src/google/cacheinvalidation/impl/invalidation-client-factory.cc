@@ -18,7 +18,7 @@
 
 namespace invalidation {
 
-InvalidationClient* CreateInvalidationClient(
+InvalidationClient* ClientFactory::Create(
     SystemResources* resources,
     const InvalidationClientConfig& config,
     InvalidationListener* listener) {
@@ -42,22 +42,22 @@ InvalidationClient* CreateInvalidationClient(
     InvalidationListener* listener) {
   InvalidationClientConfig config(
       client_type, client_name, application_name, true /* allowSuppression*/);
-  return CreateInvalidationClient(resources, config, listener);
+  return ClientFactory::Create(resources, config, listener);
 }
 
-InvalidationClient* CreateInvalidationClientForTest(
+InvalidationClient* ClientFactory::CreateForTest(
     SystemResources* resources,
-    const InvalidationClientConfig* config,
+    const InvalidationClientConfig& config,
     InvalidationListener* listener) {
   // Make a config with test params and construct an instance to return.
   ClientConfigP client_config;
   InvalidationClientCore::InitConfigForTest(&client_config);
-  client_config.set_allow_suppression(config->allow_suppression());
+  client_config.set_allow_suppression(config.allow_suppression());
   Random* random = new Random(InvalidationClientUtil::GetCurrentTimeMs(
               resources->internal_scheduler()));
   return new InvalidationClientImpl(
-      resources, random, config->client_type(), config->client_name(),
-      client_config, config->application_name(), listener);
+      resources, random, config.client_type(), config.client_name(),
+      client_config, config.application_name(), listener);
 }
 
 InvalidationClient* CreateInvalidationClientForTest(
@@ -66,9 +66,10 @@ InvalidationClient* CreateInvalidationClientForTest(
     const string& client_name,
     const string& application_name,
     InvalidationListener* listener) {
-  return CreateInvalidationClientForTest(resources,
-      new InvalidationClientConfig(client_type, client_name, application_name,
-          true /* allowSuppression */),
+  return ClientFactory::CreateForTest(
+      resources,
+      InvalidationClientConfig(client_type, client_name, application_name,
+                               true /* allowSuppression */),
       listener);
 }
 

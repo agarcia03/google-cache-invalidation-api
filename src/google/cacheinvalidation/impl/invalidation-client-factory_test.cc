@@ -53,16 +53,16 @@ class InvalidationClientFactoryTest : public UnitTestBase {
 
   // Creates a client with the given value for allowSuppression.
   // The caller owns the storage.
-  InvalidationClientImpl* createClient(bool allowSuppression) {
+  InvalidationClientImpl* CreateClient(bool allowSuppression) {
     InvalidationClientConfig config(ClientType_Type_TEST,
         CLIENT_NAME, APPLICATION_NAME, allowSuppression);
     return static_cast<InvalidationClientImpl*>(
-        CreateInvalidationClient(resources.get(), config, &listener));
+        ClientFactory::Create(resources.get(), config, &listener));
   }
 
   // Verifies that a client has expected values for allowing suppression
   // and application client id.
-  void checkClientValid(const InvalidationClientImpl* client,
+  void CheckClientValid(const InvalidationClientImpl* client,
                         bool allowSuppression) {
     // Check that the the allow suppression flag was correctly set to
     // the expected value.
@@ -94,21 +94,21 @@ TEST_F(InvalidationClientFactoryTest, TestCreateClient) {
           CLIENT_NAME,
           APPLICATION_NAME,
           &listener)));
-  checkClientValid(client.get(), true /* allowSuppression */);
+  CheckClientValid(client.get(), true /* allowSuppression */);
 }
 
-// Tests createClient with allowSuppression = false.
+// Tests CreateClient with allowSuppression = false.
 TEST_F(InvalidationClientFactoryTest, TestCreateClientForTrickles) {
   bool allowSuppression = false;
-  client.reset(createClient(allowSuppression));
-  checkClientValid(client.get(), allowSuppression);
+  client.reset(CreateClient(allowSuppression));
+  CheckClientValid(client.get(), allowSuppression);
 }
 
-// Tests createClient with allowSuppression = true.
+// Tests CreateClient with allowSuppression = true.
 TEST_F(InvalidationClientFactoryTest, testCreateClientForInvalidation) {
   bool allowSuppression = true;
-  client.reset(createClient(allowSuppression));
-  checkClientValid(client.get(), allowSuppression);
+  client.reset(CreateClient(allowSuppression));
+  CheckClientValid(client.get(), allowSuppression);
 }
 
 }  // namespace invalidation
