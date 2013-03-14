@@ -557,6 +557,9 @@ public abstract class AndroidListener extends IntentService {
         getClient().register(objectId);
       }
     } else {
+      // Remove the object ID from the desired registration collection so that subsequent attempts
+      // to re-register are not ignored.
+      state.removeDesiredRegistration(objectId);
       getClient().unregister(objectId);
     }
   }

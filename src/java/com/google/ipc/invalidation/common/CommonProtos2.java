@@ -127,16 +127,11 @@ public class CommonProtos2 {
 
   public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
       TrickleState trickleState) {
-    return newInvalidationP(oid, version, trickleState, null, null);
+    return newInvalidationP(oid, version, trickleState, null);
   }
 
   public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
       TrickleState trickleState, ByteString payload) {
-    return newInvalidationP(oid, version, trickleState, payload, null);
-  }
-
-  public static InvalidationP newInvalidationP(ObjectIdP oid, long version,
-      TrickleState trickleState, ByteString payload, Long bridgeArrivalTimeMs) {
     InvalidationP.Builder builder = InvalidationP.newBuilder()
         .setObjectId(oid)
         .setIsKnownVersion(true)
@@ -144,9 +139,6 @@ public class CommonProtos2 {
         .setIsTrickleRestart(trickleState == TrickleState.RESTART);
     if (payload != null) {
       builder.setPayload(payload);
-    }
-    if (bridgeArrivalTimeMs != null) {
-      builder.setBridgeArrivalTimeMs(bridgeArrivalTimeMs);
     }
     return builder.build();
   }

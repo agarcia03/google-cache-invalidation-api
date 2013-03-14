@@ -123,7 +123,7 @@ public class TiclMessageValidator2 extends ProtoValidator {
         FieldInfo.newRequired(InvalidationPAccessor.VERSION),
         FieldInfo.newOptional(InvalidationPAccessor.PAYLOAD),
         FieldInfo.newOptional(InvalidationPAccessor.IS_TRICKLE_RESTART),
-        FieldInfo.newOptional(InvalidationPAccessor.BRIDGE_ARRIVAL_TIME_MS)) {
+        FieldInfo.newOptional(InvalidationPAccessor.BRIDGE_ARRIVAL_TIME_MS_DEPRECATED)) {
       @Override
       public boolean postValidate(MessageLite message) {
         // Must have non-negative version.
@@ -202,7 +202,8 @@ public class TiclMessageValidator2 extends ProtoValidator {
         FieldInfo.newOptional(ClientConfigPAccessor.CHANNEL_SUPPORTS_OFFLINE_DELIVERY),
         FieldInfo.newRequired(ClientConfigPAccessor.PROTOCOL_HANDLER_CONFIG,
             PROTOCOL_HANDLER_CONFIG),
-        FieldInfo.newOptional(ClientConfigPAccessor.OFFLINE_HEARTBEAT_THRESHOLD_MS)
+        FieldInfo.newOptional(ClientConfigPAccessor.OFFLINE_HEARTBEAT_THRESHOLD_MS),
+        FieldInfo.newOptional(ClientConfigPAccessor.ALLOW_SUPPRESSION)
         );
 
     private CommonMsgInfos() {

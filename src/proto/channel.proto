@@ -32,8 +32,6 @@ option java_outer_classname = "Channel";
 
 
 
-import "channel_common.proto";
-
 message NetworkEndpointId {
   enum NetworkAddress {
     TEST = 1;  // A delivery service for testing
@@ -44,48 +42,4 @@ message NetworkEndpointId {
   }
   optional NetworkAddress network_address = 1;
   optional bytes client_address = 2;
-}
-
-// Metadata about a message being sent from the server to the client. Used to
-// control how it is sent over the channel from the gateway to the client.
-message ServerToClientMetadata {
-  // Whether this message contains retried invalidations being sent from the
-  // server to the client. If the client is an Android device, then the gateway
-  // will request that GCM send this message durably, rather than in
-  // a best-effort, deliver-if-online-and-non-idle-only manner.
-  optional bool contains_retried_invalidations = 1;
-
-  // Whether this message contains control traffic from the server
-  // (session token assignments, registration statuses, etc). If so, and the
-  // client is an Android client, the gateway will request that GCM deliver
-  // the message if the client is reachable, even if the client is also
-  // idle. This is in contrast to invalidation-only messages, which can be
-  // delayed.
-  optional bool contains_control_traffic = 2;
-}
-
-// Message sent from the client to the server and vice-versa via the
-// delivery service.
-message AddressedMessage {
-  // The encoding type for the network_message field.
-  optional ChannelMessageEncoding.MessageEncoding encoding = 1;
-
-  // Authenticated user identifier.
-  optional bytes auth_user_id = 2;
-
-  // Network id for the client
-  optional NetworkEndpointId client_network_id = 3;
-
-  // ClientToServerMessage or ServerToClientMessage.
-  optional bytes network_message = 4;
-
-  // (For debugging) Caller's info, e.g., task address
-  optional string caller_info = 5;
-
-  // For server to client messages, additional metadata for use by the gateway.
-  optional ServerToClientMetadata server_to_client_metadata = 6;
-}
-
-// Response to AddressedMessage
-message AddressedMessageResponse {
 }

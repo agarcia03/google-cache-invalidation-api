@@ -108,8 +108,7 @@ public class ProtoConverter {
     // true.
     return CommonProtos2.newInvalidationP(objectId, invalidation.getVersion(),
         TrickleState.fromBoolean(invalidation.getIsTrickleRestartForInternalUse()),
-        invalidation.getPayload() == null ? null : ByteString.copyFrom(invalidation.getPayload()),
-        null);
+        invalidation.getPayload() == null ? null : ByteString.copyFrom(invalidation.getPayload()));
   }
 
   private ProtoConverter() { // To prevent instantiation.
