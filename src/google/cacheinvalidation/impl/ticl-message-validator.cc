@@ -196,6 +196,7 @@ DEFINE_VALIDATOR(InvalidationP) {
   REQUIRE(version);
   NON_NEGATIVE(version);
   ALLOW(payload);
+  ALLOW(bridge_arrival_time_ms)
 }
 
 DEFINE_VALIDATOR(RegistrationP) {
@@ -222,7 +223,6 @@ DEFINE_VALIDATOR(ClientHeader) {
   REQUIRE(client_time_ms);
   REQUIRE(max_known_server_time_ms);
   ALLOW(message_id);
-  ALLOW(client_type);
 }
 
 DEFINE_VALIDATOR(ApplicationClientIdP) {
@@ -280,7 +280,6 @@ DEFINE_VALIDATOR(ClientConfigP) {
   ALLOW(channel_supports_offline_delivery);
   REQUIRE(protocol_handler_config);
   ALLOW(offline_heartbeat_threshold_ms);
-  ALLOW(allow_suppression);
 }
 
 DEFINE_VALIDATOR(InfoMessage) {

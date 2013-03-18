@@ -39,12 +39,6 @@ RegistrationManager::RegistrationManager(
 void RegistrationManager::PerformOperations(
     const vector<ObjectIdP>& object_ids, RegistrationP::OpType reg_op_type,
     vector<ObjectIdP>* oids_to_send) {
-  // Record that we have pending operations on the objects.
-  vector<ObjectIdP>::const_iterator iter = object_ids.begin();
-  for (; iter != object_ids.end(); iter++) {
-    pending_operations_[*iter] = reg_op_type;
-  }
-  // Update the digest appropriately.
   if (reg_op_type == RegistrationP_OpType_REGISTER) {
     desired_registrations_->Add(object_ids, oids_to_send);
   } else {
@@ -75,12 +69,6 @@ void RegistrationManager::HandleRegistrationStatus(
     const ObjectIdP& object_id_proto =
         registration_status.registration().object_id();
 
-    // The object is no longer pending, since we have received a server status
-    // for it, so remove it from the pendingOperations map. (It may or may not
-    // have existed in the map, since we can receive spontaneous status messages
-    // from the server.)
-    pending_operations_.erase(object_id_proto);
-
     // We start off with the local-processing set as success, then potentially
     // fail.
     bool is_success = true;
@@ -88,27 +76,28 @@ void RegistrationManager::HandleRegistrationStatus(
     // if the server operation succeeded, then local processing fails on
     // "incompatibility" as defined above.
     if (registration_status.status().code() == StatusP_Code_SUCCESS) {
-      bool app_wants_registration =
+      bool in_requested_map =
           desired_registrations_->Contains(object_id_proto);
-      bool is_op_registration =
+      bool is_register =
           (registration_status.registration().op_type() ==
            RegistrationP_OpType_REGISTER);
-      bool discrepancy_exists = is_op_registration ^ app_wants_registration;
+      bool discrepancy_exists = is_register ^ in_requested_map;
       if (discrepancy_exists) {
-        // Remove the registration and set isSuccess to false, which will cause
-        // the caller to issue registration-failure to the application.
+        // Just remove the registration and issue registration failure.
+        // Caller must issue registration failure to the app so that we find
+        // out the actual state of the registration.
         desired_registrations_->Remove(object_id_proto);
         statistics_->RecordError(
             Statistics::ClientErrorType_REGISTRATION_DISCREPANCY);
         TLOG(logger_, INFO,
              "Ticl discrepancy detected: registered = %d, requested = %d. "
              "Removing %s from requested",
-             is_op_registration, app_wants_registration,
+             is_register, in_requested_map,
              ProtoHelpers::ToString(object_id_proto).c_str());
         is_success = false;
       }
     } else {
-      // If the server operation failed, then local processing also fails.
+      // If the server operation failed, then local processing fails.
       desired_registrations_->Remove(object_id_proto);
       TLOG(logger_, FINE, "Removing %s from committed",
            ProtoHelpers::ToString(object_id_proto).c_str());

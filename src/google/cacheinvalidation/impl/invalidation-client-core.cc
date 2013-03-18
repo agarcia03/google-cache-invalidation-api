@@ -220,8 +220,7 @@ InvalidationClientCore::InvalidationClientCore(
       msg_validator_(new TiclMessageValidator(logger_)),
       smearer_(random, config.smear_percent()),
       protocol_handler_(config.protocol_handler_config(), resources, &smearer_,
-          statistics_.get(), client_type, application_name, this,
-          msg_validator_.get()),
+          statistics_.get(), application_name, this, msg_validator_.get()),
       is_online_(true),
       random_(random) {
   storage_.get()->SetSystemResources(resources_);
@@ -401,6 +400,13 @@ void InvalidationClientCore::PerformRegisterOperations(
     TLOG(logger_, INFO, "Register %s, %d",
          ProtoHelpers::ToString(object_id_proto).c_str(), reg_op_type);
     object_id_protos.push_back(object_id_proto);
+
+    // Inform immediately of success so that the application is informed even if
+    // the reply message from the server is lost. When we get a real ack from
+    // the server, we do not need to inform the application.
+    InvalidationListener::RegistrationState reg_state =
+        ConvertOpTypeToRegState(reg_op_type);
+    GetListener()->InformRegistrationStatus(this, object_id, reg_state);
   }
 
 
@@ -548,25 +554,11 @@ void InvalidationClientCore::HandleTokenChanged(
     const string& header_token, const string& new_token) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
-  // The server is either supplying a new token in response to an
-  // InitializeMessage, spontaneously destroying a token we hold, or
-  // spontaneously upgrading a token we hold.
-
   if (!new_token.empty()) {
-    // Note: header_token cannot be empty, so an empty nonce or client_token will
-    // always be non-equal.
-    bool header_token_matches_nonce = header_token == nonce_;
-    bool header_token_matches_existing_token = header_token == client_token_;
-    bool should_accept_token =
-        header_token_matches_nonce || header_token_matches_existing_token;
-    if (!should_accept_token) {
-      TLOG(logger_, INFO, "Ignoring new token; %s does not match nonce = %s "
-           "or existing token = %s",
-           ProtoHelpers::ToString(new_token).c_str(),
-           ProtoHelpers::ToString(nonce_).c_str(),
-           ProtoHelpers::ToString(client_token_).c_str());
-      return;
-    }
+    // Assign a new token.
+    CHECK(header_token == nonce_)
+        << "Provided with new token and mismatched nonce: header = "
+        << header_token << "; nonce = " << nonce_;
     TLOG(logger_, INFO, "New token being assigned at client: %s, Old = %s",
         ProtoHelpers::ToString(new_token).c_str(),
         ProtoHelpers::ToString(client_token_).c_str());
@@ -606,14 +598,9 @@ void InvalidationClientCore::HandleInvalidations(
       // Regular object. Could be unknown version or not.
       Invalidation inv;
       ProtoConverter::ConvertFromInvalidationProto(invalidation, &inv);
-      bool isSuppressed = invalidation.is_trickle_restart();
       TLOG(logger_, INFO, "Issuing invalidate: %s",
            ProtoHelpers::ToString(invalidation).c_str());
-
-      // Issue invalidate if the invalidation had a known version AND either
-      // no suppression has occurred or the client allows suppression.
-      if (invalidation.is_known_version() &&
-          (!isSuppressed || config_.allow_suppression())) {
+      if (invalidation.is_known_version()) {
         GetListener()->Invalidate(this, inv, ack_handle);
       } else {
         // Unknown version
@@ -646,20 +633,16 @@ void InvalidationClientCore::HandleRegistrationStatus(
     ObjectId object_id;
     ProtoConverter::ConvertFromObjectIdProto(
         reg_status.registration().object_id(), &object_id);
-    if (was_success) {
-      // Server operation was both successful and agreed with what the client
-      // wanted.
-      RegistrationP::OpType reg_op_type = reg_status.registration().op_type();
-      InvalidationListener::RegistrationState reg_state =
-          ConvertOpTypeToRegState(reg_op_type);
-      GetListener()->InformRegistrationStatus(this, object_id, reg_state);
-    } else {
-      // Server operation either failed or disagreed with client's intent (e.g.,
-      // successful unregister, but the client wanted a registration).
+    // Only inform in the case of failure since the success path has already
+    // been dealt with (the ticl issued informRegistrationStatus immediately
+    // after receiving the register/unregister call).
+    if (!was_success) {
       string description =
           (reg_status.status().code() == StatusP_Code_SUCCESS) ?
               "Registration discrepancy detected" :
               reg_status.status().description();
+
+      // Note "success" shows up as transient failure in this scenario.
       bool is_permanent =
           (reg_status.status().code() == StatusP_Code_PERMANENT_FAILURE);
       GetListener()->InformRegistrationFailure(
@@ -803,28 +786,8 @@ void InvalidationClientCore::HandleIncomingHeader(
     // We've received a summary from the server, so if we were suppressing
     // registrations, we should now allow them to go to the registrar.
     should_send_registrations_ = true;
-
-
-    // Pass the registration summary to the registration manager. If we are now
-    // in agreement with the server and we had any pending operations, we can
-    // tell the listener that those operations have succeeded.
-    vector<RegistrationP> upcalls;
     registration_manager_.InformServerRegistrationSummary(
-        *header.registration_summary(), &upcalls);
-    TLOG(logger_, FINE,
-        "Receivced new server registration summary (%s); will make %d upcalls",
-         ProtoHelpers::ToString(*header.registration_summary()).c_str(),
-         upcalls.size());
-    vector<RegistrationP>::iterator iter;
-    for (iter = upcalls.begin(); iter != upcalls.end(); iter++) {
-      const RegistrationP& registration = *iter;
-      ObjectId object_id;
-      ProtoConverter::ConvertFromObjectIdProto(registration.object_id(),
-                                               &object_id);
-      InvalidationListener::RegistrationState reg_state =
-          ConvertOpTypeToRegState(registration.op_type());
-      GetListener()->InformRegistrationStatus(this, object_id, reg_state);
-    }
+        *header.registration_summary());
   }
 }
 
@@ -864,9 +827,7 @@ bool InvalidationClientCore::ValidateToken(const string& server_token) {
 
 void InvalidationClientCore::SendInfoMessageToServer(
     bool must_send_performance_counters, bool request_server_summary) {
-  TLOG(logger_, INFO,
-       "Sending info message to server; request server summary = %s",
-       request_server_summary ? "true" : "false");
+  TLOG(logger_, INFO, "Sending info message to server");
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
 
   // Make sure that you have the latest registration summary.

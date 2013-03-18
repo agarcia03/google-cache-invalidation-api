@@ -20,7 +20,7 @@
 namespace invalidation {
 
 const int Constants::kClientMajorVersion = 3;
-const int Constants::kClientMinorVersion = 3;
+const int Constants::kClientMinorVersion = 2;
 const int Constants::kProtocolMajorVersion = 3;
 const int Constants::kProtocolMinorVersion = 2;
 const int Constants::kConfigMajorVersion = 3;

@@ -78,9 +78,8 @@ void ParsedMessage::InitFrom(const ServerToClientMessage& raw_message) {
 
 ProtocolHandler::ProtocolHandler(
     const ProtocolHandlerConfigP& config, SystemResources* resources,
-    Smearer* smearer, Statistics* statistics, int client_type,
-    const string& application_name, ProtocolListener* listener,
-    TiclMessageValidator* msg_validator)
+    Smearer* smearer, Statistics* statistics, const string& application_name,
+    ProtocolListener* listener, TiclMessageValidator* msg_validator)
     : logger_(resources->logger()),
       internal_scheduler_(resources->internal_scheduler()),
       network_(resources->network()),
@@ -92,8 +91,7 @@ ProtocolHandler::ProtocolHandler(
       last_known_server_time_ms_(0),
       next_message_send_time_ms_(0),
       statistics_(statistics),
-      batcher_(resources->logger(), statistics),
-      client_type_(client_type) {
+      batcher_(resources->logger(), statistics) {
   // Initialize client version.
   ProtoHelpers::InitClientVersion(resources->platform(), application_name,
       &client_version_);
@@ -210,14 +208,6 @@ void ProtocolHandler::SendInitializeMessage(
     BatchingTask* batching_task,
     const string& debug_string) {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-
-  if (application_client_id.client_type() != client_type_) {
-    // This condition is not fatal, but it probably represents a bug somewhere
-    // if it occurs.
-    TLOG(logger_, WARNING, "Client type in application id does not match "
-         "constructor-provided type: %s vs %s",
-         ProtoHelpers::ToString(application_client_id).c_str(), client_type_);
-  }
 
   // Simply store the message in pending_initialize_message_ and send it
   // when the batching task runs.
@@ -342,7 +332,6 @@ void ProtocolHandler::InitClientHeader(ClientHeader* builder) {
   builder->set_client_time_ms(GetCurrentTimeMs());
   builder->set_message_id(StringPrintf("%d", message_id_));
   builder->set_max_known_server_time_ms(last_known_server_time_ms_);
-  builder->set_client_type(client_type_);
   listener_->GetRegistrationSummary(builder->mutable_registration_summary());
   const string& client_token = listener_->GetClientToken();
   if (!client_token.empty()) {

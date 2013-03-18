@@ -338,6 +338,7 @@ DEFINE_TO_STRING(InvalidationP) {
   OPTIONAL(version);
   OPTIONAL(is_trickle_restart);
   OPTIONAL(payload);
+  OPTIONAL(bridge_arrival_time_ms)
   END();
 }
 
