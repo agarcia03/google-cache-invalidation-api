@@ -22,6 +22,7 @@
 #include "google/cacheinvalidation/client.pb.h"
 #include "google/cacheinvalidation/deps/logging.h"
 #include "google/cacheinvalidation/deps/mutex.h"
+#include "google/cacheinvalidation/deps/string_util.h"
 
 namespace invalidation {
 
@@ -70,6 +71,10 @@ class RunState {
     // Don't treat locking a mutex as mutation.
     MutexLock m((Mutex *) &lock_);  // NOLINT
     return current_state_ == RunStateP_State_STOPPED;
+  }
+
+  string ToString() {
+    return StringPrintf("<RunState %d>", current_state_);
   }
 
  private:

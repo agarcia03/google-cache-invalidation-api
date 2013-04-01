@@ -268,7 +268,12 @@ void InvalidationClientCore::InitConfigForTest(ClientConfigP* config) {
 
 void InvalidationClientCore::Start() {
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
-  CHECK(!ticl_state_.IsStarted()) << "Already started";
+  if (ticl_state_.IsStarted()) {
+    TLOG(logger_, SEVERE,
+         "Ignoring start call since already started: client = %s",
+         this->ToString().c_str());
+    return;
+  }
 
   // Initialize the nonce so that we can maintain the invariant that exactly
   // one of "nonce_" and "client_token_" is non-empty.
@@ -376,15 +381,26 @@ void InvalidationClientCore::PerformRegisterOperations(
   CHECK(internal_scheduler_->IsRunningOnThread()) << "Not on internal thread";
   CHECK(!object_ids.empty()) << "Must specify some object id";
 
-  CHECK(ticl_state_.IsStarted() || ticl_state_.IsStopped()) <<
-      "Cannot call " << reg_op_type << " for object " <<
-      " when the Ticl has not been started. If start has been " <<
-      "called, caller must wait for InvalidationListener.Ready";
   if (ticl_state_.IsStopped()) {
     // The Ticl has been stopped. This might be some old registration op
     // coming in. Just ignore instead of crashing.
-    TLOG(logger_, WARNING, "Ticl stopped: register (%d) of %d objects ignored.",
+    TLOG(logger_, SEVERE, "Ticl stopped: register (%d) of %d objects ignored.",
          reg_op_type, object_ids.size());
+    return;
+  }
+  if (!ticl_state_.IsStarted()) {
+    // We must be in the NOT_STARTED state, since we can't be in STOPPED or
+    // STARTED (since the previous if-check didn't succeeded, and isStarted uses
+    // a != STARTED test).
+    TLOG(logger_, SEVERE,
+        "Ticl is not yet started; failing registration call; client = %s, "
+         "num-objects = %d, op = %d",
+        this->ToString().c_str(), object_ids.size(), reg_op_type);
+    for (size_t i = 0; i < object_ids.size(); ++i) {
+      const ObjectId& object_id = object_ids[i];
+      GetListener()->InformRegistrationFailure(this, object_id, true,
+                                               "Client not yet ready");
+    }
     return;
   }
 
@@ -458,9 +474,10 @@ void InvalidationClientCore::Acknowledge(const AckHandle& acknowledge_handle) {
 }
 
 string InvalidationClientCore::ToString() {
-  return StringPrintf("Client: %s, %s",
+  return StringPrintf("Client: %s, %s, %s",
                       ProtoHelpers::ToString(application_client_id_).c_str(),
-                      ProtoHelpers::ToString(client_token_).c_str());
+                      ProtoHelpers::ToString(client_token_).c_str(),
+                     this->ticl_state_.ToString().c_str());
 }
 
 string InvalidationClientCore::GetClientToken() {
