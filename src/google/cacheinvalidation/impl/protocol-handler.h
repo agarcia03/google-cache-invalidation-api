@@ -133,11 +133,7 @@ struct ParsedMessage {
 class Batcher {
  public:
   Batcher(Logger* logger, Statistics* statistics)
-       : logger_(logger),
-         statistics_(statistics),
-         pending_initialize_message_(NULL),
-         pending_info_message_(NULL) {
-  }
+      : logger_(logger), statistics_(statistics) {}
 
   /* Sets the initialize |message| to be sent to the server. */
   void SetInitializeMessage(const InitializeMessage* message) {
