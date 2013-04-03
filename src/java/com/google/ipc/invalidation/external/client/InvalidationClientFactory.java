@@ -44,24 +44,6 @@ public class InvalidationClientFactory {
     return new InvalidationClientImpl(resources, random, clientConfig.clientType,
         clientConfig.clientName, internalConfig, clientConfig.applicationName, listener);
   }
-  /**
-   * Constructs an invalidation client library instance.
-   * Deprecated, please use {@link #createClient} instead.
-   *
-   * @param resources {@link SystemResources} to use for logging, scheduling, persistence, and
-   *     network connectivity
-   * @param clientType client type code as assigned by the notification system's backend
-   * @param clientName id/name of the client in the application's own naming scheme
-   * @param applicationName name of the application using the library (for debugging/monitoring)
-   * @param listener callback object for invalidation events
-   */
-  @Deprecated
-  public static InvalidationClient create(SystemResources resources, int clientType,
-      byte[] clientName, String applicationName, InvalidationListener listener) {
-    final InvalidationClientConfig appConfig = new InvalidationClientConfig(clientType, clientName,
-        applicationName, true /* allowSuppression */);
-    return createClient(resources, appConfig, listener);
-  }
 
   private InvalidationClientFactory() {} // Prevents instantiation.
 }

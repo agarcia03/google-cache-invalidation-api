@@ -654,7 +654,8 @@ class ProtocolHandler implements Marshallable<ProtocolHandlerState> {
     ClientToServerMessage.Builder msgBuilder =
         batcher.toBuilder(listener.getClientToken() != null);
     if (msgBuilder == null) {
-      // Happens when we don't have a token and are not sending an initialize message.
+      // Happens when we don't have a token and are not sending an initialize message. Logged
+      // in batcher.toBuilder().
       return;
     }
     msgBuilder.setHeader(createClientHeader());
@@ -669,6 +670,8 @@ class ProtocolHandler implements Marshallable<ProtocolHandlerState> {
     }
 
     statistics.recordSentMessage(SentMessageType.TOTAL);
+    logger.fine("Sending message to server: {0}",
+        CommonProtoStrings2.toLazyCompactString(message, true));
     network.sendMessage(message.toByteArray());
 
     // Record that the message was sent. We're invoking the listener directly, rather than

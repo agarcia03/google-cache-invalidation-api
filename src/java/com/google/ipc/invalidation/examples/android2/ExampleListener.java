@@ -118,8 +118,8 @@ public final class ExampleListener extends AndroidListener {
     Log.i(TAG, "invalidate: " + invalidation);
 
     // Do real work here based upon the invalidation
-    MainActivity.State.setVersion(invalidation.getObjectId(),
-        "Version from invalidate: " + invalidation.getVersion());
+    MainActivity.State.setVersion(
+        invalidation.getObjectId(), "invalidate", invalidation.toString());
 
     acknowledge(ackHandle);
   }
@@ -129,7 +129,8 @@ public final class ExampleListener extends AndroidListener {
     Log.i(TAG, "invalidateUnknownVersion: " + objectId);
 
     // Do real work here based upon the invalidation.
-    MainActivity.State.setVersion(objectId, "Version from backend: " + getBackendVersion(objectId));
+    MainActivity.State.setVersion(
+        objectId, "invalidateUnknownVersion", getBackendVersion(objectId));
 
     acknowledge(ackHandle);
   }
@@ -140,8 +141,7 @@ public final class ExampleListener extends AndroidListener {
 
     // Do real work here based upon the invalidation.
     for (ObjectId objectId : interestingObjects) {
-      MainActivity.State.setVersion(objectId,
-          "Version from backend: " + getBackendVersion(objectId));
+        MainActivity.State.setVersion(objectId, "invalidateAll", getBackendVersion(objectId));
     }
 
     acknowledge(ackHandle);
@@ -287,7 +287,7 @@ public final class ExampleListener extends AndroidListener {
     return getApplicationContext().getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
   }
 
-  private long getBackendVersion(ObjectId objectId) {
+  private String getBackendVersion(ObjectId objectId) {
     /***********************************************************************************************
      * YOUR CODE HERE
      *
@@ -298,7 +298,7 @@ public final class ExampleListener extends AndroidListener {
     // Normally, we would connect to a real application backend. For this example, we return a fixed
     // value.
 
-    return -1;
+    return "some value from custom app backend";
   }
 
   /** Gets object ID given index. */
