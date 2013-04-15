@@ -203,8 +203,8 @@ public final class ExampleListener extends AndroidListener {
       //
       // In the third case, success!, we pass the authorization token and type to the invalidation
       // client using the setAuthToken method.
-      AccountManagerFuture<Bundle> future = accountManager.getAuthToken(account, AUTH_TYPE, false,
-          null, null);
+      AccountManagerFuture<Bundle> future = accountManager.getAuthToken(account, AUTH_TYPE,
+          new Bundle(), false, null, null);
       Bundle result = future.getResult();
       if (result == null) {
         // If the result is null, it means that authentication was not possible.

@@ -824,7 +824,7 @@ public class ClientProtocolAccessor {
     
     /** Returns whether {@code field} is present in {@code message}. */
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "deprecation", "unchecked" })
     public boolean hasField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);
@@ -852,7 +852,7 @@ public class ClientProtocolAccessor {
     
     /** Returns the {@code field} from {@code message}. */
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "deprecation", "unchecked" })
     public Object getField(MessageLite rawMessage, Descriptor field) {
       Preconditions.checkNotNull(rawMessage);
       Preconditions.checkNotNull(field);

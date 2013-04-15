@@ -149,8 +149,7 @@ public abstract class InvalidationClientCore extends InternalBase
       // If token is still not assigned (as expected), sends a request. Otherwise, ignore.
       if (clientToken == null) {
         // Allocate a nonce and send a message requesting a new token.
-        setNonce(ByteString.copyFromUtf8(Long.toString(
-            internalScheduler.getCurrentTimeMs())));
+        setNonce(generateNonce(random));
         protocolHandler.sendInitializeMessage(applicationClientId, nonce, batchingTask, TASK_NAME);
         return true;  // Reschedule to check state, retry if necessary after timeout.
       } else {
@@ -776,7 +775,7 @@ public abstract class InvalidationClientCore extends InternalBase
 
     // Initialize the nonce so that we can maintain the invariant that exactly one of
     // "nonce" and "clientToken" is non-null.
-    setNonce(ByteString.copyFromUtf8(Long.toString(internalScheduler.getCurrentTimeMs())));
+    setNonce(generateNonce(random));
 
     logger.info("Starting with Java config: %s", config);
     // Read the state blob and then schedule startInternal once the value is there.
@@ -1445,6 +1444,19 @@ public abstract class InvalidationClientCore extends InternalBase
     Preconditions.checkState((newNonce == null) || (clientToken == null),
         "Tried to set nonce with existing token %s", clientToken);
     this.nonce = newNonce;
+  }
+
+  /**
+   * Returns a randomly generated nonce. Visible for testing only.
+   */
+  
+  public static ByteString generateNonce(Random random) {
+    // Generate 8 random bytes.
+    byte[] randomBytes = new byte[8];
+    random.nextBytes(randomBytes);
+
+    // Return the bytes as a ByteString.
+    return ByteString.copyFrom(randomBytes);
   }
 
   /**

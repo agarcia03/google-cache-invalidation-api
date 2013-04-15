@@ -58,13 +58,10 @@ public final class MainActivity extends Activity {
   private static final int CLIENT_TYPE = 4; // Demo client ID.
   private static final byte[] CLIENT_NAME = "TEA2:eetrofoot".getBytes();
 
-  /** Sender ID associated with 's Android Push Messaging quota. */
-  private static final String SENDER_ID = "ipc.invalidation@gmail.com";
-
   /**
    * Keep track of current registration and object status. This should probably be implemented
-   * using intents rather than static state but I don't want to distract from the 
-   * essentials in this example.
+   * using intents rather than static state but I don't want to distract from the invalidation
+   * client essentials in this example.
    */
   public static final class State {
     private static final Map<ObjectId, String> lastInformedVersion =

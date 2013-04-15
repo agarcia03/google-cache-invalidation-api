@@ -2,7 +2,7 @@
   <!--  Copyright 2011 Google Inc. All Rights Reserved. -->
   <!--  Common configuration settings for application using client invalidation library. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.google.ipc.invalidation.client.android2" android:versionName="2.3.0">
+    package="com.google.ipc.invalidation.client.android2">
 
   <!-- App receives GCM messages. -->
   <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
