@@ -59,8 +59,9 @@ bool AcquireTokenTask::RunTask() {
   // Otherwise, ignore.
   if (client_->client_token_.empty()) {
     // Allocate a nonce and send a message requesting a new token.
-    client_->set_nonce(SimpleItoa(
-        client_->internal_scheduler_->GetCurrentTime().ToInternalValue()));
+    client_->set_nonce(
+        InvalidationClientCore::GenerateNonce(client_->random_.get()));
+
     client_->protocol_handler_.SendInitializeMessage(
         client_->application_client_id_, client_->nonce_,
         client_->batching_task_.get(),
@@ -277,8 +278,7 @@ void InvalidationClientCore::Start() {
 
   // Initialize the nonce so that we can maintain the invariant that exactly
   // one of "nonce_" and "client_token_" is non-empty.
-  set_nonce(SimpleItoa(
-      internal_scheduler_->GetCurrentTime().ToInternalValue()));
+  set_nonce(InvalidationClientCore::GenerateNonce(random_.get()));
 
   TLOG(logger_, INFO, "Starting with C++ config: %s",
        ProtoHelpers::ToString(config_).c_str());
@@ -895,6 +895,15 @@ void InvalidationClientCore::SendInfoMessageToServer(
   }
   protocol_handler_.SendInfoMessage(performance_counters, config_to_send,
       request_server_summary, batching_task_.get());
+}
+
+string InvalidationClientCore::GenerateNonce(Random* random) {
+  // Return a nonce computed by converting a random double to a string. Because
+  // SimpleItoa requires int64s, we convert multiply the double by INT64_MAX and
+  // cast it to an int64. (Note this results in 63 bits of randomness because
+  // the int is signed; that's still sufficient for our purposes.)
+  return SimpleItoa(static_cast<int64>(
+      random->RandDouble() * static_cast<double>(INT64_MAX)));
 }
 
 void InvalidationClientCore::set_nonce(const string& new_nonce) {

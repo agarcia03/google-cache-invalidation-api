@@ -184,6 +184,21 @@ TEST_F(InvalidationClientImplTest, Start) {
   StartClient();
 }
 
+// Tests that GenerateNonce generates a unique nonce on every call.
+TEST_F(InvalidationClientImplTest, GenerateNonce) {
+  // Create a random number generated seeded with the current time.
+  scoped_ptr<Random> random;
+  random.reset(new Random(InvalidationClientUtil::GetCurrentTimeMs(
+      resources->internal_scheduler())));
+
+  // Generate two nonces and make sure they are distinct. (The chances
+  // of a collision should be vanishingly small since our correctness
+  // relies upon no collisions.)
+  string nonce1 = InvalidationClientCore::GenerateNonce(random.get());
+  string nonce2 = InvalidationClientCore::GenerateNonce(random.get());
+  ASSERT_NE(nonce1, nonce2);
+}
+
 // Starts the Ticl, registers for a few objects, gets success and ensures that
 // the right listener methods are invoked.
 TEST_F(InvalidationClientImplTest, Register) {
