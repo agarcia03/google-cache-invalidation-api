@@ -898,12 +898,8 @@ void InvalidationClientCore::SendInfoMessageToServer(
 }
 
 string InvalidationClientCore::GenerateNonce(Random* random) {
-  // Return a nonce computed by converting a random double to a string. Because
-  // SimpleItoa requires int64s, we convert multiply the double by INT64_MAX and
-  // cast it to an int64. (Note this results in 63 bits of randomness because
-  // the int is signed; that's still sufficient for our purposes.)
-  return SimpleItoa(static_cast<int64>(
-      random->RandDouble() * static_cast<double>(INT64_MAX)));
+  // Return a nonce computed by converting a random 64-bit number to a string.
+  return SimpleItoa(random->RandUint64());
 }
 
 void InvalidationClientCore::set_nonce(const string& new_nonce) {
