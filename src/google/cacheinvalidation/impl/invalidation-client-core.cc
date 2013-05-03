@@ -899,7 +899,7 @@ void InvalidationClientCore::SendInfoMessageToServer(
 
 string InvalidationClientCore::GenerateNonce(Random* random) {
   // Return a nonce computed by converting a random 64-bit number to a string.
-  return SimpleItoa(random->RandUint64());
+  return SimpleItoa(static_cast<int64>(random->RandUint64()));
 }
 
 void InvalidationClientCore::set_nonce(const string& new_nonce) {
