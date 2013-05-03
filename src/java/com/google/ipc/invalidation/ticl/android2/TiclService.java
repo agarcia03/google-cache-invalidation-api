@@ -67,6 +67,10 @@ public class TiclService extends IntentService {
 
   public TiclService() {
     super("TiclService");
+
+    // If the process dies during a call to onHandleIntent, redeliver the intent when the service
+    // restarts.
+    setIntentRedelivery(true);
   }
 
   /**

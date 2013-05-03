@@ -179,10 +179,18 @@ public class MultiplexingGcmListener extends GCMBaseIntentService {
 
     protected AbstractListener(String name) {
       super(name);
+
+      // If the process dies during a call to onHandleIntent, redeliver the intent when the service
+      // restarts.
+      setIntentRedelivery(true);
     }
 
     @Override
     public final void onHandleIntent(Intent intent) {
+      if (intent == null) {
+        return;
+      }
+
       // This method is final to prevent subclasses from overriding it and introducing errors in
       // the wakelock protocol.
       try {
