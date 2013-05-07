@@ -230,9 +230,6 @@ class InvalidationClientCore : public InvalidationClient,
 
   string ToString();
 
-  /* Returns a randomly generated nonce. */
-  static string GenerateNonce(Random* random);
-
   //
   // Protocol listener methods
   //

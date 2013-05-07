@@ -24,11 +24,7 @@ class Random {
  public:
   explicit Random(int64 seed);
 
-  // Returns a pseudorandom value between 0 (inclusive) and 1 (exclusive).
-  virtual double RandDouble();
-
-  // Returns a pseudorandom unsigned 64-bit number.
-  virtual uint64 RandUint64();
+  double RandDouble();
 };
 
 }  // namespace invalidation
