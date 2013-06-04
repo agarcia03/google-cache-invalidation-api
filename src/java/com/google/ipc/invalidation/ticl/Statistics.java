@@ -127,6 +127,14 @@ public class Statistics extends InternalBase implements Marshallable<StatisticsS
     TOKEN_TRANSIENT_FAILURE,
   }
 
+  // Names of statistics types. Do not rely on reflection to determine the type names because
+  // proguard will change them for Android clients.
+  private static final String SENT_MESSAGE_TYPE_NAME = "SentMessageType";
+  private static final String INCOMING_OPERATION_TYPE_NAME = "IncomingOperationType";
+  private static final String RECEIVED_MESSAGE_TYPE_NAME = "ReceivedMessageType";
+  private static final String LISTENER_EVENT_TYPE_NAME = "ListenerEventType";
+  private static final String CLIENT_ERROR_TYPE_NAME = "ClientErrorType";
+
   // Maps for each type of Statistic to keep track of how many times each event has occurred.
 
   private final Map<SentMessageType, Integer> sentMessageTypes =
@@ -209,22 +217,24 @@ public class Statistics extends InternalBase implements Marshallable<StatisticsS
    */
   public void getNonZeroStatistics(List<SimplePair<String, Integer>> performanceCounters) {
     // Add the non-zero values from the different maps to performanceCounters.
-    fillWithNonZeroStatistics(sentMessageTypes, performanceCounters);
-    fillWithNonZeroStatistics(receivedMessageTypes, performanceCounters);
-    fillWithNonZeroStatistics(incomingOperationTypes, performanceCounters);
-    fillWithNonZeroStatistics(listenerEventTypes, performanceCounters);
-    fillWithNonZeroStatistics(clientErrorTypes, performanceCounters);
+    fillWithNonZeroStatistics(sentMessageTypes, performanceCounters, SENT_MESSAGE_TYPE_NAME);
+    fillWithNonZeroStatistics(receivedMessageTypes, performanceCounters,
+        RECEIVED_MESSAGE_TYPE_NAME);
+    fillWithNonZeroStatistics(incomingOperationTypes, performanceCounters,
+        INCOMING_OPERATION_TYPE_NAME);
+    fillWithNonZeroStatistics(listenerEventTypes, performanceCounters, LISTENER_EVENT_TYPE_NAME);
+    fillWithNonZeroStatistics(clientErrorTypes, performanceCounters, CLIENT_ERROR_TYPE_NAME);
   }
 
   /** Modifies {@code result} to contain those statistics from {@code map} whose value is > 0. */
   private static <Key> void fillWithNonZeroStatistics(Map<Key, Integer> map,
-      List<SimplePair<String, Integer>> destination) {
+      List<SimplePair<String, Integer>> destination, String typeName) {
     String prefix = null;
     for (Map.Entry<Key, Integer> entry : map.entrySet()) {
       if (entry.getValue() > 0) {
         // Initialize prefix if this is the first element being added.
         if (prefix == null) {
-          prefix = entry.getKey().getClass().getSimpleName() + ".";
+          prefix = typeName + ".";
         }
         destination.add(SimplePair.of(prefix + entry.getKey(), entry.getValue()));
       }
@@ -285,27 +295,27 @@ public class Statistics extends InternalBase implements Marshallable<StatisticsS
       int counterValue = performanceCounter.getValue();
 
       // Call the relevant method in a loop (i.e., depending on the type of the class).
-      if (TypedUtil.<String>equals(className, "SentMessageType")) {
+      if (TypedUtil.<String>equals(className, SENT_MESSAGE_TYPE_NAME)) {
         SentMessageType sentMessageType = SentMessageType.valueOf(fieldName);
         for (int i = 0; i < counterValue; i++) {
           statistics.recordSentMessage(sentMessageType);
         }
-      } else if (TypedUtil.<String>equals(className, "IncomingOperationType")) {
+      } else if (TypedUtil.<String>equals(className, INCOMING_OPERATION_TYPE_NAME)) {
         IncomingOperationType incomingOperationType = IncomingOperationType.valueOf(fieldName);
         for (int i = 0; i < counterValue; i++) {
           statistics.recordIncomingOperation(incomingOperationType);
         }
-      } else if (TypedUtil.<String>equals(className, "ReceivedMessageType")) {
+      } else if (TypedUtil.<String>equals(className, RECEIVED_MESSAGE_TYPE_NAME)) {
         ReceivedMessageType receivedMessageType = ReceivedMessageType.valueOf(fieldName);
         for (int i = 0; i < counterValue; i++) {
           statistics.recordReceivedMessage(receivedMessageType);
         }
-      } else if (TypedUtil.<String>equals(className, "ListenerEventType")) {
+      } else if (TypedUtil.<String>equals(className, LISTENER_EVENT_TYPE_NAME)) {
         ListenerEventType listenerEventType = ListenerEventType.valueOf(fieldName);
         for (int i = 0; i < counterValue; i++) {
           statistics.recordListenerEvent(listenerEventType);
         }
-      } else if (TypedUtil.<String>equals(className, "ClientErrorType")) {
+      } else if (TypedUtil.<String>equals(className, CLIENT_ERROR_TYPE_NAME)) {
         ClientErrorType clientErrorType = ClientErrorType.valueOf(fieldName);
         for (int i = 0; i < counterValue; i++) {
           statistics.recordError(clientErrorType);
