@@ -82,6 +82,7 @@ public class AndroidMessageSenderService extends IntentService {
 
   public AndroidMessageSenderService() {
     super("AndroidNetworkService");
+    setIntentRedelivery(true);
   }
 
   @Override
@@ -96,6 +97,11 @@ public class AndroidMessageSenderService extends IntentService {
 
   @Override
   protected void onHandleIntent(Intent intent) {
+    if (intent == null) {
+      logger.warning("Ignoring null intent");
+      return;
+    }
+
     if (intent.hasExtra(ProtocolIntents.OUTBOUND_MESSAGE_KEY)) {
       // Request from the Ticl service to send a message.
       handleOutboundMessage(intent.getByteArrayExtra(ProtocolIntents.OUTBOUND_MESSAGE_KEY));
@@ -232,6 +238,11 @@ public class AndroidMessageSenderService extends IntentService {
       boolean isOAuth2Token = authTokenType.startsWith(OAUTH2_TOKEN_TYPE_PREFIX);
       url = buildUrl(isOAuth2Token ? null : authTokenType, networkEndpointId);
       urlConnection = createUrlConnectionForPost(this, url, authToken, isOAuth2Token);
+
+      // We are seeing EOFException errors when reusing connections. Request that the connection is
+      // closed on response to work around this issue. Client-to-server messages are batched and
+      // infrequent so there isn't much benefit in connection reuse here.
+      urlConnection.setRequestProperty("Connection", "close");
       urlConnection.setFixedLengthStreamingMode(outgoingMessage.length);
       urlConnection.connect();
 
