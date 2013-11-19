@@ -238,11 +238,6 @@ public class AndroidMessageSenderService extends IntentService {
       boolean isOAuth2Token = authTokenType.startsWith(OAUTH2_TOKEN_TYPE_PREFIX);
       url = buildUrl(isOAuth2Token ? null : authTokenType, networkEndpointId);
       urlConnection = createUrlConnectionForPost(this, url, authToken, isOAuth2Token);
-
-      // We are seeing EOFException errors when reusing connections. Request that the connection is
-      // closed on response to work around this issue. Client-to-server messages are batched and
-      // infrequent so there isn't much benefit in connection reuse here.
-      urlConnection.setRequestProperty("Connection", "close");
       urlConnection.setFixedLengthStreamingMode(outgoingMessage.length);
       urlConnection.connect();
 
