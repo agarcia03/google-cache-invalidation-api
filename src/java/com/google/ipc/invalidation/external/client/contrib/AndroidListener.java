@@ -17,7 +17,6 @@ package com.google.ipc.invalidation.external.client.contrib;
 
 import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
-import com.google.ipc.invalidation.external.client.InvalidationClientConfig;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.InvalidationListener.RegistrationState;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
@@ -207,23 +206,11 @@ public abstract class AndroidListener extends IntentService {
   }
 
   /** See specs for {@link InvalidationClient#start}. */
-  public static Intent createStartIntent(Context context, InvalidationClientConfig config) {
-    Preconditions.checkNotNull(context);
-    Preconditions.checkNotNull(config);
-    Preconditions.checkNotNull(config.clientName);
-
-    return AndroidListenerIntents.createStartIntent(context, config.clientType,
-        config.clientName, config.allowSuppression);
-  }
-
-  /** See specs for {@link InvalidationClient#start}. */
   public static Intent createStartIntent(Context context, int clientType, byte[] clientName) {
     Preconditions.checkNotNull(context);
     Preconditions.checkNotNull(clientName);
 
-    final boolean allowSuppression = true;
-    return AndroidListenerIntents.createStartIntent(context, clientType, clientName,
-        allowSuppression);
+    return AndroidListenerIntents.createStartIntent(context, clientType, clientName);
   }
 
   /** See specs for {@link InvalidationClient#stop}. */
@@ -492,6 +479,7 @@ public abstract class AndroidListener extends IntentService {
     if (!AndroidListenerIntents.isAuthTokenRequest(intent)) {
       return false;
     }
+    Context context = getApplicationContext();
 
     // Check for invalid auth token. Subclass may have to invalidate it if it exists in the call
     // to getNewAuthToken.
@@ -586,12 +574,9 @@ public abstract class AndroidListener extends IntentService {
     // messages directed at the wrong instance.
     state = new AndroidListenerState(initialMaxDelayMs, maxDelayFactor);
     boolean skipStartForTest = false;
-    ClientConfigP clientConfig = command.getAllowSuppression() ?
-        ClientConfigP.getDefaultInstance() :
-            ClientConfigP.newBuilder().setAllowSuppression(false).build();
     Intent startIntent = ProtocolIntents.InternalDowncalls.newCreateClientIntent(
         command.getClientType(), command.getClientName().toByteArray(),
-        clientConfig, skipStartForTest);
+        ClientConfigP.getDefaultInstance(), skipStartForTest);
     AndroidListenerIntents.issueTiclIntent(getApplicationContext(), startIntent);
     return true;
   }

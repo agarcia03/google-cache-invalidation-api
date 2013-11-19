@@ -40,7 +40,6 @@ public class AndroidInvalidationListenerStub extends IntentService {
 
   public AndroidInvalidationListenerStub() {
     super("");
-    setIntentRedelivery(true);
   }
 
   @Override
@@ -63,7 +62,7 @@ public class AndroidInvalidationListenerStub extends IntentService {
 
   /**
    * Handles a listener upcall by decoding the protocol buffer in {@code intent} and dispatching
-   * to the appropriate method on an instance of {@link InvalidationListener}.
+   * to the appropriate method on an instance of {@link #listenerClass}.
    */
   @Override
   public void onHandleIntent(Intent intent) {
