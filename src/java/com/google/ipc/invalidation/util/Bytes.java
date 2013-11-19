@@ -15,7 +15,6 @@
  */
 package com.google.ipc.invalidation.util;
 
-import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 
@@ -96,11 +95,6 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
 
   public Bytes(ByteString byteString) {
     this(byteString.toByteArray());
-  }
-
-  /** Creates a Bytes object from the given string encoded as a UTF-8 byte array. */
-  public static Bytes fromUtf8Encoding(String s) {
-    return new Bytes(s.getBytes(Charsets.UTF_8));
   }
 
   /**
