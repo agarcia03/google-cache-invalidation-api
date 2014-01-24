@@ -98,7 +98,6 @@ public class AndroidMessageSenderService extends IntentService {
   @Override
   protected void onHandleIntent(Intent intent) {
     if (intent == null) {
-      logger.warning("Ignoring null intent");
       return;
     }
 
