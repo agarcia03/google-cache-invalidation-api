@@ -14,8 +14,6 @@
 
 // Unit tests for the RecurringTask class.
 
-#include <memory>
-
 #include "google/cacheinvalidation/client_test_internal.pb.h"
 #include "google/cacheinvalidation/deps/googletest.h"
 #include "google/cacheinvalidation/deps/random.h"
@@ -128,16 +126,16 @@ class RecurringTaskTest : public testing::Test {
   //
 
   // A logger.
-  std::unique_ptr<Logger> logger;
+  scoped_ptr<Logger> logger;
 
   // Deterministic scheduler for careful scheduling of the tasks.
-  std::unique_ptr<DeterministicScheduler> scheduler;
+  scoped_ptr<DeterministicScheduler> scheduler;
 
   // For randomizing delays.
-  std::unique_ptr<Smearer> smearer;
+  scoped_ptr<Smearer> smearer;
 
   // A random number generator that always generates 1.
-  std::unique_ptr<Random> random;
+  scoped_ptr<Random> random;
 
   // A delay generator (if used in the test). Not a scoped_ptr since it ends
   // up being owned by the RecurringTask.

@@ -17,7 +17,6 @@
 #ifndef GOOGLE_CACHEINVALIDATION_IMPL_INVALIDATION_CLIENT_CORE_H_
 #define GOOGLE_CACHEINVALIDATION_IMPL_INVALIDATION_CLIENT_CORE_H_
 
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -413,10 +412,10 @@ class InvalidationClientCore : public InvalidationClient,
   /* A storage layer which schedules the callbacks on the internal scheduler
    * thread.
    */
-  std::unique_ptr<SafeStorage> storage_;
+  scoped_ptr<SafeStorage> storage_;
 
   /* Statistics objects to track number of sent messages, etc. */
-  std::unique_ptr<Statistics> statistics_;
+  scoped_ptr<Statistics> statistics_;
 
   /* Configuration for this instance. */
   ClientConfigP config_;
@@ -426,13 +425,13 @@ class InvalidationClientCore : public InvalidationClient,
 
   /* The function for computing the registration and persistence state digests.
    */
-  std::unique_ptr<DigestFunction> digest_fn_;
+  scoped_ptr<DigestFunction> digest_fn_;
 
   /* Object maintaining the registration state for this client. */
   RegistrationManager registration_manager_;
 
   /* Used to validate messages */
-  std::unique_ptr<TiclMessageValidator> msg_validator_;
+  scoped_ptr<TiclMessageValidator> msg_validator_;
 
   /* A smearer to make sure that delays are randomized a little bit. */
   Smearer smearer_;
@@ -464,24 +463,24 @@ class InvalidationClientCore : public InvalidationClient,
   Time last_message_send_time_;
 
   /* A task for acquiring the token (if the client has no token). */
-  std::unique_ptr<AcquireTokenTask> acquire_token_task_;
+  scoped_ptr<AcquireTokenTask> acquire_token_task_;
 
   /* Task for checking if reg summary is out of sync and then sending a
    * heartbeat to the server.
    */
-  std::unique_ptr<RegSyncHeartbeatTask> reg_sync_heartbeat_task_;
+  scoped_ptr<RegSyncHeartbeatTask> reg_sync_heartbeat_task_;
 
   /* Task for writing the state blob to persistent storage. */
-  std::unique_ptr<PersistentWriteTask> persistent_write_task_;
+  scoped_ptr<PersistentWriteTask> persistent_write_task_;
 
   /* A task for periodic heartbeats. */
-  std::unique_ptr<HeartbeatTask> heartbeat_task_;
+  scoped_ptr<HeartbeatTask> heartbeat_task_;
 
   /* Task to send all batched messages to the server. */
-  std::unique_ptr<BatchingTask> batching_task_;
+  scoped_ptr<BatchingTask> batching_task_;
 
   /* Random number generator for smearing, exp backoff, etc. */
-  std::unique_ptr<Random> random_;
+  scoped_ptr<Random> random_;
 
   DISALLOW_COPY_AND_ASSIGN(InvalidationClientCore);
 };

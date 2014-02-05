@@ -20,7 +20,6 @@
 #define GOOGLE_CACHEINVALIDATION_IMPL_REGISTRATION_MANAGER_H_
 
 #include <map>
-#include <memory>
 #include <set>
 
 #include "google/cacheinvalidation/include/system-resources.h"
@@ -168,7 +167,7 @@ class RegistrationManager {
 
  private:
   /* The set of regisrations that the application has requested for. */
-  std::unique_ptr<DigestStore<ObjectIdP> > desired_registrations_;
+  scoped_ptr<DigestStore<ObjectIdP> > desired_registrations_;
 
   /* Statistics objects to track number of sent messages, etc. */
   Statistics* statistics_;

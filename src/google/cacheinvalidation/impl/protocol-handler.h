@@ -18,7 +18,6 @@
 #define GOOGLE_CACHEINVALIDATION_IMPL_PROTOCOL_HANDLER_H_
 
 #include <map>
-#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
@@ -204,10 +203,10 @@ class Batcher {
   set<RegistrationSubtree, ProtoCompareLess> pending_reg_subtrees_;
 
   /* Pending initialization message to send to the server, if any. */
-  std::unique_ptr<const InitializeMessage> pending_initialize_message_;
+  scoped_ptr<const InitializeMessage> pending_initialize_message_;
 
   /* Pending info message to send to the server, if any. */
-  std::unique_ptr<const InfoMessage> pending_info_message_;
+  scoped_ptr<const InfoMessage> pending_info_message_;
 
   DISALLOW_COPY_AND_ASSIGN(Batcher);
 };

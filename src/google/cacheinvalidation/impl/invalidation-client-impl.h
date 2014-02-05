@@ -17,7 +17,6 @@
 #ifndef GOOGLE_CACHEINVALIDATION_IMPL_INVALIDATION_CLIENT_IMPL_H_
 #define GOOGLE_CACHEINVALIDATION_IMPL_INVALIDATION_CLIENT_IMPL_H_
 
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -113,7 +112,7 @@ class InvalidationClientImpl : public InvalidationClientCore {
    * The listener registered by the application, wrapped in a
    * CheckingInvalidationListener.
    */
-  std::unique_ptr<CheckingInvalidationListener> listener_;
+  scoped_ptr<CheckingInvalidationListener> listener_;
 
   DISALLOW_COPY_AND_ASSIGN(InvalidationClientImpl);
 };

@@ -14,8 +14,6 @@
 
 // Unit tests for the ProtocolHandler class.
 
-#include <memory>
-
 #include "google/cacheinvalidation/types.pb.h"
 #include "google/cacheinvalidation/include/types.h"
 #include "google/cacheinvalidation/deps/gmock.h"
@@ -115,7 +113,7 @@ class ProtocolHandlerTest : public UnitTestBase {
   ProtocolHandlerConfigP config;
 
   // The protocol handler being tested.  Created fresh for each test function.
-  std::unique_ptr<ProtocolHandler> protocol_handler;
+  scoped_ptr<ProtocolHandler> protocol_handler;
 
   // A mock protocol listener.  We make this strict in order to have tight
   // control over the interactions between this and the protocol handler.
@@ -126,7 +124,7 @@ class ProtocolHandlerTest : public UnitTestBase {
 
   // Ticl message validator.  We do not mock this, since the correctness of the
   // protocol handler depends on it.
-  std::unique_ptr<TiclMessageValidator> validator;
+  scoped_ptr<TiclMessageValidator> validator;
 
   // Token and registration summary for the mock listener to return when
   // the protocol handler requests them.
@@ -134,13 +132,13 @@ class ProtocolHandlerTest : public UnitTestBase {
   RegistrationSummary summary;
 
   // A smearer to randomize delays.
-  std::unique_ptr<Smearer> smearer;
+  scoped_ptr<Smearer> smearer;
 
   // A random number generator.
-  std::unique_ptr<Random> random;
+  scoped_ptr<Random> random;
 
   // Batching task for the protocol handler.
-  std::unique_ptr<BatchingTask> batching_task;
+  scoped_ptr<BatchingTask> batching_task;
 
   void AddExpectationForHandleMessageSent() {
     EXPECT_CALL(listener, HandleMessageSent());

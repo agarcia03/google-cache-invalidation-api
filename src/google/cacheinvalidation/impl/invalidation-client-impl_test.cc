@@ -14,7 +14,6 @@
 
 // Unit tests for the InvalidationClientImpl class.
 
-#include <memory>
 #include <vector>
 
 #include "google/cacheinvalidation/client_test_internal.pb.h"
@@ -172,7 +171,7 @@ class InvalidationClientImplTest : public UnitTestBase {
   ClientConfigP config;
 
   // The client being tested. Created fresh for each test function.
-  std::unique_ptr<InvalidationClientImpl> client;
+  scoped_ptr<InvalidationClientImpl> client;
 
   // A mock invalidation listener.
   StrictMock<MockInvalidationListener> listener;
@@ -188,7 +187,7 @@ TEST_F(InvalidationClientImplTest, Start) {
 // Tests that GenerateNonce generates a unique nonce on every call.
 TEST_F(InvalidationClientImplTest, GenerateNonce) {
   // Create a random number generated seeded with the current time.
-  std::unique_ptr<Random> random;
+  scoped_ptr<Random> random;
   random.reset(new Random(InvalidationClientUtil::GetCurrentTimeMs(
       resources->internal_scheduler())));
 
