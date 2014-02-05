@@ -18,6 +18,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_IMPL_BASIC_SYSTEM_RESOURCES_H_
 #define GOOGLE_CACHEINVALIDATION_IMPL_BASIC_SYSTEM_RESOURCES_H_
 
+#include <memory>
+
 #include "google/cacheinvalidation/include/system-resources.h"
 #include "google/cacheinvalidation/deps/scoped_ptr.h"
 #include "google/cacheinvalidation/impl/run-state.h"
@@ -50,11 +52,11 @@ class BasicSystemResources : public SystemResources {
  private:
   // Components comprising the system resources. We delegate calls to these as
   // appropriate.
-  scoped_ptr<Logger> logger_;
-  scoped_ptr<Scheduler> internal_scheduler_;
-  scoped_ptr<Scheduler> listener_scheduler_;
-  scoped_ptr<NetworkChannel> network_;
-  scoped_ptr<Storage> storage_;
+  std::unique_ptr<Logger> logger_;
+  std::unique_ptr<Scheduler> internal_scheduler_;
+  std::unique_ptr<Scheduler> listener_scheduler_;
+  std::unique_ptr<NetworkChannel> network_;
+  std::unique_ptr<Storage> storage_;
 
   // The state of the resources.
   RunState run_state_;

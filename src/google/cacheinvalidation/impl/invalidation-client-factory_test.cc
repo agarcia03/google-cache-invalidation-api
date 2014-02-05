@@ -14,6 +14,8 @@
 
 // Unit tests for the InvalidationClientFactory class.
 
+#include <memory>
+
 #include "google/cacheinvalidation/include/invalidation-client-factory.h"
 #include "google/cacheinvalidation/include/invalidation-listener.h"
 #include "google/cacheinvalidation/include/types.h"
@@ -78,7 +80,7 @@ class InvalidationClientFactoryTest : public UnitTestBase {
   }
 
   // The client being tested. Created fresh for each test function.
-  scoped_ptr<InvalidationClientImpl> client;
+  std::unique_ptr<InvalidationClientImpl> client;
 
   // A mock invalidation listener.
   StrictMock<MockInvalidationListener> listener;

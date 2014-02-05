@@ -30,6 +30,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_IMPL_RECURRING_TASK_H_
 #define GOOGLE_CACHEINVALIDATION_IMPL_RECURRING_TASK_H_
 
+#include <memory>
+
 #include "google/cacheinvalidation/include/system-resources.h"
 #include "google/cacheinvalidation/impl/exponential-backoff-delay-generator.h"
 #include "google/cacheinvalidation/impl/smearer.h"
@@ -106,7 +108,7 @@ class RecurringTask {
   Smearer* smearer_;
 
   /* A delay generator for exponential backoff. */
-  scoped_ptr<ExponentialBackoffDelayGenerator> delay_generator_;
+  std::unique_ptr<ExponentialBackoffDelayGenerator> delay_generator_;
 
   /*
    * The time after which the task is scheduled first. If no delayGenerator is

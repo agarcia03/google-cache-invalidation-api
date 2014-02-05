@@ -19,6 +19,8 @@
 #ifndef GOOGLE_CACHEINVALIDATION_TEST_TEST_UTILS_H_
 #define GOOGLE_CACHEINVALIDATION_TEST_TEST_UTILS_H_
 
+#include <memory>
+
 #include "google/cacheinvalidation/client_protocol.pb.h"
 #include "google/cacheinvalidation/include/invalidation-listener.h"
 #include "google/cacheinvalidation/include/types.h"
@@ -291,10 +293,10 @@ class UnitTestBase : public testing::Test {
   MockStorage* storage;
 
   // System resources (owned by the test).
-  scoped_ptr<BasicSystemResources> resources;
+  std::unique_ptr<BasicSystemResources> resources;
 
   // Statistics object for counting occurrences of different types of events.
-  scoped_ptr<Statistics> statistics;
+  std::unique_ptr<Statistics> statistics;
 
   // Message callback installed by the protocol handler.  Captured by the mock
   // network.
@@ -302,7 +304,7 @@ class UnitTestBase : public testing::Test {
 
   // Registration summary to be placed in messages from the client to the server
   // and vice-versa.
-  scoped_ptr<RegistrationSummary> reg_summary;
+  std::unique_ptr<RegistrationSummary> reg_summary;
 };
 
 // Creates an action InvokeAndDeleteClosure<k> that invokes the kth closure and

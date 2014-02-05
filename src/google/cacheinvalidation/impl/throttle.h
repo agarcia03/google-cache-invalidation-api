@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <deque>
+#include <memory>
 #include <vector>
 
 #include "google/cacheinvalidation/deps/callback.h"
@@ -70,7 +71,7 @@ class Throttle {
   Scheduler* scheduler_;
 
   // The closure whose calls are throttled.
-  scoped_ptr<Closure> listener_;
+  std::unique_ptr<Closure> listener_;
 
   // Whether we've already scheduled a deferred call.
   bool timer_scheduled_;

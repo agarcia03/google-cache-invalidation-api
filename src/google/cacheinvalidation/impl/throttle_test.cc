@@ -14,6 +14,8 @@
 
 // Tests the throttle.
 
+#include <memory>
+
 #include "google/cacheinvalidation/deps/googletest.h"
 #include "google/cacheinvalidation/impl/proto-helpers.h"
 #include "google/cacheinvalidation/impl/throttle.h"
@@ -64,8 +66,8 @@ class ThrottleTest : public testing::Test {
   int call_count_;
   Time start_time_;
   Time last_call_time_;
-  scoped_ptr<DeterministicScheduler> scheduler_;
-  scoped_ptr<Logger> logger_;
+  std::unique_ptr<DeterministicScheduler> scheduler_;
+  std::unique_ptr<Logger> logger_;
   RepeatedPtrField<RateLimitP> rate_limits_;
 
   static const int kMessagesPerSecond;
@@ -91,7 +93,7 @@ TEST_F(ThrottleTest, ThrottlingScripted) {
   Closure* listener =
       NewPermanentCallback(this, &ThrottleTest::IncrementCounter);
 
-  scoped_ptr<Throttle> throttle(
+  std::unique_ptr<Throttle> throttle(
       new Throttle(rate_limits_, scheduler_.get(), listener));
 
   // The first time we fire(), it should call right away.
@@ -168,7 +170,7 @@ TEST_F(ThrottleTest, ThrottlingStorm) {
       NewPermanentCallback(this, &ThrottleTest::IncrementAndCheckRateLimits);
 
   // Throttler allowing one call per second and six per minute.
-  scoped_ptr<Throttle> throttle(
+  std::unique_ptr<Throttle> throttle(
       new Throttle(rate_limits_, scheduler_.get(), listener));
 
   // For five minutes, call Fire() every ten milliseconds, and make sure the
