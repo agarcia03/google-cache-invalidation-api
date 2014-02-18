@@ -54,7 +54,7 @@ import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.ipc.invalidation.util.TypedUtil;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
+import com.google.protos.ipc.invalidation.ChannelCommon.NetworkEndpointId;
 import com.google.protos.ipc.invalidation.Client.AckHandleP;
 import com.google.protos.ipc.invalidation.Client.ExponentialBackoffState;
 import com.google.protos.ipc.invalidation.Client.PersistentTiclState;

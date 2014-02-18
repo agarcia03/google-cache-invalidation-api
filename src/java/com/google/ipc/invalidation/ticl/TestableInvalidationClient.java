@@ -25,7 +25,7 @@ import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.util.InternalBase;
 import com.google.ipc.invalidation.util.TextBuilder;
 import com.google.protobuf.ByteString;
-import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
+import com.google.protos.ipc.invalidation.ChannelCommon.NetworkEndpointId;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 import com.google.protos.ipc.invalidation.ClientProtocol.RegistrationSummary;

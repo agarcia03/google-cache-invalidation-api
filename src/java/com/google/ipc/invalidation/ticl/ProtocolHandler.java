@@ -670,7 +670,7 @@ class ProtocolHandler implements Marshallable<ProtocolHandlerState> {
     }
 
     statistics.recordSentMessage(SentMessageType.TOTAL);
-    logger.fine("Sending message to server: {0}",
+    logger.fine("Sending message to server: %s",
         CommonProtoStrings2.toLazyCompactString(message, true));
     network.sendMessage(message.toByteArray());
 

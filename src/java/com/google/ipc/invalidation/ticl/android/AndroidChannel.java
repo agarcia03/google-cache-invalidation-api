@@ -28,7 +28,7 @@ import com.google.ipc.invalidation.util.ExponentialBackoffDelayGenerator;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidChannel.AddressedAndroidMessage;
 import com.google.protos.ipc.invalidation.AndroidChannel.MajorVersion;
-import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
+import com.google.protos.ipc.invalidation.ChannelCommon.NetworkEndpointId;
 import com.google.protos.ipc.invalidation.ClientProtocol.Version;
 
 import android.accounts.AccountManager;

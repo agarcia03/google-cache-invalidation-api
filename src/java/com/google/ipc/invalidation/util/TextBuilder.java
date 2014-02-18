@@ -119,7 +119,30 @@ public class TextBuilder {
    * builder.
    */
   public TextBuilder append(InternalBase object) {
+    if (object == null) {
+      return append("null");
+    }
     object.toCompactString(this);
+    return this;
+  }
+
+  /**
+   * Appends the comma-separated {@code InternalBase#toCompactString} representations of
+   * {@code objects} to this builder.
+   */
+  public TextBuilder append(Iterable<InternalBase> objects) {
+    if (objects == null) {
+      return this;
+    }
+    boolean first = true;
+    for (InternalBase object : objects) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+      append(object);
+    }
     return this;
   }
 

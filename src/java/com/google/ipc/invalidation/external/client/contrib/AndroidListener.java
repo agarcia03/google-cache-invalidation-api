@@ -36,6 +36,8 @@ import com.google.protos.ipc.invalidation.AndroidListenerProtocol;
 import com.google.protos.ipc.invalidation.AndroidListenerProtocol.RegistrationCommand;
 import com.google.protos.ipc.invalidation.AndroidListenerProtocol.StartCommand;
 import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
+import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationMessage;
+import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
 import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 
 import android.app.IntentService;
@@ -44,6 +46,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 
@@ -406,6 +410,16 @@ public abstract class AndroidListener extends IntentService {
   public abstract void requestAuthToken(PendingIntent pendingIntent,
       String invalidAuthToken);
 
+  /**
+   * Handles invalidations received while the client is stopped. An implementation may choose to
+   * do work in response to these invalidations (delivered best-effort by the invalidation system).
+   * Not intended for use by most client implementations.
+   */
+  protected void backgroundInvalidateForInternalUse(
+      @SuppressWarnings("unused") Iterable<Invalidation> invalidations) {
+    // Ignore background invalidations by default.
+  }
+
   @Override
   public void onCreate() {
     super.onCreate();
@@ -414,6 +428,12 @@ public abstract class AndroidListener extends IntentService {
     intentMapper = new AndroidInvalidationListenerIntentMapper(invalidationListener, this);
   }
 
+  /**
+   * Derived classes may override this method to handle custom intents. This is a recommended
+   * pattern for invalidation-related intents, e.g. for registration and unregistration. Derived
+   * classes should call {@code super.onHandleIntent(intent)} for any intents they did not
+   * handle on their own.
+   */
   @Override
   protected void onHandleIntent(Intent intent) {
     if (intent == null) {
@@ -433,7 +453,8 @@ public abstract class AndroidListener extends IntentService {
         !tryHandleRegistrationIntent(intent) &&
         !tryHandleStartIntent(intent) &&
         !tryHandleStopIntent(intent) &&
-        !tryHandleAckIntent(intent)) {
+        !tryHandleAckIntent(intent) &&
+        !tryHandleBackgroundInvalidationsIntent(intent)) {
       intentMapper.handleIntent(intent);
     }
 
@@ -604,6 +625,29 @@ public abstract class AndroidListener extends IntentService {
     }
     getClient().acknowledge(AckHandle.newInstance(data));
     return true;
+  }
+
+  /**
+   * Tries to handle a background invalidation intent. Returns {@code true} iff the intent is a
+   * background invalidation intent.
+   */
+  private boolean tryHandleBackgroundInvalidationsIntent(Intent intent) {
+    byte[] data = intent.getByteArrayExtra(ProtocolIntents.BACKGROUND_INVALIDATION_KEY);
+    if (data == null) {
+      return false;
+    }
+    try {
+      InvalidationMessage invalidationMessage = InvalidationMessage.parseFrom(data);
+      List<Invalidation> invalidations = new ArrayList<Invalidation>();
+      for (InvalidationP invalidation : invalidationMessage.getInvalidationList()) {
+        invalidations.add(ProtoConverter.convertFromInvalidationProto(invalidation));
+      }
+      backgroundInvalidateForInternalUse(invalidations);
+    } catch (InvalidProtocolBufferException exception) {
+      logger.info("Failed to parse background invalidation intent payload: %s",
+          exception.getMessage());
+    }
+    return false;
   }
 
   /** Returns the current state of the listener, for tests. */

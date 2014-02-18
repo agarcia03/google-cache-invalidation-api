@@ -36,6 +36,7 @@ import com.google.protos.ipc.invalidation.AndroidService.ClientDowncall.Registra
 import com.google.protos.ipc.invalidation.AndroidService.InternalDowncall;
 import com.google.protos.ipc.invalidation.AndroidService.InternalDowncall.CreateClient;
 import com.google.protos.ipc.invalidation.Client.PersistentTiclState;
+import com.google.protos.ipc.invalidation.ClientProtocol.ServerToClientMessage;
 
 import android.app.IntentService;
 import android.content.Intent;
@@ -261,6 +262,11 @@ public class TiclService extends IntentService {
       resources.getNetworkListener().onMessageReceived(message);
       return;
     }
+
+    // Even if the client is stopped, attempt to send invalidations if the client is configured to
+    // receive them.
+    maybeSendBackgroundInvalidationIntent(message);
+
     // The Ticl isn't started. Rewrite persistent storage so that the last-send-time is a long
     // time ago. The next time the Ticl starts, it will send a message to the data center, which
     // ensures that it will be marked online and that the dropped message (or an equivalent) will
@@ -303,6 +309,31 @@ public class TiclService extends IntentService {
         });
       }
     });
+  }
+
+  /**
+   * If a service is registered to handle them, forward invalidations received while the
+   * invalidation client is stopped.
+   */
+  private void maybeSendBackgroundInvalidationIntent(byte[] message) {
+    // If a service is registered to receive background invalidations, parse the message to see if
+    // any of them should be forwarded.
+    AndroidTiclManifest manifest = new AndroidTiclManifest(getApplicationContext());
+    String backgroundServiceClass =
+        manifest.getBackgroundInvalidationListenerServiceClass();
+    if (backgroundServiceClass != null) {
+      try {
+        ServerToClientMessage s2cMessage = ServerToClientMessage.parseFrom(message);
+        if (s2cMessage.hasInvalidationMessage()) {
+          Intent intent =
+              ProtocolIntents.newBackgroundInvalidationIntent(s2cMessage.getInvalidationMessage());
+          intent.setClassName(getApplicationContext(), backgroundServiceClass);
+          startService(intent);
+        }
+      } catch (InvalidProtocolBufferException exception) {
+        resources.getLogger().info("Failed to parse message: %s", exception.getMessage());
+      }
+    }
   }
 
   /** Handles a request to call a particular recurring task on the Ticl. */

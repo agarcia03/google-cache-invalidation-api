@@ -15,11 +15,11 @@
  */
 package com.google.ipc.invalidation.util;
 
-import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 
@@ -32,6 +32,7 @@ import java.util.Arrays;
 public class Bytes extends InternalBase implements Comparable<Bytes> {
 
   public static final Bytes EMPTY_BYTES = new Bytes(new byte[0]);
+  private static final Charset UTF_8 = Charset.forName("UTF-8");
 
   /**
    * Three arrays that store the representation of each character from 0 to 255.
@@ -100,7 +101,7 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
 
   /** Creates a Bytes object from the given string encoded as a UTF-8 byte array. */
   public static Bytes fromUtf8Encoding(String s) {
-    return new Bytes(s.getBytes(Charsets.UTF_8));
+    return new Bytes(s.getBytes(UTF_8));
   }
 
   /**

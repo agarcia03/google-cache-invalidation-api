@@ -27,7 +27,7 @@ import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants.HttpConstants;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protos.ipc.invalidation.AndroidService.AndroidNetworkSendRequest;
-import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
+import com.google.protos.ipc.invalidation.ChannelCommon.NetworkEndpointId;
 
 import android.app.IntentService;
 import android.app.PendingIntent;
@@ -44,6 +44,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
+import java.util.Arrays;
 
 
 /**
@@ -169,7 +170,7 @@ public class AndroidMessageSenderService extends IntentService {
 
     // The pending intent allows the application to send us the tokenResponseIntent.
     PendingIntent pendingIntent = PendingIntent.getService(
-        this, message.hashCode(), tokenResponseIntent, PendingIntent.FLAG_ONE_SHOT);
+        this, Arrays.hashCode(message), tokenResponseIntent, PendingIntent.FLAG_ONE_SHOT);
 
     // We send the pending intent as an extra in a normal intent to the application. We require that
     // the intent be delivered only within this package, as a security check. The application must

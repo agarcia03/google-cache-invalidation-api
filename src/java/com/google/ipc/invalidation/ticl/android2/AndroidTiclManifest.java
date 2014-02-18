@@ -64,6 +64,13 @@ public class AndroidTiclManifest {
   }
 
   /**
+   * Returns the name of the class implementing the background invalidation listener intent service.
+   */
+  String getBackgroundInvalidationListenerServiceClass() {
+    return metadata.backgroundInvalidationListenerServiceClass;
+  }
+
+  /**
    * If it has not already been cached for the given {@code context}, creates and caches application
    * metadata from the manifest.
    */
@@ -101,6 +108,13 @@ public class AndroidTiclManifest {
     private static final String LISTENER_SERVICE_NAME_KEY =
         "ipc.invalidation.ticl.listener_service_class";
 
+    /**
+     * Name of the {@code <application>} metadata element whose value gives the Java class that
+     * implements the application's background invalidation listener intent service.
+     */
+    private static final String BACKGROUND_INVALIDATION_LISTENER_SERVICE_NAME_KEY =
+        "ipc.invalidation.ticl.background_invalidation_listener_service_class";
+
     /** Default values returned if not overriden by the manifest file. */
     private static final Map<String, String> DEFAULTS = new HashMap<String, String>();
     static {
@@ -109,11 +123,13 @@ public class AndroidTiclManifest {
         DEFAULTS.put(LISTENER_NAME_KEY, "");
         DEFAULTS.put(LISTENER_SERVICE_NAME_KEY,
             "com.google.ipc.invalidation.ticl.android2.AndroidInvalidationListenerStub");
+        DEFAULTS.put(BACKGROUND_INVALIDATION_LISTENER_SERVICE_NAME_KEY, null);
     }
 
     private final String ticlServiceClass;
     private final String listenerClass;
     private final String listenerServiceClass;
+    private final String backgroundInvalidationListenerServiceClass;
 
     ApplicationMetadata(Context context) {
       ApplicationInfo appInfo;
@@ -127,6 +143,8 @@ public class AndroidTiclManifest {
       ticlServiceClass = readApplicationMetadata(appInfo, TICL_SERVICE_NAME_KEY);
       listenerClass = readApplicationMetadata(appInfo, LISTENER_NAME_KEY);
       listenerServiceClass = readApplicationMetadata(appInfo, LISTENER_SERVICE_NAME_KEY);
+      backgroundInvalidationListenerServiceClass =
+          readApplicationMetadata(appInfo, BACKGROUND_INVALIDATION_LISTENER_SERVICE_NAME_KEY);
     }
 
     /**
@@ -139,8 +157,7 @@ public class AndroidTiclManifest {
         value = appInfo.metaData.getString(key);
       }
       // Return the manifest value if present or the default value if not.
-      return (value != null) ?
-          value : Preconditions.checkNotNull(DEFAULTS.get(key), "No default value for %s", key);
+      return (value != null) ? value : DEFAULTS.get(key);
     }
   }
 }

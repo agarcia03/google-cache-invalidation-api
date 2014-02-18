@@ -19,8 +19,8 @@ package com.google.ipc.invalidation.common;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import com.google.protos.ipc.invalidation.AndroidChannel;
-import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId;
-import com.google.protos.ipc.invalidation.Channel.NetworkEndpointId.NetworkAddress;
+import com.google.protos.ipc.invalidation.ChannelCommon.NetworkEndpointId;
+import com.google.protos.ipc.invalidation.ChannelCommon.NetworkEndpointId.NetworkAddress;
 import com.google.protos.ipc.invalidation.Client.AckHandleP;
 import com.google.protos.ipc.invalidation.Client.PersistentStateBlob;
 import com.google.protos.ipc.invalidation.Client.PersistentTiclState;
@@ -409,6 +409,27 @@ public class CommonProtos2 {
         .setNetworkAddress(networkAddr)
         .setClientAddress(clientAddr)
         .build();
+  }
+
+  /**
+   * Returns an endpoint id that is identical to the given {@code endpointId} except with
+   * {@link NetworkEndpointId#getIsOffline} set to {@code true}.
+   */
+  public static NetworkEndpointId endpointIdToOfflineEndpointId(NetworkEndpointId endpointId) {
+    // If the endpoint is already marked offline, there's no need to build a new one.
+    return isOnline(endpointId) ? endpointId.toBuilder().setIsOffline(true).build() : endpointId;
+  }
+
+  /**
+   * Indicates whether the optional {@code endpointId} is for an online client. If the id is
+   * {@code null}, it means the client has no endpoint associated with it and it is considered
+   * offline. If the endpoint is known, it is considered online if the {@code is_offline} field is
+   * not defined or if the field is {@code false}.
+   */
+  public static boolean isOnline(NetworkEndpointId endpointId) {
+    // NetworkEndpointId has an optional is_offline field. The client is online if the field's value
+    // is either undefined or false.
+    return (endpointId != null) && (!endpointId.hasIsOffline() || !endpointId.getIsOffline());
   }
 
   public static TokenControlMessage newTokenControlMessage(ByteString newToken) {
