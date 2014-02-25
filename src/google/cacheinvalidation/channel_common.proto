@@ -17,18 +17,9 @@
 
 syntax = "proto2";
 
-option optimize_for = LITE_RUNTIME;
-
 package ipc.invalidation;
 
-option java_outer_classname = "ChannelCommon";
-option javascript_package = "invalidation.proto";
-
-option java_generate_equals_and_hash = true;
-
 option cc_api_version = 2;
-option py_api_version = 2;
-option java_api_version = 2;
 
 message ChannelMessageEncoding {
     // What kind of encoding is used for network_message
