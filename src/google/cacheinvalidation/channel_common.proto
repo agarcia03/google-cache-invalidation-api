@@ -17,9 +17,9 @@
 
 syntax = "proto2";
 
-package ipc.invalidation;
+option optimize_for = LITE_RUNTIME;
 
-option cc_api_version = 2;
+package ipc.invalidation;
 
 message ChannelMessageEncoding {
     // What kind of encoding is used for network_message
