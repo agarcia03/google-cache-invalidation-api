@@ -19,6 +19,8 @@
 
 syntax = "proto2";
 
+option optimize_for = LITE_RUNTIME;
+
 package ipc.invalidation;
 
 import "client_protocol.proto";
