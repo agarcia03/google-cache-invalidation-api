@@ -35,7 +35,7 @@ ACTION_TEMPLATE(
     InvokeNetworkStatusCallback,
     HAS_1_TEMPLATE_PARAMS(int, k),
     AND_0_VALUE_PARAMS()) {
-  ::testing::get<k>(args)->Run(true);
+  std::tr1::get<k>(args)->Run(true);
 }
 
 const char* UnitTestBase::kClientToken = "Dummy";

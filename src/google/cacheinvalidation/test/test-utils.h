@@ -311,8 +311,8 @@ ACTION_TEMPLATE(
     InvokeAndDeleteClosure,
     HAS_1_TEMPLATE_PARAMS(int, k),
     AND_0_VALUE_PARAMS()) {
-  ::testing::get<k>(args)->Run();
-  delete ::testing::get<k>(args);
+  std::tr1::get<k>(args)->Run();
+  delete std::tr1::get<k>(args);
 }
 
 }  // namespace invalidation
