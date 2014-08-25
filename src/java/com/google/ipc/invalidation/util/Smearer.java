@@ -57,8 +57,4 @@ public class Smearer {
     double smearFactor = (2 * random.nextDouble() - 1.0) * smearFraction;
     return (int) Math.ceil(delay + delay * smearFactor);
   }
-
-  /** Changes the smear percent of this object to be {@code smearPercent}. */
-  public void changeSmearPercent(int smearPercent) {
-  }
 }

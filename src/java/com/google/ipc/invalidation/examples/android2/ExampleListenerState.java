@@ -110,7 +110,7 @@ public class ExampleListenerState {
     }
 
     void toString(StringBuilder builder) {
-      builder.append(isRegistered ? "REG " : "UNREG ").append(objectId.toString());
+      builder.append(isRegistered ? "REG " : "UNREG ").append(objectId);
       if (payload != null) {
         builder.append(", payload=").append(payload.toStringUtf8());
       }
@@ -121,8 +121,7 @@ public class ExampleListenerState {
         builder.append(", isBackground");
       }
       if (invalidationTimeMillis != null) {
-        builder.append(", invalidationTime=").append(
-            new Date(invalidationTimeMillis.longValue()).toString());
+        builder.append(", invalidationTime=").append(new Date(invalidationTimeMillis.longValue()));
       }
     }
   }

@@ -18,7 +18,6 @@ package com.google.ipc.invalidation.examples.android2;
 
 import com.google.ipc.invalidation.external.client.contrib.MultiplexingGcmListener;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
-import com.google.protobuf.ByteString;
 
 import android.app.Activity;
 import android.content.Context;
@@ -31,6 +30,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import java.nio.charset.Charset;
 
 /**
  * A simple  sample application that displays information about object registrations and
@@ -173,7 +174,7 @@ public final class MainActivity extends Activity {
 
         String name = nameField.getText().toString();
         ObjectId objectId =
-            ObjectId.newInstance(source, ByteString.copyFromUtf8(name).toByteArray());
+            ObjectId.newInstance(source, name.getBytes(Charset.forName("UTF-8")));
         performRegistration(v.getContext(), objectId);
       }
 

@@ -70,7 +70,6 @@ public class ProtoWrapper<P extends AbstractMessageLite> {
    */
   @Override
   public boolean equals(Object o) {
-    Class<?> msgClass = proto.getClass();
     if (!(o instanceof ProtoWrapper)) {
       return false;
     }
@@ -89,6 +88,6 @@ public class ProtoWrapper<P extends AbstractMessageLite> {
   public String toString() {
     // Don't print exactly the protocol buffer because that could be extremely confusing when
     // debugging, since this object isn't actually a protocol buffer.
-    return "PW-" + proto.toString();
+    return "PW-" + proto;
   }
 }

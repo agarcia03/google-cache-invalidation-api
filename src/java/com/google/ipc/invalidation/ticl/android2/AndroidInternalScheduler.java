@@ -21,9 +21,9 @@ import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.Scheduler;
 import com.google.ipc.invalidation.ticl.RecurringTask;
+import com.google.ipc.invalidation.ticl.proto.AndroidService.AndroidSchedulerEvent;
 import com.google.ipc.invalidation.util.NamedRunnable;
 import com.google.ipc.invalidation.util.TypedUtil;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidSchedulerEvent;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;

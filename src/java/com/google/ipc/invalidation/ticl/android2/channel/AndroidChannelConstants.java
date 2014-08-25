@@ -15,9 +15,8 @@
  */
 package com.google.ipc.invalidation.ticl.android2.channel;
 
-import com.google.ipc.invalidation.common.CommonProtos2;
-import com.google.protos.ipc.invalidation.AndroidChannel.MajorVersion;
-import com.google.protos.ipc.invalidation.ClientProtocol.Version;
+import com.google.ipc.invalidation.ticl.proto.AndroidChannel.MajorVersion;
+import com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version;
 
 /**
  * Constants used by the network channel.
@@ -120,8 +119,7 @@ public final class AndroidChannelConstants {
   }
 
   /** The channel version expected by this channel implementation. */
-  public static final Version CHANNEL_VERSION =
-      CommonProtos2.newVersion(MajorVersion.INITIAL.getNumber(), 0);
+  public static final Version CHANNEL_VERSION = Version.create(MajorVersion.INITIAL, 0);
 
   /**
    * An extra set on an intent to the AndroidMessageSenderService to inform it that a GCM

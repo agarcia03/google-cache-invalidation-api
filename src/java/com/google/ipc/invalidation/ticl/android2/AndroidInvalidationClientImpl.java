@@ -25,13 +25,13 @@ import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.ipc.invalidation.ticl.InvalidationClientCore;
-import com.google.ipc.invalidation.ticl.ProtoConverter;
+import com.google.ipc.invalidation.ticl.ProtoWrapperConverter;
 import com.google.ipc.invalidation.ticl.android2.ProtocolIntents.ListenerUpcalls;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidTiclState;
-import com.google.protos.ipc.invalidation.Client.AckHandleP;
-import com.google.protos.ipc.invalidation.ClientProtocol.ApplicationClientIdP;
-import com.google.protos.ipc.invalidation.ClientProtocol.ClientConfigP;
+import com.google.ipc.invalidation.ticl.proto.AndroidService.AndroidTiclState;
+import com.google.ipc.invalidation.ticl.proto.Client.AckHandleP;
+import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ApplicationClientIdP;
+import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ClientConfigP;
+import com.google.ipc.invalidation.util.ProtoWrapper.ValidationException;
 
 import android.app.Service;
 import android.content.Context;
@@ -92,8 +92,8 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
       try {
         AckHandleP ackHandleP = AckHandleP.parseFrom(ackHandle.getHandleData());
         issueIntent(context, ListenerUpcalls.newInvalidateIntent(
-            ProtoConverter.convertToInvalidationProto(invalidation), ackHandleP));
-      } catch (InvalidProtocolBufferException exception) {
+            ProtoWrapperConverter.convertToInvalidationProto(invalidation), ackHandleP));
+      } catch (ValidationException exception) {
         // Log and drop invalid call.
         logBadAckHandle("invalidate", ackHandle);
       }
@@ -105,8 +105,8 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
       try {
         AckHandleP ackHandleP = AckHandleP.parseFrom(ackHandle.getHandleData());
         issueIntent(context, ListenerUpcalls.newInvalidateUnknownIntent(
-            ProtoConverter.convertToObjectIdProto(objectId), ackHandleP));
-      } catch (InvalidProtocolBufferException exception) {
+            ProtoWrapperConverter.convertToObjectIdProto(objectId), ackHandleP));
+      } catch (ValidationException exception) {
         // Log and drop invalid call.
         logBadAckHandle("invalidateUnknownVersion", ackHandle);
       }
@@ -117,7 +117,7 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
       try {
         AckHandleP ackHandleP = AckHandleP.parseFrom(ackHandle.getHandleData());
         issueIntent(context, ListenerUpcalls.newInvalidateAllIntent(ackHandleP));
-      } catch (InvalidProtocolBufferException exception) {
+      } catch (ValidationException exception) {
         // Log and drop invalid call.
         logBadAckHandle("invalidateAll", ackHandle);
       }
@@ -127,7 +127,7 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
     public void informRegistrationStatus(
         InvalidationClient client, ObjectId objectId, RegistrationState regState) {
       Intent intent = ListenerUpcalls.newRegistrationStatusIntent(
-          ProtoConverter.convertToObjectIdProto(objectId),
+          ProtoWrapperConverter.convertToObjectIdProto(objectId),
           regState == RegistrationState.REGISTERED);
       issueIntent(context, intent);
     }
@@ -136,7 +136,7 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
     public void informRegistrationFailure(InvalidationClient client, ObjectId objectId,
         boolean isTransient, String errorMessage) {
       issueIntent(context, ListenerUpcalls.newRegistrationFailureIntent(
-          ProtoConverter.convertToObjectIdProto(objectId), isTransient, errorMessage));
+          ProtoWrapperConverter.convertToObjectIdProto(objectId), isTransient, errorMessage));
     }
 
     @Override
@@ -203,7 +203,7 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
     super(resources,
         random,
         marshalledState.getMetadata().getClientType(),
-        marshalledState.getMetadata().getClientName().toByteArray(),
+        marshalledState.getMetadata().getClientName().getByteArray(),
         marshalledState.getMetadata().getClientConfig(),
         getApplicationName(context),
         marshalledState.getTiclState(),

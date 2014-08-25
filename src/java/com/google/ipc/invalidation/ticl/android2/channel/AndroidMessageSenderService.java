@@ -18,16 +18,15 @@ package com.google.ipc.invalidation.ticl.android2.channel;
 import com.google.android.gcm.GCMRegistrar;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.ipc.invalidation.common.CommonProtos2;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
-import com.google.ipc.invalidation.ticl.android2.AndroidIntentProtocolValidator;
 import com.google.ipc.invalidation.ticl.android2.ProtocolIntents;
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants.AuthTokenConstants;
 import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants.HttpConstants;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protos.ipc.invalidation.AndroidService.AndroidNetworkSendRequest;
-import com.google.protos.ipc.invalidation.ChannelCommon.NetworkEndpointId;
+import com.google.ipc.invalidation.ticl.proto.AndroidService.AndroidNetworkSendRequest;
+import com.google.ipc.invalidation.ticl.proto.ChannelCommon.NetworkEndpointId;
+import com.google.ipc.invalidation.ticl.proto.CommonProtos;
+import com.google.ipc.invalidation.util.ProtoWrapper.ValidationException;
 
 import android.app.IntentService;
 import android.app.PendingIntent;
@@ -74,9 +73,6 @@ public class AndroidMessageSenderService extends IntentService {
   private static String channelUrlForTest = null;
 
   private final Logger logger = AndroidLogger.forTag("MsgSenderSvc");
-
-  private final AndroidIntentProtocolValidator validator =
-      new AndroidIntentProtocolValidator(logger);
 
   /** The last message sent, for tests. */
   public static byte[] lastTiclMessageForTest = null;
@@ -125,18 +121,14 @@ public class AndroidMessageSenderService extends IntentService {
     final AndroidNetworkSendRequest sendRequest;
     try {
        sendRequest = AndroidNetworkSendRequest.parseFrom(sendRequestBytes);
-    } catch (InvalidProtocolBufferException exception) {
-      logger.warning("Failed parsing AndroidNetworkSendRequest from %s: %s",
+    } catch (ValidationException exception) {
+      logger.warning("Invalid AndroidNetworkSendRequest from %s: %s",
           sendRequestBytes, exception);
-      return;
-    }
-    if (!validator.isNetworkSendRequestValid(sendRequest)) {
-      logger.warning("Ignoring invalid send request: %s", sendRequest);
       return;
     }
 
     // Request an auth token from the application to use when sending the message.
-    byte[] message = sendRequest.getMessage().toByteArray();
+    byte[] message = sendRequest.getMessage().getByteArray();
     requestAuthTokenForMessage(message, null);
   }
 
@@ -393,8 +385,8 @@ public class AndroidMessageSenderService extends IntentService {
           registrationId);
       return null;
     }
-    return CommonProtos2.newAndroidEndpointId(registrationId,
-        NO_CLIENT_KEY, context.getPackageName(), AndroidChannelConstants.CHANNEL_VERSION);
+    return CommonProtos.newAndroidEndpointId(registrationId, NO_CLIENT_KEY,
+        context.getPackageName(), AndroidChannelConstants.CHANNEL_VERSION);
   }
 
   /** Sets the channel url to {@code url}, for tests. */

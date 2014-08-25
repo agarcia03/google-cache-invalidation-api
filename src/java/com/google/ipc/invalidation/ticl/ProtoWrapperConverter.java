@@ -17,24 +17,22 @@
 package com.google.ipc.invalidation.ticl;
 
 import com.google.common.base.Preconditions;
-import com.google.ipc.invalidation.common.CommonProtos2;
-import com.google.ipc.invalidation.common.TrickleState;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
-import com.google.protobuf.ByteString;
-import com.google.protos.ipc.invalidation.ClientProtocol.InvalidationP;
-import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
+import com.google.ipc.invalidation.ticl.proto.ClientProtocol.InvalidationP;
+import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP;
+import com.google.ipc.invalidation.ticl.proto.CommonProtos;
+import com.google.ipc.invalidation.util.Bytes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 /**
- * Utilities to convert between protobufs and externally-exposed types in the Ticl.
- *
+ * Utilities to convert between {@link com.google.ipc.invalidation.util.ProtoWrapper ProtoWrapper}
+ * wrappers and externally-exposed types in the Ticl.
  */
 
-public class ProtoConverter {
+public class ProtoWrapperConverter {
 
   /**
    * Converts an object id protocol buffer {@code objectId} to the
@@ -42,7 +40,7 @@ public class ProtoConverter {
    */
   public static ObjectId convertFromObjectIdProto(ObjectIdP objectIdProto) {
     Preconditions.checkNotNull(objectIdProto);
-    return ObjectId.newInstance(objectIdProto.getSource(), objectIdProto.getName().toByteArray());
+    return ObjectId.newInstance(objectIdProto.getSource(), objectIdProto.getName().getByteArray());
   }
 
   /**
@@ -52,32 +50,34 @@ public class ProtoConverter {
   
   public static ObjectIdP convertToObjectIdProto(ObjectId objectId) {
     Preconditions.checkNotNull(objectId);
-    return CommonProtos2.newObjectIdP(objectId.getSource(),
-        ByteString.copyFrom(objectId.getName()));
+    return ObjectIdP.create(objectId.getSource(), new Bytes(objectId.getName()));
   }
 
   /**
    * Returns a list of {@link ObjectIdP} by converting each element of {@code objectIds} to
    * an {@code ObjectIdP}.
    */
-  public static List<ObjectIdP> convertToObjectIdProtoList(Collection<ObjectId> objectIds) {
-    List<ObjectIdP> objectIdPs = new ArrayList<ObjectIdP>(objectIds.size());
+  public static Collection<ObjectIdP> convertToObjectIdProtoCollection(
+      Iterable<ObjectId> objectIds) {
+    int expectedSize = (objectIds instanceof Collection) ? ((Collection<?>) objectIds).size() : 1;
+    ArrayList<ObjectIdP> objectIdPs = new ArrayList<ObjectIdP>(expectedSize);
     for (ObjectId objectId : objectIds) {
-      objectIdPs.add(ProtoConverter.convertToObjectIdProto(objectId));
+      objectIdPs.add(convertToObjectIdProto(objectId));
     }
     return objectIdPs;
   }
 
   /**
-   * Returns a list of {@link ObjectId} by converting each element of {@code oidPs} to
+   * Returns a list of {@link ObjectId} by converting each element of {@code objectIdProtos} to
    * an {@code ObjectId}.
    */
-  public static List<ObjectId> convertToObjectIdList(List<ObjectIdP> oidPs) {
-    List<ObjectId> objects = new ArrayList<ObjectId>(oidPs.size());
-    for (ObjectIdP oidP : oidPs) {
-      objects.add(ObjectId.newInstance(oidP.getSource(), oidP.getName().toByteArray()));
+  public static Collection<ObjectId> convertFromObjectIdProtoCollection(
+      Collection<ObjectIdP> objectIdProtos) {
+    ArrayList<ObjectId> objectIds = new ArrayList<ObjectId>(objectIdProtos.size());
+    for (ObjectIdP objectIdProto : objectIdProtos) {
+      objectIds.add(convertFromObjectIdProto(objectIdProto));
     }
-    return objects;
+    return objectIds;
   }
 
   /**
@@ -90,7 +90,7 @@ public class ProtoConverter {
 
     // No bridge arrival time in invalidation.
     return Invalidation.newInstance(objectId, invalidation.getVersion(),
-        invalidation.hasPayload() ? invalidation.getPayload().toByteArray() : null,
+        invalidation.hasPayload() ? invalidation.getPayload().getByteArray() : null,
             invalidation.getIsTrickleRestart());
   }
 
@@ -106,11 +106,10 @@ public class ProtoConverter {
     // to suppress earlier invalidations and acks implicitly acknowledge all previous
     // invalidations. Therefore the correct semanantics are provided by setting isTrickleRestart to
     // true.
-    return CommonProtos2.newInvalidationP(objectId, invalidation.getVersion(),
-        TrickleState.fromBoolean(invalidation.getIsTrickleRestartForInternalUse()),
-        invalidation.getPayload() == null ? null : ByteString.copyFrom(invalidation.getPayload()));
+    return CommonProtos.newInvalidationP(objectId, invalidation.getVersion(),
+        invalidation.getIsTrickleRestartForInternalUse(), invalidation.getPayload());
   }
 
-  private ProtoConverter() { // To prevent instantiation.
+  private ProtoWrapperConverter() { // To prevent instantiation.
   }
 }

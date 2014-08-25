@@ -16,15 +16,15 @@
 package com.google.ipc.invalidation.external.client.contrib;
 
 import com.google.ipc.invalidation.external.client.types.ObjectId;
-import com.google.ipc.invalidation.ticl.ProtoConverter;
+import com.google.ipc.invalidation.ticl.ProtoWrapperConverter;
 import com.google.ipc.invalidation.ticl.TiclExponentialBackoffDelayGenerator;
+import com.google.ipc.invalidation.ticl.proto.AndroidListenerProtocol;
+import com.google.ipc.invalidation.ticl.proto.AndroidListenerProtocol.AndroidListenerState.RetryRegistrationState;
+import com.google.ipc.invalidation.ticl.proto.Client.ExponentialBackoffState;
+import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.Marshallable;
 import com.google.ipc.invalidation.util.TypedUtil;
-import com.google.protobuf.ByteString;
-import com.google.protos.ipc.invalidation.AndroidListenerProtocol;
-import com.google.protos.ipc.invalidation.AndroidListenerProtocol.AndroidListenerState.RetryRegistrationState;
-import com.google.protos.ipc.invalidation.ClientProtocol.ObjectIdP;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -90,7 +90,7 @@ final class AndroidListenerState
    * The identifier for the current client. The ID is randomly generated and is used to ensure that
    * messages are not handled by the wrong client instance.
    */
-  private final ByteString clientId;
+  private final Bytes clientId;
 
   /** Initializes state for a new client. */
   AndroidListenerState(int initialMaxDelayMs, int maxDelayFactor) {
@@ -108,11 +108,15 @@ final class AndroidListenerState
   AndroidListenerState(int initialMaxDelayMs, int maxDelayFactor,
       AndroidListenerProtocol.AndroidListenerState state) {
     desiredRegistrations = new HashSet<ObjectId>();
-    for (ObjectIdP objectIdProto : state.getRegistrationList()) {
-      desiredRegistrations.add(ProtoConverter.convertFromObjectIdProto(objectIdProto));
+    for (ObjectIdP objectIdProto : state.getRegistration()) {
+      desiredRegistrations.add(ProtoWrapperConverter.convertFromObjectIdProto(objectIdProto));
     }
-    for (RetryRegistrationState retryState : state.getRetryRegistrationStateList()) {
-      ObjectId objectId = ProtoConverter.convertFromObjectIdProto(retryState.getObjectId());
+    for (RetryRegistrationState retryState : state.getRetryRegistrationState()) {
+      ObjectIdP objectIdP = retryState.getNullableObjectId();
+      if (objectIdP == null) {
+        continue;
+      }
+      ObjectId objectId = ProtoWrapperConverter.convertFromObjectIdProto(objectIdP);
       delayGenerators.put(objectId, new TiclExponentialBackoffDelayGenerator(random,
           initialMaxDelayMs, maxDelayFactor, retryState.getExponentialBackoffState()));
     }
@@ -214,7 +218,7 @@ final class AndroidListenerState
    * Gets the identifier for the current client. Used to determine if registrations commands are
    * relevant to this instance.
    */
-  ByteString getClientId() {
+  Bytes getClientId() {
     return clientId;
   }
 
@@ -253,12 +257,12 @@ final class AndroidListenerState
 
     AndroidListenerState that = (AndroidListenerState) object;
 
-    return (this.isDirty == that.isDirty) &&
-        (this.requestCodeSeqNum == that.requestCodeSeqNum) &&
-        (this.desiredRegistrations.size() == that.desiredRegistrations.size()) &&
-        (this.desiredRegistrations.containsAll(that.desiredRegistrations)) &&
-        (this.clientId.equals(that.clientId)) &&
-        equals(this.delayGenerators, that.delayGenerators);
+    return (this.isDirty == that.isDirty)
+        && (this.requestCodeSeqNum == that.requestCodeSeqNum)
+        && (this.desiredRegistrations.size() == that.desiredRegistrations.size())
+        && (this.desiredRegistrations.containsAll(that.desiredRegistrations))
+        && TypedUtil.<Bytes>equals(this.clientId, that.clientId)
+        && equals(this.delayGenerators, that.delayGenerators);
   }
 
   /** Compares the contents of two {@link #delayGenerators} maps. */
@@ -269,8 +273,8 @@ final class AndroidListenerState
     }
     for (Entry<ObjectId, TiclExponentialBackoffDelayGenerator> xEntry : x.entrySet()) {
       TiclExponentialBackoffDelayGenerator yGenerator = y.get(xEntry.getKey());
-      if ((yGenerator == null) || !xEntry.getValue().marshal().toByteString().equals(
-          yGenerator.marshal().toByteString())) {
+      if ((yGenerator == null) || !TypedUtil.<ExponentialBackoffState>equals(
+          xEntry.getValue().marshal(), yGenerator.marshal())) {
         return false;
       }
     }
@@ -281,20 +285,19 @@ final class AndroidListenerState
   public String toString() {
     return String.format("AndroidListenerState[%s]: isDirty = %b, " +
         "desiredRegistrations.size() = %d, delayGenerators.size() = %d, requestCodeSeqNum = %d",
-        Bytes.toString(clientId), isDirty, desiredRegistrations.size(), delayGenerators.size(),
-        requestCodeSeqNum);
+        clientId, isDirty, desiredRegistrations.size(), delayGenerators.size(), requestCodeSeqNum);
   }
 
   /**
    * Constructs a new globally unique ID for the client. Can be used to determine if commands
    * originated from this instance of the listener.
    */
-  private static ByteString createGloballyUniqueClientId() {
+  private static Bytes createGloballyUniqueClientId() {
     UUID guid = UUID.randomUUID();
     byte[] bytes = new byte[16];
     ByteBuffer buffer = ByteBuffer.wrap(bytes);
     buffer.putLong(guid.getLeastSignificantBits());
     buffer.putLong(guid.getMostSignificantBits());
-    return ByteString.copyFrom(bytes);
+    return new Bytes(bytes);
   }
 }
