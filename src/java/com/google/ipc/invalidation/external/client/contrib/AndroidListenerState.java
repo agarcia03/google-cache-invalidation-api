@@ -29,6 +29,7 @@ import com.google.ipc.invalidation.util.TypedUtil;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
@@ -283,8 +284,8 @@ final class AndroidListenerState
 
   @Override
   public String toString() {
-    return String.format("AndroidListenerState[%s]: isDirty = %b, " +
-        "desiredRegistrations.size() = %d, delayGenerators.size() = %d, requestCodeSeqNum = %d",
+    return String.format(Locale.ROOT, "AndroidListenerState[%s]: isDirty = %b, "
+        + "desiredRegistrations.size() = %d, delayGenerators.size() = %d, requestCodeSeqNum = %d",
         clientId, isDirty, desiredRegistrations.size(), delayGenerators.size(), requestCodeSeqNum);
   }
 

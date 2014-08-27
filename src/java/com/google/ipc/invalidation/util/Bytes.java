@@ -21,6 +21,7 @@ import com.google.ipc.invalidation.util.LazyString.LazyStringReceiver;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Locale;
 
 
 /**
@@ -84,7 +85,7 @@ public class Bytes extends InternalBase implements Comparable<Bytes> {
     // Initialize the array with the Octal string values so that we do not have
     // to do String.format for every byte during runtime.
     for (int i = 0; i < CHAR_OCTAL_STRINGS1.length; i++) {
-      String value = String.format("\\%03o", i);
+      String value = String.format(Locale.ROOT, "\\%03o", i);
       CHAR_OCTAL_STRINGS1[i] = value.charAt(1);
       CHAR_OCTAL_STRINGS2[i] = value.charAt(2);
       CHAR_OCTAL_STRINGS3[i] = value.charAt(3);

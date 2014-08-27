@@ -23,7 +23,8 @@ import com.google.ipc.invalidation.external.client.contrib.AndroidListener;
 import com.google.ipc.invalidation.external.client.types.ErrorInfo;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
-import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.nano.InvalidProtocolBufferNanoException;
+import com.google.protobuf.nano.MessageNano;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -42,6 +43,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 
 /**
@@ -450,7 +452,7 @@ public final class ExampleListener extends AndroidListener {
   }
 
   private static byte[] serializeObjectId(ObjectId objectId) {
-    return ExampleListenerState.serializeObjectId(objectId).toByteArray();
+    return MessageNano.toByteArray(ExampleListenerState.serializeObjectId(objectId));
   }
 
   private static ObjectId parseObjectIdExtra(Intent intent) {
@@ -459,10 +461,11 @@ public final class ExampleListener extends AndroidListener {
       return null;
     }
     try {
-      ObjectIdProto proto = ObjectIdProto.parseFrom(bytes);
+      ObjectIdProto proto = MessageNano.mergeFrom(new ObjectIdProto(), bytes);
       return ExampleListenerState.deserializeObjectId(proto);
-    } catch (InvalidProtocolBufferException exception) {
-      Log.e(TAG, String.format("Error parsing object id. error='%s'", exception.getMessage()));
+    } catch (InvalidProtocolBufferNanoException exception) {
+      Log.e(TAG, String.format(Locale.ROOT, "Error parsing object id. error='%s'",
+          exception.getMessage()));
       return null;
     }
   }

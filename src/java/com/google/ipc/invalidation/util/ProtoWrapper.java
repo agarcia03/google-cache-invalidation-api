@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 
 /**
@@ -80,7 +81,7 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static void required(String fieldName, Object fieldValue) {
     if (fieldValue == null) {
       throw new ValidationArgumentException(
-          String.format("Required field '%s' was not set", fieldName));
+          String.format(Locale.ROOT, "Required field '%s' was not set", fieldName));
     }
   }
 
@@ -95,8 +96,8 @@ public abstract class ProtoWrapper extends InternalBase {
     ArrayList<T> copy = new ArrayList<T>(fieldValues);
     for (int i = 0; i < copy.size(); i++) {
       if (copy.get(i) == null) {
-        throw new ValidationArgumentException(
-            String.format("Element %d of repeated field '%s' must not be null.", i, fieldName));
+        throw new ValidationArgumentException(String.format(Locale.ROOT,
+            "Element %d of repeated field '%s' must not be null.", i, fieldName));
       }
     }
     return Collections.unmodifiableList(copy);
@@ -109,8 +110,8 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static <T> List<T> required(String fieldName, Collection<T> fieldValues) {
     List<T> copy = optional(fieldName, fieldValues);
     if (fieldValues.isEmpty()) {
-      throw new ValidationArgumentException(
-          String.format("Repeated field '%s' must have at least one element", fieldName));
+      throw new ValidationArgumentException(String.format(Locale.ROOT,
+          "Repeated field '%s' must have at least one element", fieldName));
     }
     return copy;
   }
@@ -119,7 +120,7 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static void nonNegative(String fieldName, int value) {
     if (value < 0) {
       throw new ValidationArgumentException(
-          String.format("Field '%s' must be non-negative: %d", fieldName, value));
+          String.format(Locale.ROOT, "Field '%s' must be non-negative: %d", fieldName, value));
     }
   }
 
@@ -127,7 +128,7 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static void nonNegative(String fieldName, long value) {
     if (value < 0) {
       throw new ValidationArgumentException(
-          String.format("Field '%s' must be non-negative: %d", fieldName, value));
+          String.format(Locale.ROOT, "Field '%s' must be non-negative: %d", fieldName, value));
     }
   }
 
@@ -135,7 +136,7 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static void positive(String fieldName, int value) {
     if (value <= 0) {
       throw new ValidationArgumentException(
-          String.format("Field '%s' must be positive: %d", fieldName, value));
+          String.format(Locale.ROOT, "Field '%s' must be positive: %d", fieldName, value));
     }
   }
 
@@ -143,7 +144,7 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static void positive(String fieldName, long value) {
     if (value <= 0) {
       throw new ValidationArgumentException(
-          String.format("Field '%s' must be positive: %d", fieldName, value));
+          String.format(Locale.ROOT, "Field '%s' must be positive: %d", fieldName, value));
     }
   }
 
@@ -154,7 +155,7 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static void nonEmpty(String fieldName, String value) {
     if (Preconditions.checkNotNull(value).length() == 0) {
       throw new ValidationArgumentException(
-          String.format("Field '%s' must be non-empty", fieldName));
+          String.format(Locale.ROOT, "Field '%s' must be non-empty", fieldName));
     }
   }
 
@@ -165,21 +166,21 @@ public abstract class ProtoWrapper extends InternalBase {
   protected static void nonEmpty(String fieldName, Bytes value) {
     if (Preconditions.checkNotNull(value).size() == 0) {
       throw new ValidationArgumentException(
-          String.format("Field '%s' must be non-empty", fieldName));
+          String.format(Locale.ROOT, "Field '%s' must be non-empty", fieldName));
     }
   }
 
   /** Checks that the given condition holds. */
   protected void check(boolean condition, String message) {
     if (!condition) {
-      throw new ValidationArgumentException(String.format("%s: %s", message, this));
+      throw new ValidationArgumentException(String.format(Locale.ROOT, "%s: %s", message, this));
     }
   }
 
   /** Throws exception indicating a one-of violation due to multiple defined choices. */
   protected static void oneOfViolation(String field1, String field2) {
-    throw new ValidationArgumentException(
-        String.format("Multiple one-of fields defined, including: %s, %s", field1, field2));
+    throw new ValidationArgumentException(String.format(Locale.ROOT,
+        "Multiple one-of fields defined, including: %s, %s", field1, field2));
   }
 
   /** Throws exception indicating that no one-of choices are defined. */

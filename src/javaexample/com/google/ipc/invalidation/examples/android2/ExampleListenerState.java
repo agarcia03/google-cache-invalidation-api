@@ -20,8 +20,8 @@ import com.google.ipc.invalidation.examples.android2.ExampleListenerProto.Exampl
 import com.google.ipc.invalidation.examples.android2.ExampleListenerProto.ExampleListenerStateProto.ObjectIdProto;
 import com.google.ipc.invalidation.examples.android2.ExampleListenerProto.ExampleListenerStateProto.ObjectStateProto;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.nano.InvalidProtocolBufferNanoException;
+import com.google.protobuf.nano.MessageNano;
 
 import android.util.Base64;
 import android.util.Log;
@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 
@@ -51,7 +52,7 @@ public class ExampleListenerState {
      * Payload of the invalidation with the highest version received so far. {@code null} before
      * any invalidations have been received or after an unknown-version invalidation is received.
      */
-    ByteString payload;
+    byte[] payload;
 
     /**
      * Highest version invalidation received so far. {@code null} before any invalidations have
@@ -66,18 +67,12 @@ public class ExampleListenerState {
     boolean isBackground;
 
     ObjectState(ObjectStateProto objectStateProto) {
-      objectId = deserializeObjectId(objectStateProto.getObjectId());
-      isRegistered = objectStateProto.getIsRegistered();
-      if (objectStateProto.hasPayload()) {
-        payload = objectStateProto.getPayload();
-      }
-      if (objectStateProto.hasHighestVersion()) {
-        highestVersion = objectStateProto.getHighestVersion();
-      }
-      if (objectStateProto.hasInvalidationTimeMillis()) {
-        invalidationTimeMillis = objectStateProto.getInvalidationTimeMillis();
-      }
-      isBackground = objectStateProto.getIsBackground();
+      objectId = deserializeObjectId(objectStateProto.objectId);
+      isRegistered = objectStateProto.isRegistered;
+      payload = objectStateProto.payload;
+      highestVersion = objectStateProto.highestVersion;
+      invalidationTimeMillis = objectStateProto.invalidationTimeMillis;
+      isBackground = objectStateProto.isBackground;
     }
 
     ObjectState(ObjectId objectId, boolean isRegistered) {
@@ -86,20 +81,14 @@ public class ExampleListenerState {
     }
 
     ObjectStateProto serialize() {
-      ObjectStateProto.Builder builder = ObjectStateProto.newBuilder()
-          .setObjectId(ExampleListenerState.serializeObjectId(objectId))
-          .setIsRegistered(isRegistered)
-          .setIsBackground(isBackground);
-      if (payload != null) {
-        builder.setPayload(payload);
-      }
-      if (highestVersion != null) {
-        builder.setHighestVersion(highestVersion.longValue());
-      }
-      if (invalidationTimeMillis != null) {
-        builder.setInvalidationTimeMillis(invalidationTimeMillis.longValue());
-      }
-      return builder.build();
+      ObjectStateProto proto = new ObjectStateProto();
+      proto.objectId = serializeObjectId(objectId);
+      proto.isRegistered = isRegistered;
+      proto.isBackground = isBackground;
+      proto.payload = payload;
+      proto.highestVersion = highestVersion;
+      proto.invalidationTimeMillis = invalidationTimeMillis;
+      return proto;
     }
 
     @Override
@@ -112,7 +101,7 @@ public class ExampleListenerState {
     void toString(StringBuilder builder) {
       builder.append(isRegistered ? "REG " : "UNREG ").append(objectId);
       if (payload != null) {
-        builder.append(", payload=").append(payload.toStringUtf8());
+        builder.append(", |payload|=").append(payload.length);
       }
       if (highestVersion != null) {
         builder.append(", highestVersion=").append(highestVersion.longValue());
@@ -164,11 +153,11 @@ public class ExampleListenerState {
       clientId = null;
     } else {
       // Load interesting objects from state proto.
-      for (ObjectStateProto objectStateProto : stateProto.getObjectStateList()) {
+      for (ObjectStateProto objectStateProto : stateProto.objectState) {
         ObjectState objectState = new ObjectState(objectStateProto);
         trackedObjects.put(objectState.objectId, objectState);
       }
-      clientId = stateProto.hasClientId() ? stateProto.getClientId().toByteArray() : null;
+      clientId = stateProto.clientId;
     }
     return new ExampleListenerState(trackedObjects, clientId);
   }
@@ -182,32 +171,32 @@ public class ExampleListenerState {
     try {
       bytes = Base64.decode(data, Base64.DEFAULT);
     } catch (IllegalArgumentException exception) {
-      Log.e(TAG, String.format("Illegal base 64 encoding. data='%s', error='%s'", data,
+      Log.e(TAG, String.format(Locale.ROOT, "Illegal base 64 encoding. data='%s', error='%s'", data,
           exception.getMessage()));
       return null;
     }
     try {
-      ExampleListenerStateProto proto = ExampleListenerStateProto.parseFrom(bytes);
+      ExampleListenerStateProto proto =
+          MessageNano.mergeFrom(new ExampleListenerStateProto(), bytes);
       return proto;
-    } catch (InvalidProtocolBufferException exception) {
-      Log.e(TAG, String.format("Error parsing state bytes. data='%s', error='%s'", data,
-          exception.getMessage()));
+    } catch (InvalidProtocolBufferNanoException exception) {
+      Log.e(TAG, String.format(Locale.ROOT, "Error parsing state bytes. data='%s', error='%s'",
+          data, exception.getMessage()));
       return null;
     }
   }
 
   /** Serializes example listener state to string. */
   public String serialize() {
-    ExampleListenerStateProto.Builder builder = ExampleListenerStateProto.newBuilder();
+    ExampleListenerStateProto proto = new ExampleListenerStateProto();
+    proto.objectState = new ObjectStateProto[trackedObjects.size()];
+    int index = 0;
     for (ObjectState objectState : trackedObjects.values()) {
       ObjectStateProto objectStateProto = objectState.serialize();
-      builder.addObjectState(objectStateProto);
+      proto.objectState[index++] = objectStateProto;
     }
-    if (clientId != null) {
-      builder.setClientId(ByteString.copyFrom(clientId));
-    }
-    ExampleListenerStateProto proto = builder.build();
-    return Base64.encodeToString(proto.toByteArray(), Base64.DEFAULT);
+    proto.clientId = clientId;
+    return Base64.encodeToString(MessageNano.toByteArray(proto), Base64.DEFAULT);
   }
 
   Iterable<ObjectId> getInterestingObjects() {
@@ -281,7 +270,7 @@ public class ExampleListenerState {
     ObjectState objectState = getObjectStateForInvalidation(objectId);
     if (objectState.highestVersion == null || objectState.highestVersion.longValue() < version) {
       objectState.highestVersion = version;
-      objectState.payload = (payload == null) ? null : ByteString.copyFrom(payload);
+      objectState.payload = payload;
       objectState.invalidationTimeMillis = System.currentTimeMillis();
       objectState.isBackground = isBackground;
     }
@@ -310,15 +299,15 @@ public class ExampleListenerState {
 
   /** Returns an object given its serialized form. */
   static ObjectId deserializeObjectId(ObjectIdProto objectIdProto) {
-    return ObjectId.newInstance(objectIdProto.getSource(), objectIdProto.getName().toByteArray());
+    return ObjectId.newInstance(objectIdProto.source, objectIdProto.name);
   }
 
   /** Serializes the given object id. */
   static ObjectIdProto serializeObjectId(ObjectId objectId) {
-    return ObjectIdProto.newBuilder()
-        .setSource(objectId.getSource())
-        .setName(ByteString.copyFrom(objectId.getName()))
-        .build();
+    ObjectIdProto proto = new ObjectIdProto();
+    proto.source = objectId.getSource();
+    proto.name = objectId.getName();
+    return proto;
   }
 
   /** Clears all state for the example listener. */

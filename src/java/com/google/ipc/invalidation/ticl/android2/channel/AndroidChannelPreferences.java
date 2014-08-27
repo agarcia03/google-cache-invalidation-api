@@ -46,7 +46,9 @@ public class AndroidChannelPreferences {
     // needs to be able to handle that anyway since it can never assume an echo token
     // makes it to the client (since the channel can drop messages).
     editor.putString(C2dmConstants.ECHO_PARAM, token);
-    commitEditor(editor, "setEchoToken");
+    if (!editor.commit()) {
+      logger.warning("Failed writing shared preferences for: setEchoToken");
+    }
   }
 
   /** Returns the echo token that should be included on HTTP requests. */
@@ -64,7 +66,9 @@ public class AndroidChannelPreferences {
 
     // This might fail, but at worst we'll just drop a message, which the Ticl must be prepared to
     // handle.
-    commitEditor(editor, "bufferMessage");
+    if (!editor.commit()) {
+      logger.warning("Failed writing shared preferences for: bufferMessage");
+    }
   }
 
   /**
@@ -83,7 +87,9 @@ public class AndroidChannelPreferences {
     editor.remove(BUFFERED_MSG_PREF);
 
     // If this fails, we might send the same message twice, which is fine.
-    commitEditor(editor, "takeBufferedMessage");
+    if (!editor.commit()) {
+      logger.warning("Failed writing shared preferences for: takeBufferedMessage");
+    }
 
     // Return the decoded message.
     return Base64.decode(message, Base64.URL_SAFE);
@@ -97,15 +103,5 @@ public class AndroidChannelPreferences {
   /** Returns a new {@link SharedPreferences} instance to access the channel preferences. */
   private static SharedPreferences getPreferences(Context context) {
     return context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE);
-  }
-
-  /**
-   * Performs a best-effort write of an editor to persistent storage using {@code commit}, logging
-   * a warning including {@code writeDescription} if the write fails.
-   */
-  private static void commitEditor(SharedPreferences.Editor editor, String writeDescription) {
-    if (!editor.commit()) {
-      logger.warning("Failed writing shared preferences for: %s", writeDescription);
-    }
   }
 }
