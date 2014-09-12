@@ -16,8 +16,6 @@
 package com.google.ipc.invalidation.ticl.android2.channel;
 
 import com.google.android.gcm.GCMRegistrar;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
 import com.google.ipc.invalidation.ticl.android2.ProtocolIntents;
@@ -26,6 +24,7 @@ import com.google.ipc.invalidation.ticl.android2.channel.AndroidChannelConstants
 import com.google.ipc.invalidation.ticl.proto.AndroidService.AndroidNetworkSendRequest;
 import com.google.ipc.invalidation.ticl.proto.ChannelCommon.NetworkEndpointId;
 import com.google.ipc.invalidation.ticl.proto.CommonProtos;
+import com.google.ipc.invalidation.util.Preconditions;
 import com.google.ipc.invalidation.util.ProtoWrapper.ValidationException;
 
 import android.app.IntentService;
@@ -378,7 +377,7 @@ public class AndroidMessageSenderService extends IntentService {
   
   public static NetworkEndpointId getNetworkEndpointId(Context context, Logger logger) {
     String registrationId = GCMRegistrar.getRegistrationId(context);
-    if (Strings.isNullOrEmpty(registrationId)) {
+    if ((registrationId == null) || registrationId.isEmpty()) {
       // No registration with GCM; we cannot compute a network id. The GCM documentation says the
       // string is never null, but we'll be paranoid.
       logger.warning("No GCM registration id; cannot determine our network endpoint id: %s",

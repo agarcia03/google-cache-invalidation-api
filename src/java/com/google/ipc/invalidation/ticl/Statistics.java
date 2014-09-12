@@ -63,6 +63,7 @@ public class Statistics extends InternalBase implements Marshallable<StatisticsS
     TOKEN_CONTROL,
     ERROR,
     CONFIG_CHANGE,
+    STALE_INVALIDATION,  // An already acked INVALIDATION.
     TOTAL, // Refers to the actual ServerToClientMessage messages received from the network.
   }
 

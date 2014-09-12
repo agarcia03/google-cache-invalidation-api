@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.ticl.android2;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.types.AckHandle;
@@ -24,6 +23,7 @@ import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.ipc.invalidation.ticl.ProtoWrapperConverter;
 import com.google.ipc.invalidation.ticl.android2.ProtocolIntents.ClientDowncalls;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP;
+import com.google.ipc.invalidation.util.Preconditions;
 
 import android.content.Context;
 import android.content.Intent;

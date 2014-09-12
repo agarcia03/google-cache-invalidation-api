@@ -128,11 +128,6 @@ class RegistrationManager extends InternalBase implements Marshallable<Registrat
     this.lastKnownServerSummary = getRegistrationSummary();
   }
 
-  
-  Collection<ObjectIdP> getRegisteredObjectsForTest() {
-    return desiredRegistrations.getElements(EMPTY_PREFIX, 0);
-  }
-
   /** Perform registration/unregistation for all objects in {@code objectIds}. */
   Collection<ObjectIdP> performOperations(Collection<ObjectIdP> objectIds, int regOpType) {
     // Record that we have pending operations on the objects.

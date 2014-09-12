@@ -15,7 +15,6 @@
  */
 package com.google.ipc.invalidation.util;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.util.LazyString.LazyStringReceiver;
 
 import java.nio.ByteBuffer;

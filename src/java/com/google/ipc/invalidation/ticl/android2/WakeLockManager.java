@@ -16,9 +16,9 @@
 
 package com.google.ipc.invalidation.ticl.android2;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.android.service.AndroidLogger;
+import com.google.ipc.invalidation.util.Preconditions;
 
 import android.content.Context;
 import android.os.Build;
@@ -72,9 +72,15 @@ public class WakeLockManager {
       if (theManager == null) {
         theManager = new WakeLockManager(context.getApplicationContext());
       } else {
-        Preconditions.checkState(theManager.applicationContext == context.getApplicationContext(),
-            "Provided context %s does not match stored context %s",
-            context.getApplicationContext(), theManager.applicationContext);
+        if (theManager.applicationContext != context.getApplicationContext()) {
+          String message = new StringBuilder()
+              .append("Provided context ")
+              .append(context.getApplicationContext())
+              .append("does not match stored context ")
+              .append(theManager.applicationContext)
+              .toString();
+          throw new IllegalStateException(message);
+        }
       }
       return theManager;
     }

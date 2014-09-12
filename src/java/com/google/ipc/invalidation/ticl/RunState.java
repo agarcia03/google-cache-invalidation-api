@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.ticl;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.ticl.proto.Client.RunStateP;
 import com.google.ipc.invalidation.util.Marshallable;
 
@@ -47,8 +46,9 @@ public class RunState implements Marshallable<RunStateP> {
    */
   public void start() {
     synchronized (lock) {
-      Preconditions.checkState(currentState == RunStateP.State.NOT_STARTED,
-          "Cannot start: %s", currentState);
+      if (currentState != RunStateP.State.NOT_STARTED) {
+        throw new IllegalStateException("Cannot start: " + currentState);
+      }
       currentState = RunStateP.State.STARTED;
     }
   }
@@ -60,8 +60,9 @@ public class RunState implements Marshallable<RunStateP> {
    */
   public void stop() {
     synchronized (lock) {
-      Preconditions.checkState(currentState == RunStateP.State.STARTED,
-          "Cannot stop: %s", currentState);
+      if (currentState != RunStateP.State.STARTED) {
+        throw new IllegalStateException("Cannot stop: " + currentState);
+      }
       currentState = RunStateP.State.STOPPED;
     }
   }

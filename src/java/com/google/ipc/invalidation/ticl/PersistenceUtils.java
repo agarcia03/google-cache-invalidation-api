@@ -28,12 +28,11 @@ import com.google.ipc.invalidation.util.TypedUtil;
  * Utility methods for handling the Ticl persistent state.
  *
  */
-
 public class PersistenceUtils {
 
   /** Serializes a Ticl state blob. */
-  
-  public static byte[] serializeState(PersistentTiclState state, DigestFunction digestFn) {
+  public static byte[] serializeState(
+      PersistentTiclState state, DigestFunction digestFn) {
     Bytes mac = generateMac(state, digestFn);
     return PersistentStateBlob.create(state, mac).toByteArray();
   }

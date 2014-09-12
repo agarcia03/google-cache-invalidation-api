@@ -15,7 +15,6 @@
  */
 package com.google.ipc.invalidation.examples.android2;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.examples.android2.ExampleListenerProto.ExampleListenerStateProto;
 import com.google.ipc.invalidation.examples.android2.ExampleListenerProto.ExampleListenerStateProto.ObjectIdProto;
 import com.google.ipc.invalidation.examples.android2.ExampleListenerProto.ExampleListenerStateProto.ObjectStateProto;
@@ -136,7 +135,10 @@ public class ExampleListenerState {
 
   private ExampleListenerState(Map<ObjectId, ObjectState> trackedObjects,
       byte[] clientId) {
-    this.trackedObjects = Preconditions.checkNotNull(trackedObjects);
+    if (trackedObjects == null) {
+      throw new NullPointerException();
+    }
+    this.trackedObjects = trackedObjects;
     this.clientId = clientId;
   }
 

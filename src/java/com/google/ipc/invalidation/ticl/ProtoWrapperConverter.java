@@ -16,13 +16,13 @@
 
 package com.google.ipc.invalidation.ticl;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.types.Invalidation;
 import com.google.ipc.invalidation.external.client.types.ObjectId;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.InvalidationP;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP;
 import com.google.ipc.invalidation.ticl.proto.CommonProtos;
 import com.google.ipc.invalidation.util.Bytes;
+import com.google.ipc.invalidation.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,7 +31,6 @@ import java.util.Collection;
  * Utilities to convert between {@link com.google.ipc.invalidation.util.ProtoWrapper ProtoWrapper}
  * wrappers and externally-exposed types in the Ticl.
  */
-
 public class ProtoWrapperConverter {
 
   /**
@@ -47,7 +46,6 @@ public class ProtoWrapperConverter {
    * Converts an object id {@code objectId} to the corresponding protocol buffer
    * and returns it.
    */
-  
   public static ObjectIdP convertToObjectIdProto(ObjectId objectId) {
     Preconditions.checkNotNull(objectId);
     return ObjectIdP.create(objectId.getSource(), new Bytes(objectId.getName()));

@@ -15,7 +15,6 @@
  */
 package com.google.ipc.invalidation.ticl.proto;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.ticl.proto.AndroidChannel.AndroidEndpointId;
 import com.google.ipc.invalidation.ticl.proto.ChannelCommon.NetworkEndpointId;
 import com.google.ipc.invalidation.ticl.proto.ChannelCommon.NetworkEndpointId.NetworkAddress;
@@ -29,6 +28,7 @@ import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ServerHeader;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.StatusP;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version;
 import com.google.ipc.invalidation.util.Bytes;
+import com.google.ipc.invalidation.util.Preconditions;
 
 
 /** Utilities for creating protocol buffer wrappers. */

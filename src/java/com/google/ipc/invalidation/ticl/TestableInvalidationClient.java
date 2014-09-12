@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.ticl;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.DigestFunction;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
@@ -27,6 +26,7 @@ import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.RegistrationSummary;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.InternalBase;
+import com.google.ipc.invalidation.util.Preconditions;
 import com.google.ipc.invalidation.util.TextBuilder;
 
 import java.util.ArrayList;

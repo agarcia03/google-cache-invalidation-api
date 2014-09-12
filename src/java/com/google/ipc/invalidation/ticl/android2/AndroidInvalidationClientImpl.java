@@ -15,7 +15,6 @@
  */
 package com.google.ipc.invalidation.ticl.android2;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.InvalidationClient;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
 import com.google.ipc.invalidation.external.client.SystemResources;
@@ -31,6 +30,7 @@ import com.google.ipc.invalidation.ticl.proto.AndroidService.AndroidTiclState;
 import com.google.ipc.invalidation.ticl.proto.Client.AckHandleP;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ApplicationClientIdP;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ClientConfigP;
+import com.google.ipc.invalidation.util.Preconditions;
 import com.google.ipc.invalidation.util.ProtoWrapper.ValidationException;
 
 import android.app.Service;
@@ -222,10 +222,10 @@ class AndroidInvalidationClientImpl extends InvalidationClientCore {
    * executed.
    */
   private void initializeSchedulerWithRecurringTasks() {
-    Preconditions.checkState(
-        getResources().getInternalScheduler() instanceof AndroidInternalScheduler,
-        "Scheduler must be an AndroidInternalScheduler, not %s",
-        getResources().getInternalScheduler());
+    if (!(getResources().getInternalScheduler() instanceof AndroidInternalScheduler)) {
+      throw new IllegalStateException("Scheduler must be an AndroidInternalScheduler, not "
+          + getResources().getInternalScheduler());
+    }
     AndroidInternalScheduler scheduler =
         (AndroidInternalScheduler) getResources().getInternalScheduler();
     for (Map.Entry<String, Runnable> entry : getRecurringTasks().entrySet()) {

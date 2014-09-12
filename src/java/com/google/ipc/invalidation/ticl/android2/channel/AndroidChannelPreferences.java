@@ -25,8 +25,7 @@ import android.util.Base64;
 
 
 /** Accessor class for shared preference entries used by the channel. */
-
-public class AndroidChannelPreferences {
+ public class AndroidChannelPreferences {
   /** Name of the preferences in which channel preferences are stored. */
   private static final String PREFERENCES_NAME = "com.google.ipc.invalidation.gcmchannel";
 

@@ -136,9 +136,6 @@ public class MultiplexingGcmListener extends GCMBaseIntentService {
     private static final String EXTRA_WAKELOCK_NAME =
         "com.google.ipc.invalidation.gcmmplex.listener.WAKELOCK_NAME";
 
-    /** Logger for {@code AbstractListener}. */
-    private static final Logger logger = AndroidLogger.forTag("MplexGcmAbsListener");
-
     /**
      * A {@code BroadcastReceiver} to receive intents from the {@code MultiplexingGcmListener}
      * service. It acquires a wakelock and forwards the intent to the service named by

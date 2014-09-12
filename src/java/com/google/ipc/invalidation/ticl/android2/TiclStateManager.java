@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.ticl.android2;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.ObjectIdDigestUtils.Sha1DigestFunction;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
@@ -26,6 +25,7 @@ import com.google.ipc.invalidation.ticl.proto.AndroidService.AndroidTiclStateWit
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ApplicationClientIdP;
 import com.google.ipc.invalidation.ticl.proto.ClientProtocol.ClientConfigP;
 import com.google.ipc.invalidation.util.Bytes;
+import com.google.ipc.invalidation.util.Preconditions;
 import com.google.ipc.invalidation.util.ProtoWrapper.ValidationException;
 import com.google.ipc.invalidation.util.TypedUtil;
 
@@ -44,8 +44,7 @@ import java.util.Random;
  * Class to save and restore instances of {@code InvalidationClient} to and from stable storage.
  *
  */
-
-public class TiclStateManager {
+class TiclStateManager {
   /** Name of the file to which Ticl state will be persisted. */
   private static final String TICL_STATE_FILENAME = "android_ticl_service_state.bin";
 
@@ -139,7 +138,6 @@ public class TiclStateManager {
    * Reads and returns the Android Ticl state from persistent storage. If the state was missing
    * or invalid, returns {@code null}.
    */
-  
   static AndroidTiclState readTiclState(Context context, Logger logger) {
     FileInputStream inputStream = null;
     try {
@@ -225,7 +223,6 @@ public class TiclStateManager {
   }
 
   /** Deletes {@link #TICL_STATE_FILENAME}. */
-  
   public static void deleteStateFile(Context context) {
     context.deleteFile(TICL_STATE_FILENAME);
   }

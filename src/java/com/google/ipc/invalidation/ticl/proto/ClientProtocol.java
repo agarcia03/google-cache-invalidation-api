@@ -535,9 +535,9 @@ public interface ClientProtocol {
     private final com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP objectId;
     private final boolean isKnownVersion;
     private final long version;
-    private final boolean isTrickleRestart;
     private final Bytes payload;
     private final long bridgeArrivalTimeMsDeprecated;
+    private final boolean isTrickleRestart;
 
     private InvalidationP(com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP objectId,
         Boolean isKnownVersion,
@@ -553,23 +553,23 @@ public interface ClientProtocol {
       required("version", version);
       nonNegative("version", version);
       this.version = version;
-      if (isTrickleRestart != null) {
-        hazzerBits |= 0x1;
-        this.isTrickleRestart = isTrickleRestart;
-      } else {
-        this.isTrickleRestart = true;
-      }
       if (payload != null) {
-        hazzerBits |= 0x2;
+        hazzerBits |= 0x1;
         this.payload = payload;
       } else {
         this.payload = Bytes.EMPTY_BYTES;
       }
       if (bridgeArrivalTimeMsDeprecated != null) {
-        hazzerBits |= 0x4;
+        hazzerBits |= 0x2;
         this.bridgeArrivalTimeMsDeprecated = bridgeArrivalTimeMsDeprecated;
       } else {
         this.bridgeArrivalTimeMsDeprecated = 0;
+      }
+      if (isTrickleRestart != null) {
+        hazzerBits |= 0x4;
+        this.isTrickleRestart = isTrickleRestart;
+      } else {
+        this.isTrickleRestart = true;
       }
       this.__hazzerBits = hazzerBits;
       check(isKnownVersion || (isTrickleRestart == null || isTrickleRestart),
@@ -582,14 +582,14 @@ public interface ClientProtocol {
 
     public long getVersion() { return version; }
 
-    public boolean getIsTrickleRestart() { return isTrickleRestart; }
-    public boolean hasIsTrickleRestart() { return (0x1 & __hazzerBits) != 0; }
-
     public Bytes getPayload() { return payload; }
-    public boolean hasPayload() { return (0x2 & __hazzerBits) != 0; }
+    public boolean hasPayload() { return (0x1 & __hazzerBits) != 0; }
 
     public long getBridgeArrivalTimeMsDeprecated() { return bridgeArrivalTimeMsDeprecated; }
-    public boolean hasBridgeArrivalTimeMsDeprecated() { return (0x4 & __hazzerBits) != 0; }
+    public boolean hasBridgeArrivalTimeMsDeprecated() { return (0x2 & __hazzerBits) != 0; }
+
+    public boolean getIsTrickleRestart() { return isTrickleRestart; }
+    public boolean hasIsTrickleRestart() { return (0x4 & __hazzerBits) != 0; }
 
     public Builder toBuilder() {
       Builder builder = new Builder(objectId, isKnownVersion, version);
@@ -613,9 +613,9 @@ public interface ClientProtocol {
           && equals(objectId, other.objectId)
           && isKnownVersion == other.isKnownVersion
           && version == other.version
-          && (!hasIsTrickleRestart() || isTrickleRestart == other.isTrickleRestart)
           && (!hasPayload() || equals(payload, other.payload))
-          && (!hasBridgeArrivalTimeMsDeprecated() || bridgeArrivalTimeMsDeprecated == other.bridgeArrivalTimeMsDeprecated);
+          && (!hasBridgeArrivalTimeMsDeprecated() || bridgeArrivalTimeMsDeprecated == other.bridgeArrivalTimeMsDeprecated)
+          && (!hasIsTrickleRestart() || isTrickleRestart == other.isTrickleRestart);
     }
 
     @Override protected int computeHashCode() {
@@ -623,14 +623,14 @@ public interface ClientProtocol {
       result = result * 31 + objectId.hashCode();
       result = result * 31 + hash(isKnownVersion);
       result = result * 31 + hash(version);
-      if (hasIsTrickleRestart()) {
-        result = result * 31 + hash(isTrickleRestart);
-      }
       if (hasPayload()) {
         result = result * 31 + payload.hashCode();
       }
       if (hasBridgeArrivalTimeMsDeprecated()) {
         result = result * 31 + hash(bridgeArrivalTimeMsDeprecated);
+      }
+      if (hasIsTrickleRestart()) {
+        result = result * 31 + hash(isTrickleRestart);
       }
       return result;
     }
@@ -640,14 +640,14 @@ public interface ClientProtocol {
       builder.append(" object_id=").append(objectId);
       builder.append(" is_known_version=").append(isKnownVersion);
       builder.append(" version=").append(version);
-      if (hasIsTrickleRestart()) {
-        builder.append(" is_trickle_restart=").append(isTrickleRestart);
-      }
       if (hasPayload()) {
         builder.append(" payload=").append(payload);
       }
       if (hasBridgeArrivalTimeMsDeprecated()) {
         builder.append(" bridge_arrival_time_ms_deprecated=").append(bridgeArrivalTimeMsDeprecated);
+      }
+      if (hasIsTrickleRestart()) {
+        builder.append(" is_trickle_restart=").append(isTrickleRestart);
       }
       builder.append('>');
     }
@@ -681,9 +681,9 @@ public interface ClientProtocol {
       msg.objectId = objectId.toMessageNano();
       msg.isKnownVersion = isKnownVersion;
       msg.version = version;
-      msg.isTrickleRestart = hasIsTrickleRestart() ? isTrickleRestart : null;
       msg.payload = hasPayload() ? payload.getByteArray() : null;
       msg.bridgeArrivalTimeMsDeprecated = hasBridgeArrivalTimeMsDeprecated() ? bridgeArrivalTimeMsDeprecated : null;
+      msg.isTrickleRestart = hasIsTrickleRestart() ? isTrickleRestart : null;
       return msg;
     }
   }

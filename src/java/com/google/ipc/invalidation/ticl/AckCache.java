@@ -71,33 +71,26 @@ class AckCache {
     if (version > getHighestAckedVersion(objectId)) {
       highestAckedVersionMap.put(objectId, version);
     }
-  };
+  }
 
   /**
    * Returns true if the client has already acked a restarted invalidation with
    * a version number greater than or equal to that in {@code inv} and the same
    * object id, and {@code inv} is a known version invalidation. Unknown version
    * invalidations are never considered already acked.
-   *
-   * @param {!invalidation.proto.InvalidationP} inv
-   * @return {boolean}
    */
   boolean isAcked(InvalidationP inv) {
     return inv.getIsKnownVersion()
         && this.getHighestAckedVersion(inv.getObjectId()) >= inv.getVersion();
-  };
+  }
 
 
   /**
    * Returns the highest acked version for the object id with the given key, or
    * -1 if no versions have been acked.
-   *
-   * @param {string} objectIdKey The string key for an object id.
-   * @return {!goog.math.Long}
-   * @private
    */
   private long getHighestAckedVersion(ObjectIdP objectId) {
     Long version = TypedUtil.mapGet(highestAckedVersionMap, objectId);
     return (version != null) ? version : -1L;
-  };
+  }
 }

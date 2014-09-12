@@ -16,7 +16,6 @@
 
 package com.google.ipc.invalidation.ticl;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.external.client.SystemResources;
 import com.google.ipc.invalidation.external.client.SystemResources.Logger;
 import com.google.ipc.invalidation.external.client.SystemResources.NetworkChannel;
@@ -61,6 +60,7 @@ import com.google.ipc.invalidation.ticl.proto.JavaClient.ProtocolHandlerState;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.InternalBase;
 import com.google.ipc.invalidation.util.Marshallable;
+import com.google.ipc.invalidation.util.Preconditions;
 import com.google.ipc.invalidation.util.ProtoWrapper;
 import com.google.ipc.invalidation.util.ProtoWrapper.ValidationException;
 import com.google.ipc.invalidation.util.Smearer;

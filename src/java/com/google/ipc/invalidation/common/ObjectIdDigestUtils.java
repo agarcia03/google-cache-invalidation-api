@@ -16,8 +16,8 @@
 
 package com.google.ipc.invalidation.common;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.util.Bytes;
+import com.google.ipc.invalidation.util.Preconditions;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -28,13 +28,12 @@ import java.security.NoSuchAlgorithmException;
  * Digest-related utilities for object ids.
  *
  */
-
 public class ObjectIdDigestUtils {
   /**
    * Implementation of {@link DigestFunction} using SHA-1.
    */
-  
-  public static class Sha1DigestFunction implements DigestFunction {
+  public static class Sha1DigestFunction
+      implements DigestFunction {
     /** Digest implementation. */
     private MessageDigest sha1;
 
@@ -78,7 +77,6 @@ public class ObjectIdDigestUtils {
    * <p>
    * REQUIRES: {@code objectIdDigests} iterate in sorted order.
    */
-  
   public static Bytes getDigest(Iterable<Bytes> objectIdDigests, DigestFunction digestFn) {
     digestFn.reset();
     for (Bytes objectIdDigest : objectIdDigests) {
@@ -91,7 +89,6 @@ public class ObjectIdDigestUtils {
    * Returns the digest for the object id with source {@code objectSource} and name
    * {@code objectName} using {@code digestFn}.
    */
-  
   public static Bytes getDigest(int objectSource, byte[] objectName, DigestFunction digestFn) {
     digestFn.reset();
     ByteBuffer buffer = ByteBuffer.allocate(Integer.SIZE / 8).order(ByteOrder.LITTLE_ENDIAN);

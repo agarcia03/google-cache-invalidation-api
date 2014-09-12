@@ -18,7 +18,6 @@ package com.google.ipc.invalidation.ticl;
 
 import static com.google.ipc.invalidation.external.client.SystemResources.Scheduler.NO_DELAY;
 
-import com.google.common.base.Preconditions;
 import com.google.ipc.invalidation.common.DigestFunction;
 import com.google.ipc.invalidation.common.ObjectIdDigestUtils;
 import com.google.ipc.invalidation.external.client.InvalidationListener;
@@ -69,6 +68,7 @@ import com.google.ipc.invalidation.util.Box;
 import com.google.ipc.invalidation.util.Bytes;
 import com.google.ipc.invalidation.util.InternalBase;
 import com.google.ipc.invalidation.util.Marshallable;
+import com.google.ipc.invalidation.util.Preconditions;
 import com.google.ipc.invalidation.util.ProtoWrapper.ValidationException;
 import com.google.ipc.invalidation.util.Smearer;
 import com.google.ipc.invalidation.util.TextBuilder;
@@ -289,7 +289,6 @@ public abstract class InvalidationClientCore extends InternalBase
   }
 
   /** The task that is scheduled to send batched messages to the server (when needed). **/
-  
   static class BatchingTask extends RecurringTask {
     /*
      * This class is static and extends RecurringTask directly so that it can be instantiated
@@ -348,7 +347,6 @@ public abstract class InvalidationClientCore extends InternalBase
   //
 
   /** The single key used to write all the Ticl state. */
-  
   public static final String CLIENT_TOKEN_KEY = "ClientToken";
 
   /** Resources for the Ticl. */
@@ -430,6 +428,9 @@ public abstract class InvalidationClientCore extends InternalBase
 
   /** Task to do the first heartbeat after a persistent restart. */
   private InitialPersistentHeartbeatTask initialPersistentHeartbeatTask;
+
+  /** A cache of already acked invalidations to avoid duplicate delivery. */
+  private final AckCache ackCache = new AckCache();
 
   /**
    * Constructs a client.
@@ -1014,6 +1015,10 @@ public abstract class InvalidationClientCore extends InternalBase
     }
     statistics.recordIncomingOperation(IncomingOperationType.ACKNOWLEDGE);
     protocolHandler.sendInvalidationAck(invalidation, batchingTask);
+
+    // Record that the invalidation has been acknowledged to potentially avoid unnecessary delivery
+    // of earlier invalidations for the same object.
+    ackCache.recordAck(invalidation);
   }
 
   //
@@ -1164,8 +1169,10 @@ public abstract class InvalidationClientCore extends InternalBase
   /** Handles a server {@code header}. */
   private void handleIncomingHeader(ServerMessageHeader header) {
     Preconditions.checkState(internalScheduler.isRunningOnThread(), "Not on internal thread");
-    Preconditions.checkState(nonce == null,
-        "Cannot process server header with non-null nonce (have %s): %s", nonce, header);
+    if (nonce != null) {
+      throw new IllegalStateException(
+          "Cannot process server header with non-null nonce (have " + nonce + "): " + header);
+    }
     if (header.registrationSummary != null) {
       // We've received a summary from the server, so if we were suppressing registrations, we
       // should now allow them to go to the registrar.
@@ -1176,7 +1183,7 @@ public abstract class InvalidationClientCore extends InternalBase
       // operations have succeeded.
       Set<RegistrationP> upcalls =
           registrationManager.informServerRegistrationSummary(header.registrationSummary);
-      logger.fine("Receivced new server registration summary (%s); will make %s upcalls",
+      logger.fine("Received new server registration summary (%s); will make %s upcalls",
           header.registrationSummary, upcalls.size());
       for (RegistrationP registration : upcalls) {
         ObjectId objectId =
@@ -1193,7 +1200,14 @@ public abstract class InvalidationClientCore extends InternalBase
 
     for (InvalidationP invalidation : invalidations) {
       AckHandle ackHandle = AckHandle.newInstance(AckHandleP.create(invalidation).toByteArray());
-      if (CommonProtos.isAllObjectId(invalidation.getObjectId())) {
+      if (ackCache.isAcked(invalidation)) {
+        // If the ack cache indicates that the client has already acked a restarted invalidation
+        // with an equal or greater version, then the TICL can simply acknowledge it immediately
+        // rather than delivering it to the listener.
+        logger.info("Stale invalidation {0}, not delivering", invalidation);
+        acknowledge(ackHandle);
+        statistics.recordReceivedMessage(ReceivedMessageType.STALE_INVALIDATION);
+      } else if (CommonProtos.isAllObjectId(invalidation.getObjectId())) {
         logger.info("Issuing invalidate all");
         listener.invalidateAll(InvalidationClientCore.this, ackHandle);
       } else {
@@ -1419,8 +1433,9 @@ public abstract class InvalidationClientCore extends InternalBase
    * client token, unless the nonce is being cleared.
    */
   private void setNonce(Bytes newNonce) {
-    Preconditions.checkState((newNonce == null) || (clientToken == null),
-        "Tried to set nonce with existing token %s", clientToken);
+    if ((newNonce != null) && (clientToken != null)) {
+      throw new IllegalStateException("Tried to set nonce with existing token " + clientToken);
+    }
     this.nonce = newNonce;
   }
 
@@ -1428,7 +1443,7 @@ public abstract class InvalidationClientCore extends InternalBase
    * Returns a randomly generated nonce. Visible for testing only.
    */
   
-  public static Bytes generateNonce(Random random) {
+  static Bytes generateNonce(Random random) {
     // Generate 8 random bytes.
     byte[] randomBytes = new byte[8];
     random.nextBytes(randomBytes);
@@ -1443,8 +1458,9 @@ public abstract class InvalidationClientCore extends InternalBase
    * nonce, unless the token is being cleared.
    */
   private void setClientToken(Bytes newClientToken) {
-    Preconditions.checkState((newClientToken == null) || (nonce == null),
-        "Tried to set token with existing nonce %s", nonce);
+    if ((newClientToken != null) && (nonce != null)) {
+      throw new IllegalStateException("Tried to set token with existing nonce " + nonce);
+    }
 
     // If the ticl is in the process of being started and we are getting a new token (either from
     // persistence or from the server, start the ticl and inform the application.
