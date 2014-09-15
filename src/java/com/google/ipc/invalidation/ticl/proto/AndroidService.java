@@ -291,6 +291,11 @@ public interface AndroidService {
         return msg;
       }
     }
+    public static ClientDowncall createWithSerial(long serial,
+        com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version) {
+      return new ClientDowncall(serial, version, null, null, null, null);
+    }
+
     public static ClientDowncall createWithStart(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
         com.google.ipc.invalidation.ticl.proto.AndroidService.ClientDowncall.StartDowncall start) {
       return new ClientDowncall(null, version, start, null, null, null);
@@ -301,19 +306,14 @@ public interface AndroidService {
       return new ClientDowncall(null, version, null, stop, null, null);
     }
 
-    public static ClientDowncall createWithRegistrations(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
-        com.google.ipc.invalidation.ticl.proto.AndroidService.ClientDowncall.RegistrationDowncall registrations) {
-      return new ClientDowncall(null, version, null, null, null, registrations);
-    }
-
     public static ClientDowncall createWithAck(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
         com.google.ipc.invalidation.ticl.proto.AndroidService.ClientDowncall.AckDowncall ack) {
       return new ClientDowncall(null, version, null, null, ack, null);
     }
 
-    public static ClientDowncall createWithSerial(long serial,
-        com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version) {
-      return new ClientDowncall(serial, version, null, null, null, null);
+    public static ClientDowncall createWithRegistrations(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
+        com.google.ipc.invalidation.ticl.proto.AndroidService.ClientDowncall.RegistrationDowncall registrations) {
+      return new ClientDowncall(null, version, null, null, null, registrations);
     }
 
     private final long __hazzerBits;
@@ -355,14 +355,20 @@ public interface AndroidService {
       this.registrations = registrations;
       this.__hazzerBits = hazzerBits;
       String existingOneOfField = null;
+      if (hasStop()) {
+        existingOneOfField = "stop";
+      }
       if (hasStart()) {
+        if (existingOneOfField != null) {
+          oneOfViolation(existingOneOfField, "start");
+        }
         existingOneOfField = "start";
       }
-      if (hasStop()) {
+      if (hasSerial()) {
         if (existingOneOfField != null) {
-          oneOfViolation(existingOneOfField, "stop");
+          oneOfViolation(existingOneOfField, "serial");
         }
-        existingOneOfField = "stop";
+        existingOneOfField = "serial";
       }
       if (this.registrations != null) {
         if (existingOneOfField != null) {
@@ -375,12 +381,6 @@ public interface AndroidService {
           oneOfViolation(existingOneOfField, "ack");
         }
         existingOneOfField = "ack";
-      }
-      if (hasSerial()) {
-        if (existingOneOfField != null) {
-          oneOfViolation(existingOneOfField, "serial");
-        }
-        existingOneOfField = "serial";
       }
       if (existingOneOfField == null) { oneOfViolation(); }
     }
@@ -707,14 +707,14 @@ public interface AndroidService {
       return new InternalDowncall(version, serverMessage, null, null, null);
     }
 
-    public static InternalDowncall createWithNetworkAddrChange(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
-        boolean networkAddrChange) {
-      return new InternalDowncall(version, null, null, networkAddrChange, null);
-    }
-
     public static InternalDowncall createWithNetworkStatus(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
         com.google.ipc.invalidation.ticl.proto.AndroidService.InternalDowncall.NetworkStatus networkStatus) {
       return new InternalDowncall(version, null, networkStatus, null, null);
+    }
+
+    public static InternalDowncall createWithNetworkAddrChange(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
+        boolean networkAddrChange) {
+      return new InternalDowncall(version, null, null, networkAddrChange, null);
     }
 
     public static InternalDowncall createWithCreateClient(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
@@ -748,13 +748,7 @@ public interface AndroidService {
       this.createClient = createClient;
       this.__hazzerBits = hazzerBits;
       String existingOneOfField = null;
-      if (this.serverMessage != null) {
-        existingOneOfField = "server_message";
-      }
       if (hasNetworkAddrChange()) {
-        if (existingOneOfField != null) {
-          oneOfViolation(existingOneOfField, "network_addr_change");
-        }
         existingOneOfField = "network_addr_change";
       }
       if (this.networkStatus != null) {
@@ -768,6 +762,12 @@ public interface AndroidService {
           oneOfViolation(existingOneOfField, "create_client");
         }
         existingOneOfField = "create_client";
+      }
+      if (this.serverMessage != null) {
+        if (existingOneOfField != null) {
+          oneOfViolation(existingOneOfField, "server_message");
+        }
+        existingOneOfField = "server_message";
       }
       if (existingOneOfField == null) { oneOfViolation(); }
     }
@@ -925,14 +925,14 @@ public interface AndroidService {
         return new InvalidateUpcall(ackHandle, invalidation, null, null);
       }
 
-      public static InvalidateUpcall createWithInvalidateAll(Bytes ackHandle,
-          boolean invalidateAll) {
-        return new InvalidateUpcall(ackHandle, null, null, invalidateAll);
-      }
-
       public static InvalidateUpcall createWithInvalidateUnknown(Bytes ackHandle,
           com.google.ipc.invalidation.ticl.proto.ClientProtocol.ObjectIdP invalidateUnknown) {
         return new InvalidateUpcall(ackHandle, null, invalidateUnknown, null);
+      }
+
+      public static InvalidateUpcall createWithInvalidateAll(Bytes ackHandle,
+          boolean invalidateAll) {
+        return new InvalidateUpcall(ackHandle, null, null, invalidateAll);
       }
 
       private final long __hazzerBits;
@@ -958,7 +958,13 @@ public interface AndroidService {
         }
         this.__hazzerBits = hazzerBits;
         String existingOneOfField = null;
+        if (this.invalidateUnknown != null) {
+          existingOneOfField = "invalidate_unknown";
+        }
         if (this.invalidation != null) {
+          if (existingOneOfField != null) {
+            oneOfViolation(existingOneOfField, "invalidation");
+          }
           existingOneOfField = "invalidation";
         }
         if (hasInvalidateAll()) {
@@ -966,12 +972,6 @@ public interface AndroidService {
             oneOfViolation(existingOneOfField, "invalidate_all");
           }
           existingOneOfField = "invalidate_all";
-        }
-        if (this.invalidateUnknown != null) {
-          if (existingOneOfField != null) {
-            oneOfViolation(existingOneOfField, "invalidate_unknown");
-          }
-          existingOneOfField = "invalidate_unknown";
         }
         if (existingOneOfField == null) { oneOfViolation(); }
       }
@@ -1361,9 +1361,9 @@ public interface AndroidService {
         return msg;
       }
     }
-    public static ListenerUpcall createWithRegistrationStatus(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
-        com.google.ipc.invalidation.ticl.proto.AndroidService.ListenerUpcall.RegistrationStatusUpcall registrationStatus) {
-      return new ListenerUpcall(null, version, null, null, registrationStatus, null, null, null);
+    public static ListenerUpcall createWithSerial(long serial,
+        com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version) {
+      return new ListenerUpcall(serial, version, null, null, null, null, null, null);
     }
 
     public static ListenerUpcall createWithReady(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
@@ -1376,6 +1376,16 @@ public interface AndroidService {
       return new ListenerUpcall(null, version, null, invalidate, null, null, null, null);
     }
 
+    public static ListenerUpcall createWithRegistrationStatus(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
+        com.google.ipc.invalidation.ticl.proto.AndroidService.ListenerUpcall.RegistrationStatusUpcall registrationStatus) {
+      return new ListenerUpcall(null, version, null, null, registrationStatus, null, null, null);
+    }
+
+    public static ListenerUpcall createWithRegistrationFailure(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
+        com.google.ipc.invalidation.ticl.proto.AndroidService.ListenerUpcall.RegistrationFailureUpcall registrationFailure) {
+      return new ListenerUpcall(null, version, null, null, null, registrationFailure, null, null);
+    }
+
     public static ListenerUpcall createWithReissueRegistrations(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
         com.google.ipc.invalidation.ticl.proto.AndroidService.ListenerUpcall.ReissueRegistrationsUpcall reissueRegistrations) {
       return new ListenerUpcall(null, version, null, null, null, null, reissueRegistrations, null);
@@ -1384,16 +1394,6 @@ public interface AndroidService {
     public static ListenerUpcall createWithError(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
         com.google.ipc.invalidation.ticl.proto.AndroidService.ListenerUpcall.ErrorUpcall error) {
       return new ListenerUpcall(null, version, null, null, null, null, null, error);
-    }
-
-    public static ListenerUpcall createWithRegistrationFailure(com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version,
-        com.google.ipc.invalidation.ticl.proto.AndroidService.ListenerUpcall.RegistrationFailureUpcall registrationFailure) {
-      return new ListenerUpcall(null, version, null, null, null, registrationFailure, null, null);
-    }
-
-    public static ListenerUpcall createWithSerial(long serial,
-        com.google.ipc.invalidation.ticl.proto.ClientProtocol.Version version) {
-      return new ListenerUpcall(serial, version, null, null, null, null, null, null);
     }
 
     private final long __hazzerBits;
@@ -1436,8 +1436,20 @@ public interface AndroidService {
       this.error = error;
       this.__hazzerBits = hazzerBits;
       String existingOneOfField = null;
-      if (this.registrationStatus != null) {
-        existingOneOfField = "registration_status";
+      if (this.reissueRegistrations != null) {
+        existingOneOfField = "reissue_registrations";
+      }
+      if (hasSerial()) {
+        if (existingOneOfField != null) {
+          oneOfViolation(existingOneOfField, "serial");
+        }
+        existingOneOfField = "serial";
+      }
+      if (this.registrationFailure != null) {
+        if (existingOneOfField != null) {
+          oneOfViolation(existingOneOfField, "registration_failure");
+        }
+        existingOneOfField = "registration_failure";
       }
       if (hasReady()) {
         if (existingOneOfField != null) {
@@ -1451,29 +1463,17 @@ public interface AndroidService {
         }
         existingOneOfField = "invalidate";
       }
-      if (this.reissueRegistrations != null) {
+      if (this.registrationStatus != null) {
         if (existingOneOfField != null) {
-          oneOfViolation(existingOneOfField, "reissue_registrations");
+          oneOfViolation(existingOneOfField, "registration_status");
         }
-        existingOneOfField = "reissue_registrations";
+        existingOneOfField = "registration_status";
       }
       if (this.error != null) {
         if (existingOneOfField != null) {
           oneOfViolation(existingOneOfField, "error");
         }
         existingOneOfField = "error";
-      }
-      if (this.registrationFailure != null) {
-        if (existingOneOfField != null) {
-          oneOfViolation(existingOneOfField, "registration_failure");
-        }
-        existingOneOfField = "registration_failure";
-      }
-      if (hasSerial()) {
-        if (existingOneOfField != null) {
-          oneOfViolation(existingOneOfField, "serial");
-        }
-        existingOneOfField = "serial";
       }
       if (existingOneOfField == null) { oneOfViolation(); }
     }
